@@ -125,6 +125,35 @@
       <p>Cargando contratos...</p>
     </div>
 
+    <!-- Modal Seleccionar Trabajador -->
+    <div v-if="showPickTrabajador" class="modal-overlay" @click.self="showPickTrabajador = false">
+      <div class="modal-box" style="max-width:460px">
+        <div class="modal-header">
+          <h2 class="modal-title">¿Para qué trabajador?</h2>
+          <button class="modal-close" @click="showPickTrabajador = false">×</button>
+        </div>
+        <div class="modal-body" style="padding:16px 24px">
+          <p style="font-size:13px;color:var(--text-secondary,#94a3b8);margin-bottom:12px">
+            Selecciona el trabajador para crear el contrato en su ficha:
+          </p>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
+            <button
+              v-for="t in rrhhStore.trabajadoresActivos"
+              :key="t._id"
+              class="pick-trab-btn"
+              @click="irNuevoContratoTrabajador(t._id)"
+            >
+              <div class="pick-avatar">{{ (t.nombre||'')[0] }}{{ (t.apellido||'')[0] }}</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">{{ t.nombre }} {{ t.apellido }}</div>
+                <div style="font-size:11px;color:var(--text-secondary,#94a3b8)">{{ t.cargo }}</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Nuevo Contrato -->
     <div v-if="showNewModal" class="modal-overlay" @click.self="showNewModal = false">
       <div class="modal-box modal-lg">
@@ -471,10 +500,22 @@ function isProximoVencer(c) {
   return dias !== null && dias <= 30
 }
 
+// Trabajador seleccionado para nuevo contrato (selector rápido)
+const trabajadorSeleccionadoId = ref('')
+const showPickTrabajador = ref(false)
+
 function openNewContrato() {
-  form.value = defaultForm()
-  modalEditMode.value = false
-  showNewModal.value = true
+  // Si ya hay un trabajador en el filtro de búsqueda, usar ese
+  if (trabajadorSeleccionadoId.value) {
+    router.push(`/rrhh/trabajadores/${trabajadorSeleccionadoId.value}?nuevoContrato=1`)
+  } else {
+    showPickTrabajador.value = true
+  }
+}
+
+function irNuevoContratoTrabajador(id) {
+  showPickTrabajador.value = false
+  router.push(`/rrhh/trabajadores/${id}?nuevoContrato=1`)
 }
 
 function openDetail(c) {
@@ -483,10 +524,8 @@ function openDetail(c) {
 }
 
 function editContrato(c) {
-  form.value = { ...c }
-  modalEditMode.value = true
-  showDetailModal.value = false
-  showNewModal.value = true
+  // Navegar a ficha del trabajador con el contrato a editar
+  router.push(`/rrhh/trabajadores/${c.trabajador_id}?editContrato=${c._id}`)
 }
 
 async function saveContrato(estado) {
@@ -763,5 +802,35 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .contratos-grid { grid-template-columns: 1fr; }
   .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+}
+
+.pick-trab-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-secondary, #1e2d3a);
+  border: 1.5px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+}
+.pick-trab-btn:hover {
+  border-color: var(--primary, #3ac7a5);
+  background: rgba(58,199,165,0.06);
+}
+.pick-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--primary, #3ac7a5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 </style>

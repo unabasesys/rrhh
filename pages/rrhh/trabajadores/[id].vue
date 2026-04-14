@@ -179,14 +179,37 @@
                   <option>FONASA</option><option>Isapre</option>
                 </select>
               </div>
-              <div class="info-row" v-if="fichaEdits.sistema_salud === 'Isapre'">
-                <span class="info-label">Valor Plan (UF)</span>
-                <div class="money-input-wrap" style="flex:1">
-                  <span class="money-prefix">UF</span>
-                  <input class="info-input money-input" v-model.number="fichaEdits.isapre_uf"
-                    type="number" step="0.01" min="0" placeholder="2.50" style="padding-left:42px" />
+              <template v-if="fichaEdits.sistema_salud === 'Isapre'">
+                <div class="info-row">
+                  <span class="info-label">Isapre</span>
+                  <select class="info-input" v-model="fichaEdits.isapre_nombre">
+                    <option value="">— Seleccionar —</option>
+                    <option>Banmédica</option>
+                    <option>Colmena Golden Cross</option>
+                    <option>Cruz Blanca</option>
+                    <option>Cruz del Norte</option>
+                    <option>Esencial</option>
+                    <option>MasVida</option>
+                    <option>Nueva Masvida</option>
+                    <option>Vida Tres</option>
+                  </select>
                 </div>
-              </div>
+                <div class="info-row">
+                  <span class="info-label">Valor Plan (UF)</span>
+                  <div class="money-input-wrap" style="flex:1;max-width:120px">
+                    <span class="money-prefix">UF</span>
+                    <input class="info-input money-input" v-model.number="fichaEdits.isapre_uf"
+                      type="number" step="0.01" min="0" placeholder="2.50" style="padding-left:42px;max-width:80px" />
+                  </div>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Descuento Salud</span>
+                  <span class="info-value muted">
+                    7% s/imponible
+                    <span v-if="sueldoTotalActivos"> ≈ {{ formatCLP(Math.round(sueldoTotalActivos * 0.07)) }}</span>
+                  </span>
+                </div>
+              </template>
               <div class="info-row">
                 <span class="info-label">Seguro Cesantía</span>
                 <span class="info-value muted">{{ contratoVigente?.tipo_contrato === 'plazo_fijo' ? '0.6% + 3.0%' : '0.6% + 2.4%' }}</span>
@@ -510,18 +533,56 @@
             </div>
           </div>
 
-          <!-- PROYECTO / OBRA (siempre visible) -->
+          <!-- ASOCIACIÓN PRESUPUESTAL (movida arriba) -->
           <div class="form-section">
-            <h4 class="section-label">PROYECTO / OBRA</h4>
-            <div class="form-group">
-              <label>Nombre del Proyecto / Obra</label>
-              <input v-model="contratoForm.nombre_proyecto" type="text" class="form-input"
-                placeholder="Ej: Serie Documental Patagonia 2026" />
+            <h4 class="section-label">PROYECTO / NEGOCIO</h4>
+            <div class="form-grid-2">
+              <div class="form-group" style="position:relative">
+                <label>Buscar Negocio / Proyecto</label>
+                <input
+                  v-model="negocioBusqueda"
+                  type="text"
+                  class="form-input"
+                  placeholder="Buscar por nombre o código..."
+                  @focus="showNegocioDropdown = true"
+                  @blur="setTimeout(() => showNegocioDropdown = false, 200)"
+                />
+                <div v-if="showNegocioDropdown && negociosFiltrados.length" class="negocio-dropdown">
+                  <div v-for="neg in negociosFiltrados" :key="neg._id"
+                    class="negocio-option" @mousedown.prevent="seleccionarNegocio(neg)">
+                    <span class="negocio-nombre">{{ neg.nombre }}</span>
+                    <span class="negocio-codigo">{{ neg.codigo }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Línea Presupuestal</label>
+                <select v-model="contratoForm.linea_codigo" class="form-input"
+                  :disabled="!lineasNegocio.length"
+                  @change="e => { const item = lineasNegocio.find(i => i.codigo === e.target.value); if(item) contratoForm.linea_nombre = item.nombre }">
+                  <option value="">{{ lineasNegocio.length ? '— Seleccionar línea —' : '← Selecciona un negocio primero' }}</option>
+                  <optgroup v-for="cat in [...new Set(lineasNegocio.map(i => i.categoria))]" :key="cat" :label="cat">
+                    <option v-for="item in lineasNegocio.filter(i => i.categoria === cat)"
+                      :key="item.codigo" :value="item.codigo">
+                      {{ item.codigo }} — {{ item.nombre }}
+                    </option>
+                  </optgroup>
+                </select>
+              </div>
             </div>
-            <div class="form-group" style="margin-top:10px">
+            <div v-if="contratoForm.linea_codigo" class="presupuesto-selected">
+              <span class="chip teal">{{ contratoForm.negocio_nombre }}</span>
+              <span class="chip">{{ contratoForm.linea_codigo }} — {{ contratoForm.linea_nombre }}</span>
+            </div>
+          </div>
+
+          <!-- FUNCIONES / ROL -->
+          <div class="form-section">
+            <h4 class="section-label">FUNCIONES / ROL</h4>
+            <div class="form-group">
               <label>Funciones / Descripción del Rol</label>
               <textarea v-model="contratoForm.descripcion_rol" class="form-input form-textarea"
-                placeholder="Describir el servicio o función a prestar en la obra audiovisual..." rows="3" />
+                placeholder="Describir el servicio o función a prestar en la obra audiovisual..." rows="4" />
             </div>
           </div>
 
@@ -550,10 +611,11 @@
                 <input v-model="contratoForm.lugar_trabajo" type="text" class="form-input"
                   placeholder="Ciudad o dirección" />
               </div>
-              <div class="form-group">
+              <div class="form-group" style="grid-column: 1 / -1">
                 <label>Dirección donde se realizará el trabajo</label>
-                <input v-model="contratoForm.direccion_trabajo" type="text" class="form-input"
-                  placeholder="Ej: Av. Providencia 1234, Of. 501, Santiago" />
+                <textarea v-model="contratoForm.direccion_trabajo" class="form-input"
+                  placeholder="Ej: Av. Providencia 1234, Of. 501, Santiago" rows="2"
+                  style="resize:vertical; min-height:58px" />
               </div>
             </div>
             <div v-if="contratoForm.jornada_semanal === 'custom'" class="form-group" style="margin-top:8px; max-width:180px">
@@ -630,49 +692,6 @@
               Sin turnos registrados. Puedes crearlos en
               <a href="/rrhh/asistencia/turnos" target="_blank" rel="noopener">Asistencia → Turnos ↗</a>
             </p>
-          </div>
-
-          <!-- ASOCIACIÓN PRESUPUESTAL -->
-          <div class="form-section">
-            <h4 class="section-label">ASOCIACIÓN PRESUPUESTAL (UNABASE)</h4>
-            <div class="form-grid-2">
-              <div class="form-group" style="position:relative">
-                <label>Buscar Negocio / Proyecto</label>
-                <input
-                  v-model="negocioBusqueda"
-                  type="text"
-                  class="form-input"
-                  placeholder="Buscar por nombre o código..."
-                  @focus="showNegocioDropdown = true"
-                  @blur="setTimeout(() => showNegocioDropdown = false, 200)"
-                />
-                <div v-if="showNegocioDropdown && negociosFiltrados.length" class="negocio-dropdown">
-                  <div v-for="neg in negociosFiltrados" :key="neg._id"
-                    class="negocio-option" @mousedown.prevent="seleccionarNegocio(neg)">
-                    <span class="negocio-nombre">{{ neg.nombre }}</span>
-                    <span class="negocio-codigo">{{ neg.codigo }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>Línea Presupuestal</label>
-                <select v-model="contratoForm.linea_codigo" class="form-input"
-                  :disabled="!lineasNegocio.length"
-                  @change="e => { const item = lineasNegocio.find(i => i.codigo === e.target.value); if(item) contratoForm.linea_nombre = item.nombre }">
-                  <option value="">{{ lineasNegocio.length ? '— Seleccionar línea —' : '← Selecciona un negocio primero' }}</option>
-                  <optgroup v-for="cat in [...new Set(lineasNegocio.map(i => i.categoria))]" :key="cat" :label="cat">
-                    <option v-for="item in lineasNegocio.filter(i => i.categoria === cat)"
-                      :key="item.codigo" :value="item.codigo">
-                      {{ item.codigo }} — {{ item.nombre }}
-                    </option>
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-            <div v-if="contratoForm.linea_codigo" class="presupuesto-selected">
-              <span class="chip teal">{{ contratoForm.negocio_nombre }}</span>
-              <span class="chip">{{ contratoForm.linea_codigo }} — {{ contratoForm.linea_nombre }}</span>
-            </div>
           </div>
 
           <!-- CLÁUSULAS ADICIONALES -->
@@ -916,6 +935,32 @@
         </div>
         <div class="modal-body">
 
+          <!-- Seleccionar Contrato -->
+          <div class="form-section" v-if="contratosTrabajador.length > 1 || contratosTrabajador.some(c => c.tipo_contrato === 'proyecto')">
+            <h4 class="section-title">0. Contrato a Liquidar</h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div
+                v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador')"
+                :key="c._id"
+                class="liq-contrato-option"
+                :class="{ active: liqForm.contrato_id === c._id }"
+                @click="seleccionarContratoLiq(c)"
+              >
+                <div class="liq-contrato-left">
+                  <span class="tipo-pill" :class="`tipo-${c.tipo_contrato}`">{{ labelContrato(c.tipo_contrato) }}</span>
+                  <div>
+                    <div style="font-weight:600;font-size:13px">{{ c.nombre_proyecto || c.negocio_nombre || c.cargo || '—' }}</div>
+                    <div style="font-size:11px;color:#94a3b8">
+                      {{ formatCLP(c.sueldo_base) }}
+                      · Desde {{ c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-CL') : '—' }}
+                    </div>
+                  </div>
+                </div>
+                <i v-if="liqForm.contrato_id === c._id" class="u u-check" style="color:#3ac7a5"></i>
+              </div>
+            </div>
+          </div>
+
           <!-- Período -->
           <div class="form-section">
             <h4 class="section-title">1. Período y Días</h4>
@@ -935,23 +980,30 @@
                 <input v-model.number="liqForm.dias_trabajados" type="number" class="form-input" min="1" max="30" />
               </div>
               <div class="form-group">
-                <label>Horas Extra</label>
+                <label>
+                  Horas Extra
+                  <span v-if="horasExtraDelMes > 0" class="hint-badge teal" style="font-size:10px;margin-left:4px;cursor:pointer" @click="liqForm.horas_extra = horasExtraDelMes" title="Click para usar horas de marcas">
+                    ↙ {{ horasExtraDelMes }}h desde marcas
+                  </span>
+                </label>
                 <input v-model.number="liqForm.horas_extra" type="number" class="form-input" min="0" />
               </div>
             </div>
-            <!-- chip info trabajador + contrato vigente -->
+            <!-- chip info trabajador + contrato -->
             <div class="trabajador-info-box" v-if="trabajador">
               <div class="info-chips">
                 <span class="chip">{{ trabajador.afp }}</span>
                 <span class="chip">{{ trabajador.sistema_salud || 'FONASA' }}</span>
-                <template v-if="contratoVigente">
+                <template v-if="liqContratoActivo">
+                  <span class="chip teal">{{ labelContrato(liqContratoActivo.tipo_contrato) }}</span>
+                  <span class="chip teal">{{ formatCLP(liqContratoActivo.sueldo_base) }}</span>
+                  <span v-if="liqContratoActivo.negocio_nombre" class="chip" style="color:#60a5fa">{{ liqContratoActivo.negocio_nombre }}</span>
+                </template>
+                <template v-else-if="contratoVigente">
                   <span class="chip teal">{{ labelContrato(contratoVigente.tipo_contrato) }}</span>
-                  <span class="chip teal">{{ formatCLP(contratoVigente.sueldo_base || trabajador.sueldo_base) }}</span>
-                  <span v-if="contratoVigente.negocio_nombre" class="chip" style="color:#60a5fa">{{ contratoVigente.negocio_nombre }}</span>
+                  <span class="chip teal">{{ formatCLP(contratoVigente.sueldo_base) }}</span>
                 </template>
                 <template v-else>
-                  <span class="chip">{{ labelContrato(trabajador.tipo_contrato) }}</span>
-                  <span class="chip teal">{{ formatCLP(trabajador.sueldo_base) }}</span>
                   <span class="chip" style="color:#f59e0b">⚠ Sin contrato vigente</span>
                 </template>
               </div>
@@ -1429,7 +1481,35 @@ const liqForm = ref({
   bonos: [],
   descuentos: [],
   notas: '',
+  contrato_id: null,  // contrato seleccionado para esta liquidación
 })
+
+// Contrato activo seleccionado para la liquidación
+const liqContratoActivo = computed(() => {
+  if (!liqForm.value.contrato_id) return contratoVigente.value
+  return contratosTrabajador.value.find(c => c._id === liqForm.value.contrato_id) || contratoVigente.value
+})
+
+// Horas extra del mes actual según marcaciones
+const horasExtraDelMes = computed(() => {
+  if (!trabajador.value) return 0
+  const mes = liqForm.value.mes
+  const anio = liqForm.value.anio
+  const marcas = asistenciaStore.marcaciones?.filter(m => {
+    if (m.trabajador_id !== (trabajador.value._id || trabajador.value.id)) return false
+    const d = new Date(m.fecha || m.timestamp)
+    return d.getMonth() + 1 === mes && d.getFullYear() === anio
+  }) || []
+  return marcas.reduce((s, m) => s + (m.horas_extra || 0), 0)
+})
+
+function seleccionarContratoLiq(c) {
+  liqForm.value.contrato_id = c._id
+  // Auto-completar horas extra desde marcas si hay
+  if (horasExtraDelMes.value > 0) {
+    liqForm.value.horas_extra = horasExtraDelMes.value
+  }
+}
 
 const trabajador = computed(() => {
   const id = route.params.id
@@ -1458,10 +1538,23 @@ function syncFichaEdits() {
     afp:             trabajador.value.afp || '',
     sistema_salud:   trabajador.value.sistema_salud || 'FONASA',
     isapre_uf:       trabajador.value.isapre_uf || 0,
+    isapre_nombre:   trabajador.value.isapre_nombre || '',
   }
 }
 
 watch(trabajador, (val) => { if (val) syncFichaEdits() }, { immediate: true })
+
+// Movilización y colación en 0 para contratos por proyecto/honorarios
+watch(() => contratoForm.value.tipo_contrato, (tipo) => {
+  if (tipo === 'proyecto' || tipo === 'honorarios') {
+    contratoForm.value.movilizacion = 0
+    contratoForm.value.colacion = 0
+  } else if (tipo === 'indefinido' || tipo === 'plazo_fijo' || tipo === 'part_time') {
+    // Solo si vienen en 0, sugerir valores por defecto
+    if (!contratoForm.value.movilizacion) contratoForm.value.movilizacion = 50000
+    if (!contratoForm.value.colacion) contratoForm.value.colacion = 40000
+  }
+})
 
 const fichaModificada = computed(() => {
   if (!trabajador.value) return false
@@ -1667,14 +1760,17 @@ const checklistDocs = computed(() => {
 
 const liqCalc = computed(() => {
   if (!trabajador.value) return null
-  // Usar datos del contrato vigente si existe; si no, datos de la ficha del trabajador
-  const cv = contratoVigente.value
+  // Usar el contrato seleccionado para la liquidación (o el vigente por defecto)
+  const cv = liqContratoActivo.value || contratoVigente.value
   return rrhhStore.calcularLiquidacion({
-    sueldo_base:    cv?.sueldo_base || trabajador.value.sueldo_base,
+    sueldo_base:    cv?.sueldo_base || trabajador.value.sueldo_base || 0,
     afp:            trabajador.value.afp,
     sistema_salud:  trabajador.value.sistema_salud,
-    tipo_contrato:  cv?.tipo_contrato || trabajador.value.tipo_contrato || 'indefinido',
-    gratificacion:  trabajador.value.gratificacion,
+    isapre_uf:      trabajador.value.isapre_uf || 0,
+    tipo_contrato:  cv?.tipo_contrato || 'indefinido',
+    gratificacion:  cv?.gratificacion || trabajador.value.gratificacion || 'mensual',
+    movilizacion:   cv?.movilizacion || 0,
+    colacion:       cv?.colacion || 0,
     dias_trabajados: liqForm.value.dias_trabajados,
     horas_extra:    liqForm.value.horas_extra,
     bonos:          liqForm.value.bonos,
@@ -1786,6 +1882,8 @@ async function saveLiq(estado) {
   if (!trabajador.value || !liqCalc.value) return
   await rrhhStore.createLiquidacion({
     trabajador_id:       trabajador.value._id,
+    contrato_id:         liqForm.value.contrato_id || liqContratoActivo.value?._id || null,
+    negocio_nombre:      liqContratoActivo.value?.negocio_nombre || '',
     mes:                 liqForm.value.mes,
     anio:                liqForm.value.anio,
     dias_trabajados:     liqForm.value.dias_trabajados,
@@ -2356,6 +2454,17 @@ onMounted(async () => {
   // Cargar solicitudes de firma
   firmasStore.init()
   loading.value = false
+
+  // Abrir modal de contrato si viene desde el módulo de contratos
+  await nextTick()
+  if (route.query.nuevoContrato) {
+    openGenContrato()
+    router.replace({ query: {} })
+  } else if (route.query.editContrato) {
+    const c = rrhhStore.contratos.find(c => c._id === route.query.editContrato)
+    if (c) abrirContratoExistente(c)
+    router.replace({ query: {} })
+  }
 })
 
 onUnmounted(() => {
@@ -3413,6 +3522,31 @@ onUnmounted(() => {
   .liq-cols { grid-template-columns: 1fr; }
   .liq-form-grid { grid-template-columns: repeat(2, 1fr); }
   .ficha-header { flex-direction: column; }
+}
+
+/* ── Selector contrato en liquidación ───────────────────────────────────── */
+.liq-contrato-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 1.5px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  background: var(--bg-secondary, #1e2d3a);
+}
+.liq-contrato-option:hover { border-color: var(--primary, #3ac7a5); }
+.liq-contrato-option.active {
+  border-color: var(--primary, #3ac7a5);
+  background: rgba(58,199,165,0.07);
+}
+.liq-contrato-left { display: flex; align-items: center; gap: 12px; }
+.hint-badge {
+  background: rgba(58,199,165,0.15);
+  color: #3ac7a5;
+  border-radius: 6px;
+  padding: 1px 6px;
 }
 
 /* ── Botón eliminar (rojo) en contrato card ──────────────────────────────── */
