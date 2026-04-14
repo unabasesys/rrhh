@@ -935,11 +935,70 @@
         </div>
         <div class="modal-body">
 
-          <!-- ── 0. Seleccionar Contrato(s) ───────────────────────────────── -->
-          <div class="form-section" v-if="contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo').length > 0">
-            <h4 class="section-title">0. Contrato a Liquidar</h4>
+          <!-- ── 0. Período ──────────────────────────────────────────────── -->
+          <div class="form-section">
+            <h4 class="section-title">0. Período a Liquidar</h4>
+            <div class="liq-form-grid">
+              <div class="form-group">
+                <label>Mes</label>
+                <select v-model="liqForm.mes" class="form-input">
+                  <option v-for="m in meses" :key="m.v" :value="m.v">{{ m.l }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Año</label>
+                <input v-model.number="liqForm.anio" type="number" class="form-input" min="2020" max="2030" />
+              </div>
+              <!-- Días y horas sólo para contratos no-proyecto -->
+              <template v-if="!liqHayProyectos">
+                <div class="form-group">
+                  <label>Días Trabajados</label>
+                  <input v-model.number="liqForm.dias_trabajados" type="number" class="form-input" min="1" max="30" />
+                </div>
+                <div class="form-group">
+                  <label>
+                    Horas Extra
+                    <span v-if="horasExtraDelMes > 0" class="hint-badge teal" style="font-size:10px;margin-left:4px;cursor:pointer" @click="liqForm.horas_extra = horasExtraDelMes" title="Click para usar horas de marcas">
+                      ↙ {{ horasExtraDelMes }}h desde marcas
+                    </span>
+                  </label>
+                  <input v-model.number="liqForm.horas_extra" type="number" class="form-input" min="0" />
+                </div>
+              </template>
+            </div>
 
-            <!-- Modo multi-proyecto: checkboxes + días/horas por contrato -->
+            <!-- chip info trabajador -->
+            <div class="trabajador-info-box" v-if="trabajador">
+              <div class="info-chips">
+                <span class="chip">{{ trabajador.afp }}</span>
+                <span class="chip">{{ trabajador.sistema_salud || 'FONASA' }}</span>
+                <template v-if="liqHayProyectos && liqForm.contratos_sel.length > 0">
+                  <span class="chip teal">{{ liqForm.contratos_sel.length }} proyecto{{ liqForm.contratos_sel.length > 1 ? 's' : '' }}</span>
+                  <span v-for="s in liqForm.contratos_sel" :key="s.contrato_id" class="chip" style="color:#60a5fa">
+                    {{ contratosTrabajador.find(c=>c._id===s.contrato_id)?.negocio_nombre || contratosTrabajador.find(c=>c._id===s.contrato_id)?.nombre_proyecto || '—' }}
+                  </span>
+                </template>
+                <template v-else-if="liqContratoActivo">
+                  <span class="chip teal">{{ labelContrato(liqContratoActivo.tipo_contrato) }}</span>
+                  <span class="chip teal">{{ formatCLP(liqContratoActivo.sueldo_base) }}</span>
+                  <span v-if="liqContratoActivo.negocio_nombre" class="chip" style="color:#60a5fa">{{ liqContratoActivo.negocio_nombre }}</span>
+                </template>
+                <template v-else-if="contratoVigente">
+                  <span class="chip teal">{{ labelContrato(contratoVigente.tipo_contrato) }}</span>
+                  <span class="chip teal">{{ formatCLP(contratoVigente.sueldo_base) }}</span>
+                </template>
+                <template v-else>
+                  <span class="chip" style="color:#f59e0b">⚠ Sin contrato vigente</span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── 1. Proyectos del período ────────────────────────────────── -->
+          <div class="form-section" v-if="contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo').length > 0">
+            <h4 class="section-title">1. Proyectos del Período</h4>
+
+            <!-- Modo multi-proyecto: checkboxes + horas extra por contrato -->
             <div v-if="liqHayProyectos" style="display:flex;flex-direction:column;gap:10px">
               <div
                 v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')"
@@ -963,17 +1022,8 @@
                     </div>
                   </div>
                 </div>
-                <!-- Inputs de días y horas (sólo si está seleccionado) -->
+                <!-- Sólo horas extra por contrato (días siempre 30) -->
                 <div v-if="esContratoSeleccionado(c._id)" class="liq-contrato-inputs" @click.stop>
-                  <div class="liq-mini-input-group">
-                    <label>Días</label>
-                    <input
-                      type="number" min="0" max="31"
-                      :value="getContratoSel(c._id)?.dias_trabajados"
-                      @input="getContratoSel(c._id).dias_trabajados = +$event.target.value"
-                      class="form-input liq-mini-input"
-                    />
-                  </div>
                   <div class="liq-mini-input-group">
                     <label>
                       Hs. Extra
@@ -992,17 +1042,17 @@
                       class="form-input liq-mini-input"
                     />
                   </div>
-                  <!-- preview proporcional -->
+                  <!-- preview total del contrato -->
                   <div class="liq-contrato-preview">
-                    {{ formatCLP(Math.round((c.sueldo_base||0) / 30 * (getContratoSel(c._id)?.dias_trabajados||0))) }}
+                    {{ formatCLP(c.sueldo_base) }}
                     <span v-if="getContratoSel(c._id)?.horas_extra > 0" style="color:#a78bfa">
                       +{{ formatCLP(Math.round((c.sueldo_base||0)/30/8*1.5*(getContratoSel(c._id)?.horas_extra||0))) }} extra
                     </span>
                   </div>
                 </div>
               </div>
-              <div v-if="liqForm.contratos_sel.length === 0" style="font-size:12px;color:#f59e0b;padding:8px 0">
-                ⚠ Selecciona al menos un contrato
+              <div v-if="liqForm.contratos_sel.length === 0" style="font-size:12px;color:#f59e0b;padding:4px 0">
+                ⚠ Selecciona al menos un proyecto
               </div>
             </div>
 
@@ -1026,81 +1076,6 @@
                   </div>
                 </div>
                 <i v-if="liqForm.contrato_id === c._id" class="u u-check" style="color:#3ac7a5"></i>
-              </div>
-            </div>
-          </div>
-
-          <!-- ── 1. Período ──────────────────────────────────────────────── -->
-          <div class="form-section">
-            <h4 class="section-title">1. Período y Días</h4>
-            <div class="liq-form-grid">
-              <div class="form-group">
-                <label>Mes</label>
-                <select v-model="liqForm.mes" class="form-input">
-                  <option v-for="m in meses" :key="m.v" :value="m.v">{{ m.l }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Año</label>
-                <input v-model.number="liqForm.anio" type="number" class="form-input" min="2020" max="2030" />
-              </div>
-
-              <!-- En modo multi-proyecto, los días y horas son por contrato (arriba) -->
-              <template v-if="!liqHayProyectos">
-                <div class="form-group">
-                  <label>Días Trabajados</label>
-                  <input v-model.number="liqForm.dias_trabajados" type="number" class="form-input" min="1" max="30" />
-                </div>
-                <div class="form-group">
-                  <label>
-                    Horas Extra
-                    <span v-if="horasExtraDelMes > 0" class="hint-badge teal" style="font-size:10px;margin-left:4px;cursor:pointer" @click="liqForm.horas_extra = horasExtraDelMes" title="Click para usar horas de marcas">
-                      ↙ {{ horasExtraDelMes }}h desde marcas
-                    </span>
-                  </label>
-                  <input v-model.number="liqForm.horas_extra" type="number" class="form-input" min="0" />
-                </div>
-              </template>
-              <template v-else>
-                <!-- Resumen de días / horas del multi-proyecto -->
-                <div class="form-group">
-                  <label>Total Días</label>
-                  <div class="form-input" style="opacity:0.7;cursor:default">
-                    {{ liqForm.contratos_sel.reduce((s,x)=>s+(x.dias_trabajados||0),0) }} días
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>Total Hs. Extra</label>
-                  <div class="form-input" style="opacity:0.7;cursor:default">
-                    {{ liqForm.contratos_sel.reduce((s,x)=>s+(x.horas_extra||0),0) }}h
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <!-- chip info trabajador -->
-            <div class="trabajador-info-box" v-if="trabajador">
-              <div class="info-chips">
-                <span class="chip">{{ trabajador.afp }}</span>
-                <span class="chip">{{ trabajador.sistema_salud || 'FONASA' }}</span>
-                <template v-if="liqHayProyectos && liqForm.contratos_sel.length > 0">
-                  <span class="chip teal">{{ liqForm.contratos_sel.length }} proyectos</span>
-                  <span v-for="s in liqForm.contratos_sel" :key="s.contrato_id" class="chip" style="color:#60a5fa">
-                    {{ contratosTrabajador.find(c=>c._id===s.contrato_id)?.negocio_nombre || contratosTrabajador.find(c=>c._id===s.contrato_id)?.nombre_proyecto || '—' }}
-                  </span>
-                </template>
-                <template v-else-if="liqContratoActivo">
-                  <span class="chip teal">{{ labelContrato(liqContratoActivo.tipo_contrato) }}</span>
-                  <span class="chip teal">{{ formatCLP(liqContratoActivo.sueldo_base) }}</span>
-                  <span v-if="liqContratoActivo.negocio_nombre" class="chip" style="color:#60a5fa">{{ liqContratoActivo.negocio_nombre }}</span>
-                </template>
-                <template v-else-if="contratoVigente">
-                  <span class="chip teal">{{ labelContrato(contratoVigente.tipo_contrato) }}</span>
-                  <span class="chip teal">{{ formatCLP(contratoVigente.sueldo_base) }}</span>
-                </template>
-                <template v-else>
-                  <span class="chip" style="color:#f59e0b">⚠ Sin contrato vigente</span>
-                </template>
               </div>
             </div>
           </div>
