@@ -995,13 +995,13 @@
           </div>
 
           <!-- ── 1. Proyectos del período ────────────────────────────────── -->
-          <div class="form-section" v-if="contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo').length > 0">
+          <div class="form-section" v-if="contratosDelPeriodo.length > 0">
             <h4 class="section-title">1. Proyectos del Período</h4>
 
             <!-- Modo multi-proyecto: checkboxes + horas extra por contrato -->
             <div v-if="liqHayProyectos" style="display:flex;flex-direction:column;gap:10px">
               <div
-                v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')"
+                v-for="c in contratosDelPeriodo"
                 :key="c._id"
                 class="liq-contrato-option"
                 :class="{ active: esContratoSeleccionado(c._id) }"
@@ -1059,7 +1059,7 @@
             <!-- Modo single contract (no proyecto) -->
             <div v-else style="display:flex;flex-direction:column;gap:8px">
               <div
-                v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')"
+                v-for="c in contratosDelPeriodo"
                 :key="c._id"
                 class="liq-contrato-option"
                 :class="{ active: liqForm.contrato_id === c._id }"
@@ -1244,9 +1244,14 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" @click="showNewLiq = false">Cancelar</button>
-          <button class="btn btn-outline" @click="guardarLiqBorrador">Guardar Borrador</button>
-          <button class="btn btn-primary" @click="guardarLiqPagada">
-            <i class="u u-cobros-y-pagos"></i> Registrar Pagada
+          <button
+            class="btn btn-primary"
+            :disabled="liqCreando || (liqHayProyectos && liqForm.contratos_sel.length === 0) || !liqCalc"
+            @click="crearLiquidacion"
+          >
+            <i v-if="liqCreando" class="u u-loading spin"></i>
+            <i v-else class="u u-download"></i>
+            {{ liqCreando ? 'Generando...' : 'Crear Liquidación' }}
           </button>
         </div>
       </div>
@@ -1576,13 +1581,42 @@ const liqForm = ref({
   contratos_sel: [],       // [{ contrato_id, dias_trabajados, horas_extra }] – modo multi-proyecto
 })
 
+// Contratos activos filtrados por el mes/año seleccionado en la liquidación
+const contratosDelPeriodo = computed(() => {
+  const mes  = liqForm.value.mes
+  const anio = liqForm.value.anio
+  const primerDia = new Date(anio, mes - 1, 1)
+  const ultimoDia = new Date(anio, mes, 0, 23, 59, 59)
+  return contratosTrabajador.value.filter(c => {
+    if (!['vigente', 'borrador', 'activo'].includes(c.estado)) return false
+    const inicio = c.fecha_inicio ? new Date(c.fecha_inicio + 'T12:00:00') : null
+    const fin    = c.fecha_termino ? new Date(c.fecha_termino + 'T12:00:00') : null
+    if (inicio && inicio > ultimoDia) return false   // aún no empezaba
+    if (fin    && fin    < primerDia) return false   // ya había terminado
+    return true
+  })
+})
+
 // ¿El trabajador tiene contratos tipo proyecto/honorarios vigentes?
 const liqHayProyectos = computed(() =>
-  contratosTrabajador.value.some(c =>
-    (c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'honorarios') &&
-    (c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')
+  contratosDelPeriodo.value.some(c =>
+    c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'honorarios'
   )
 )
+
+// Al cambiar mes/año, re-sincronizar contratos_sel para que solo queden los del período
+watch([() => liqForm.value.mes, () => liqForm.value.anio], () => {
+  if (!liqHayProyectos.value) return
+  const idsDelPeriodo = new Set(contratosDelPeriodo.value.map(c => c._id))
+  // Quitar contratos que ya no aplican
+  liqForm.value.contratos_sel = liqForm.value.contratos_sel.filter(s => idsDelPeriodo.has(s.contrato_id))
+  // Agregar los que aplican y no están aún
+  contratosDelPeriodo.value.forEach(c => {
+    if (!esContratoSeleccionado(c._id)) {
+      liqForm.value.contratos_sel.push({ contrato_id: c._id, dias_trabajados: 30, horas_extra: horasExtraDelMesContrato(c) })
+    }
+  })
+})
 
 // Contrato activo seleccionado para la liquidación (modo single)
 const liqContratoActivo = computed(() => {
@@ -2051,16 +2085,12 @@ function openNewLiquidacion() {
     contrato_id: null,
     contratos_sel: [],
   }
-  // Para trabajadores con proyectos, pre-seleccionar contratos vigentes automáticamente
+  // Para trabajadores con proyectos, pre-seleccionar contratos del período automáticamente
   if (liqHayProyectos.value) {
-    const vigentes = contratosTrabajador.value.filter(c =>
-      (c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'honorarios') &&
-      (c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')
-    )
-    vigentes.forEach(c => {
+    contratosDelPeriodo.value.forEach(c => {
       liqForm.value.contratos_sel.push({
         contrato_id: c._id,
-        dias_trabajados: estimarDiasContrato(c),
+        dias_trabajados: 30,
         horas_extra: horasExtraDelMesContrato(c),
       })
     })
@@ -2075,6 +2105,109 @@ async function guardarLiqBorrador() {
 
 async function guardarLiqPagada() {
   await saveLiq('pagada')
+}
+
+const liqCreando = ref(false)
+
+async function crearLiquidacion() {
+  if (!trabajador.value || !liqCalc.value) return
+  liqCreando.value = true
+  try {
+    // 1. Guardar la liquidación
+    await saveLiq('pagada')   // ya cierra el modal
+    // 2. Construir payload del PDF desde liqCalc (ya calculado, sin re-fetch)
+    await _descargarLiqDesdeCalc()
+  } catch (e) {
+    console.error('Error creando liquidación', e)
+  } finally {
+    liqCreando.value = false
+  }
+}
+
+async function _descargarLiqDesdeCalc() {
+  const t   = trabajador.value
+  const lc  = liqCalc.value
+  if (!t || !lc) return
+  const globalStore2 = useGlobalStore()
+  const orgInfo = globalStore2.organization || {}
+
+  const mesesNombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const mesNombre = mesesNombres[(liqForm.value.mes || 1) - 1]
+
+  // Haberes del PDF
+  const haberesPDF = []
+  if (lc._multiContrato && lc._detalle?.length) {
+    lc._detalle.forEach(d => {
+      haberesPDF.push({
+        nombre: d.contrato.nombre_proyecto || d.contrato.negocio_nombre || d.contrato.cargo || 'Proyecto',
+        detalle: `30 días × ${fmt(d.contrato.sueldo_base)}/mes`,
+        monto: d.proporcional,
+      })
+      if (d.montoHorasExtra > 0) haberesPDF.push({ nombre: 'Horas Extra', monto: d.montoHorasExtra })
+    })
+  } else {
+    haberesPDF.push({ nombre: 'Sueldo Base', detalle: `${liqForm.value.dias_trabajados}/30 días`, monto: lc.sueldoProporcional })
+    if (lc.montoHorasExtra > 0) haberesPDF.push({ nombre: 'Horas Extra', monto: lc.montoHorasExtra })
+    if (lc.gratificacion > 0)   haberesPDF.push({ nombre: 'Gratificación Legal', monto: lc.gratificacion })
+  }
+  liqForm.value.bonos.filter(b => b.monto > 0).forEach(b => haberesPDF.push({ nombre: b.nombre || b.tipo, monto: b.monto, imponible: b.imponible }))
+
+  function fmt(v) {
+    if (!v) return '$0'
+    return '$' + Math.round(v).toLocaleString('es-CL')
+  }
+
+  const payload = {
+    organizacion: {
+      nombre:    orgInfo.name || orgInfo.razon_social || 'Empresa',
+      rut:       orgInfo.rut  || '',
+      direccion: orgInfo.address || orgInfo.domicilio || '',
+    },
+    trabajador: {
+      nombre:        `${t.nombre || ''} ${t.apellido || ''}`.trim(),
+      rut:           t.rut || '',
+      cargo:         t.cargo || '',
+      afp:           t.afp || '',
+      sistema_salud: t.sistema_salud || 'FONASA',
+      dias_trabajados: liqForm.value.contratos_sel.length > 0
+        ? '30 (por proyecto)'
+        : String(liqForm.value.dias_trabajados),
+    },
+    liquidacion: {
+      periodo:          `${mesNombre} ${liqForm.value.anio}`,
+      liquido_a_pagar:  lc.liquidoAPagar,
+      haberes: haberesPDF,
+      descuentos_legales: [
+        { nombre: t.afp || 'AFP',                       monto: lc.afp_descuento },
+        { nombre: `Salud ${t.sistema_salud || 'FONASA'}`, monto: lc.salud_descuento },
+        { nombre: 'Cesantía (0.6%)',                    monto: lc.cesantia_trabajador },
+        ...(lc.impuesto > 0 ? [{ nombre: 'Imp. 2ª Cat.', monto: lc.impuesto }] : []),
+      ].filter(d => d.monto > 0),
+      otros_descuentos: (liqForm.value.descuentos || []).filter(d => d.monto > 0),
+      aportes: [
+        { nombre: 'Cesantía empleador', monto: lc.cesantia_empleador },
+        { nombre: 'Mutual Seguridad',   monto: lc.mutual },
+      ].filter(a => a.monto > 0),
+      totales: {
+        haberes:     lc.totalHaberes,
+        descuentos:  lc.totalDescuentos,
+        aportes:     (lc.cesantia_empleador || 0) + (lc.mutual || 0),
+      },
+      pago: {},
+      renta_imponible:     lc.rentaImponible,
+      costo_empresa:       lc.costoEmpresa,
+    },
+    logo_base64: orgInfo.logoBase64 || null,
+  }
+
+  const res = await $fetch('/api/rrhh/liquidacion-pdf', { method: 'POST', body: payload, responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res], { type: 'application/pdf' }))
+  const a   = document.createElement('a')
+  a.href    = url
+  const rut = (t.rut || 'doc').replace(/\./g, '').replace(/-/g, '')
+  a.download = `liquidacion-${rut}-${liqForm.value.mes}-${liqForm.value.anio}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 async function saveLiq(estado) {
