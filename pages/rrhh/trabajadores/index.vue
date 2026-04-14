@@ -18,6 +18,7 @@ useHead({ title: "Trabajadores – RRHH" });
 const busqueda       = ref("");
 const filtroEstado   = ref("todos");
 const filtroContrato = ref("todos");
+const vistaActual    = ref("normal"); // "normal" | "proyectos"
 
 // Laboral defaults (para inicializar el form de Info Contrato)
 const laboralDefaults = {
@@ -110,6 +111,78 @@ const guardarTrabajador = async () => {
   }
 };
 
+// ── Vista por Proyectos ───────────────────────────────────────────────────────
+const fotoProyecto         = ref({});
+const fotoFileRefProyecto  = ref(null);
+const proyectoFotoTarget   = ref(null);
+
+function onFotoProyectoChange(e) {
+  const file = e.target.files?.[0];
+  if (!file || !proyectoFotoTarget.value) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    fotoProyecto.value = { ...fotoProyecto.value, [proyectoFotoTarget.value]: ev.target.result };
+    try { localStorage.setItem('rrhh_fotos_proyectos', JSON.stringify(fotoProyecto.value)); } catch {}
+  };
+  reader.readAsDataURL(file);
+}
+
+function subirFotoProyecto(key) {
+  proyectoFotoTarget.value = key;
+  fotoFileRefProyecto.value?.click();
+}
+
+const trabajadoresPorProyecto = computed(() => {
+  const contratos   = rrhhStore.contratos   || [];
+  const trabajadores = rrhhStore.trabajadores || [];
+
+  // Contrato vigente por trabajador
+  const vigenteMap = {};
+  contratos.forEach(c => {
+    if (!c.trabajador_id) return;
+    const est = c.estado_contrato || c.estado;
+    if (est === 'activo' || est === 'vigente') {
+      if (!vigenteMap[c.trabajador_id]) vigenteMap[c.trabajador_id] = c;
+    }
+  });
+
+  const grupos = {};
+  trabajadores.forEach(t => {
+    const tid = t._id || t.id;
+    const c   = vigenteMap[tid];
+    const key = c?.negocio_nombre || c?.nombre_proyecto || '__sin_proyecto__';
+
+    if (!grupos[key]) {
+      grupos[key] = {
+        nombre: key === '__sin_proyecto__' ? 'Sin proyecto asignado' : key,
+        key,
+        trabajadores: [],
+        contratos: [],
+        fecha_inicio: null,
+        fecha_termino: null,
+        total_costo: 0,
+      };
+    }
+    grupos[key].trabajadores.push(t);
+    if (c) {
+      grupos[key].contratos.push(c);
+      const fi = c.fecha_inicio || c.fecha_ingreso;
+      const ft = c.fecha_termino;
+      if (fi && (!grupos[key].fecha_inicio || fi < grupos[key].fecha_inicio))  grupos[key].fecha_inicio = fi;
+      if (ft && (!grupos[key].fecha_termino || ft > grupos[key].fecha_termino)) grupos[key].fecha_termino = ft;
+      const base  = (c.sueldo_base || 0) + (c.movilizacion || 0) + (c.colacion || 0);
+      const factor = (c.tipo_contrato === 'indefinido' || c.tipo_contrato === 'plazo_fijo') ? 1.2 : 1;
+      grupos[key].total_costo += Math.round(base * factor);
+    }
+  });
+
+  return Object.values(grupos).sort((a, b) => {
+    if (a.key === '__sin_proyecto__') return 1;
+    if (b.key === '__sin_proyecto__') return -1;
+    return a.nombre.localeCompare(b.nombre);
+  });
+});
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   globalStore.loading = true;
@@ -117,7 +190,11 @@ onMounted(async () => {
   globalStore.namePage = "RRHH";
   globalStore.updatedBreadcrumb([{ name: "RRHH", path: "/rrhh/trabajadores" }, { name: "Trabajadores", path: "/rrhh/trabajadores" }]);
   try {
-    await rrhhStore.getTrabajadores();
+    const saved = localStorage.getItem('rrhh_fotos_proyectos');
+    if (saved) fotoProyecto.value = JSON.parse(saved);
+  } catch {}
+  try {
+    await Promise.all([rrhhStore.getTrabajadores(), rrhhStore.getContratos()]);
   } finally {
     globalStore.loading = false;
   }
@@ -145,7 +222,7 @@ onUnmounted(() => globalStore.cleanHeader());
       </div>
     </div>
 
-    <!-- Filtros -->
+    <!-- Filtros + Toggle Vista -->
     <div class="rrhhPage__filters">
       <div class="filterInput">
         <span class="u u-search"></span>
@@ -156,10 +233,111 @@ onUnmounted(() => globalStore.cleanHeader());
       <button :class="['chip', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
       <button :class="['chip', filtroContrato === 'indefinido' && 'active']" @click="filtroContrato = filtroContrato === 'indefinido' ? 'todos' : 'indefinido'">Indefinido</button>
       <button :class="['chip', filtroContrato === 'proyecto' && 'active']"   @click="filtroContrato = filtroContrato === 'proyecto' ? 'todos' : 'proyecto'">Por Proyecto</button>
+
+      <!-- Separador -->
+      <div class="filter-sep"></div>
+
+      <!-- Toggle de vista -->
+      <div class="view-toggle">
+        <button :class="['view-btn', vistaActual === 'normal' && 'active']" @click="vistaActual = 'normal'" title="Vista lista">
+          <span class="u u-list"></span>
+          <span>Lista</span>
+        </button>
+        <button :class="['view-btn', vistaActual === 'proyectos' && 'active']" @click="vistaActual = 'proyectos'" title="Vista por proyectos">
+          <span class="u u-grid"></span>
+          <span>Proyectos</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Tabla -->
-    <div class="rrhhPage__table-wrap">
+    <!-- ── Vista por Proyectos ──────────────────────────────────────────── -->
+    <div v-if="vistaActual === 'proyectos'" class="proyectos-grid">
+      <input ref="fotoFileRefProyecto" type="file" accept="image/*" style="display:none" @change="onFotoProyectoChange" />
+
+      <div
+        v-for="grupo in trabajadoresPorProyecto"
+        :key="grupo.key"
+        class="proyecto-card"
+      >
+        <!-- Cabecera con foto -->
+        <div class="proyecto-card__cover" :style="fotoProyecto[grupo.key] ? `background-image:url(${fotoProyecto[grupo.key]})` : ''">
+          <div class="proyecto-card__cover-overlay">
+            <div class="proyecto-card__cover-actions">
+              <button class="btn-foto-up" @click.stop="subirFotoProyecto(grupo.key)" :title="fotoProyecto[grupo.key] ? 'Cambiar foto' : 'Subir foto'">
+                <span class="u u-edit" style="font-size:12px"></span>
+                {{ fotoProyecto[grupo.key] ? 'Cambiar' : 'Foto' }}
+              </button>
+            </div>
+          </div>
+          <div class="proyecto-card__name-wrap">
+            <h3 class="proyecto-card__name">{{ grupo.nombre }}</h3>
+            <div class="proyecto-card__dates" v-if="grupo.fecha_inicio">
+              {{ new Date(grupo.fecha_inicio + 'T12:00').toLocaleDateString('es-CL', { day:'numeric', month:'short', year:'numeric' }) }}
+              <template v-if="grupo.fecha_termino">
+                → {{ new Date(grupo.fecha_termino + 'T12:00').toLocaleDateString('es-CL', { day:'numeric', month:'short', year:'numeric' }) }}
+              </template>
+              <template v-else>→ Indefinido</template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="proyecto-card__stats">
+          <div class="proyecto-stat">
+            <span class="proyecto-stat__val">{{ grupo.trabajadores.length }}</span>
+            <span class="proyecto-stat__label">Trabajadores</span>
+          </div>
+          <div class="proyecto-stat">
+            <span class="proyecto-stat__val teal">{{ fmtCLP(grupo.total_costo) }}</span>
+            <span class="proyecto-stat__label">Costo empresa / mes</span>
+          </div>
+          <div class="proyecto-stat" v-if="grupo.contratos.length">
+            <span class="proyecto-stat__val">
+              {{ [...new Set(grupo.contratos.map(c => c.tipo_contrato))].map(t =>
+                ({indefinido:'Indef.',plazo_fijo:'P.Fijo',proyecto:'Proy.',honorarios:'Hon.',part_time:'P.Time'})[t] || t
+              ).join(' · ') }}
+            </span>
+            <span class="proyecto-stat__label">Tipos contrato</span>
+          </div>
+        </div>
+
+        <!-- Barra visual de tipos de contrato -->
+        <div class="proyecto-card__bar" v-if="grupo.contratos.length">
+          <div
+            v-for="(c, i) in grupo.contratos"
+            :key="i"
+            :class="['bar-seg', c.tipo_contrato]"
+            :style="`width:${100/grupo.contratos.length}%`"
+            :title="c.tipo_contrato"
+          ></div>
+        </div>
+
+        <!-- Lista de trabajadores -->
+        <div class="proyecto-card__workers">
+          <div
+            v-for="t in grupo.trabajadores"
+            :key="t._id"
+            class="proyecto-worker"
+            @click="$router.push(`/rrhh/trabajadores/${t._id}`)"
+          >
+            <div class="proyecto-worker__avatar">
+              <img v-if="t.foto" :src="t.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+              <template v-else>{{ t.nombre?.charAt(0) }}{{ (t.apellido || t.nombre?.split(' ')[1] || '')?.charAt(0) }}</template>
+            </div>
+            <div class="proyecto-worker__info">
+              <span class="proyecto-worker__name">{{ t.nombre }} {{ t.apellido || '' }}</span>
+              <span class="proyecto-worker__cargo">{{ t.cargo || '—' }}</span>
+            </div>
+            <span :class="['tagEstado', t.estado]" style="margin-left:auto">{{ t.estado === 'activo' ? 'Activo' : 'Inactivo' }}</span>
+          </div>
+          <div v-if="!grupo.trabajadores.length" class="proyecto-empty">Sin trabajadores asignados</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Vista Lista (tabla original) ─────────────────────────────────── -->
+    <div v-else class="rrhhPage__table-wrap">
       <table class="rrhhTable">
         <thead>
           <tr>
@@ -218,7 +396,7 @@ onUnmounted(() => globalStore.cleanHeader());
           </tr>
         </tbody>
       </table>
-    </div>
+    </div><!-- end v-else tabla -->
 
 
   </div>
@@ -629,4 +807,170 @@ onUnmounted(() => globalStore.cleanHeader());
 .foto-upload-hint small {
   font-size: 11px; color: #6b7280;
 }
+
+/* ── Toggle de vista ──────────────────────────────────────────────────────── */
+.filter-sep {
+  width: 1px; height: 24px;
+  background: rgba(255,255,255,0.12);
+  margin: 0 4px;
+  align-self: center;
+}
+
+.view-toggle {
+  display: flex;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  gap: 0;
+}
+.view-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 12px; height: 32px;
+  font-family: Nunito; font-size: 12px; font-weight: 600;
+  color: #6b7280;
+  background: transparent;
+  border: none; cursor: pointer;
+  transition: all .15s;
+}
+.view-btn + .view-btn { border-left: 1px solid rgba(255,255,255,0.08); }
+.view-btn:hover { color: #f3f4f6; background: rgba(255,255,255,0.05); }
+.view-btn.active { color: #3ac7a5; background: rgba(58,199,165,0.1); }
+.view-btn .u { font-size: 13px; }
+
+/* ── Grid de proyectos ────────────────────────────────────────────────────── */
+.proyectos-grid {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+.proyectos-grid::-webkit-scrollbar { width: 6px; }
+.proyectos-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+/* ── Tarjeta de proyecto ─────────────────────────────────────────────────── */
+.proyecto-card {
+  background: #1e2d3a;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color .15s, box-shadow .15s;
+}
+.proyecto-card:hover {
+  border-color: rgba(58,199,165,0.3);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* Cover */
+.proyecto-card__cover {
+  height: 140px;
+  background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.proyecto-card__cover-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%);
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 10px;
+  opacity: 0; transition: opacity .18s;
+}
+.proyecto-card:hover .proyecto-card__cover-overlay { opacity: 1; }
+
+.btn-foto-up {
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px; color: #e5e7eb;
+  font-family: Nunito; font-size: 11px; font-weight: 600;
+  padding: 4px 10px; cursor: pointer;
+  transition: background .15s;
+}
+.btn-foto-up:hover { background: rgba(58,199,165,0.3); color: #fff; border-color: rgba(58,199,165,0.5); }
+
+.proyecto-card__name-wrap {
+  padding: 14px 16px 12px;
+  position: relative;
+}
+.proyecto-card__name {
+  margin: 0; font-size: 16px; font-weight: 800; color: #f3f4f6;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+}
+.proyecto-card__dates {
+  font-size: 11px; color: rgba(229,231,235,0.75); margin-top: 4px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+/* Stats */
+.proyecto-card__stats {
+  display: flex; gap: 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.proyecto-stat {
+  flex: 1;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+.proyecto-stat:last-child { border-right: none; }
+.proyecto-stat__val {
+  font-size: 17px; font-weight: 800; color: #f3f4f6;
+}
+.proyecto-stat__val.teal { color: #3ac7a5; }
+.proyecto-stat__label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Barra de tipos de contrato */
+.proyecto-card__bar {
+  display: flex; height: 4px; overflow: hidden;
+}
+.bar-seg { height: 100%; transition: opacity .15s; }
+.bar-seg.indefinido  { background: #3ac7a5; }
+.bar-seg.proyecto    { background: #a78bfa; }
+.bar-seg.plazo_fijo  { background: #fbbf24; }
+.bar-seg.honorarios  { background: #fb923c; }
+.bar-seg.part_time   { background: #60a5fa; }
+
+/* Lista de trabajadores en tarjeta */
+.proyecto-card__workers {
+  flex: 1;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.proyecto-worker {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background .12s;
+}
+.proyecto-worker:last-child { border-bottom: none; }
+.proyecto-worker:hover { background: rgba(58,199,165,0.05); }
+.proyecto-worker__avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #fff;
+  background: #2a9d8f; flex-shrink: 0;
+  overflow: hidden;
+}
+.proyecto-worker__info {
+  display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0;
+}
+.proyecto-worker__name {
+  font-size: 13px; font-weight: 700; color: #f3f4f6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proyecto-worker__cargo {
+  font-size: 11px; color: #6b7280;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proyecto-empty { padding: 20px; text-align: center; color: #4b5563; font-size: 13px; }
 </style>

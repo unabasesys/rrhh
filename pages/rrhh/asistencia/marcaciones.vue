@@ -123,6 +123,47 @@ function aprobar(id) { asistencia.aprobarMarcacion(id) }
 function rechazar(id) { asistencia.rechazarMarcacion(id, 'Rechazado por supervisor') }
 function eliminar(id) { asistencia.deleteMarcacion(id) }
 
+// ─── Vista por proyectos ──────────────────────────────────────────────────
+const vistaMarcaciones = ref('normal') // 'normal' | 'proyectos'
+
+// Agrupar las marcaciones filtradas por proyecto
+const marcacionesPorProyecto = computed(() => {
+  const list = marcacionesFiltradas.value
+  const grupos = {}
+
+  list.forEach(m => {
+    const p = asistencia.getProyecto(m.proyecto_id)
+    const key   = m.proyecto_id || '__sin_proyecto__'
+    const label = p?.nombre || (m.proyecto_id ? m.proyecto_id : 'Sin proyecto asignado')
+
+    if (!grupos[key]) {
+      grupos[key] = {
+        key,
+        nombre: label,
+        proyecto: p,
+        marcaciones: [],
+        trabajadoresIds: new Set(),
+        totalHoras: 0,
+        totalExtra: 0,
+        pendientes: 0,
+        atrasos: 0,
+      }
+    }
+    grupos[key].marcaciones.push(m)
+    if (m.trabajador_id) grupos[key].trabajadoresIds.add(m.trabajador_id)
+    grupos[key].totalHoras  += m.horas_trabajadas || 0
+    grupos[key].totalExtra  += m.horas_extra || 0
+    if (m.estado === 'pendiente') grupos[key].pendientes++
+    if (m.atraso_minutos > 0)     grupos[key].atrasos++
+  })
+
+  return Object.values(grupos).sort((a, b) => {
+    if (a.key === '__sin_proyecto__') return 1
+    if (b.key === '__sin_proyecto__') return -1
+    return a.nombre.localeCompare(b.nombre)
+  })
+})
+
 // ─── Formato de fecha ─────────────────────────────────────────────────────
 function fmtFecha(f) {
   if (!f) return '—'
@@ -183,6 +224,16 @@ function tipoBadge(m) {
       </div>
     </div>
 
+    <!-- ── Toggle de vista ───────────────────────────────────────────── -->
+    <div class="marc-vista-toggle">
+      <button :class="['marc-vbtn', vistaMarcaciones === 'normal' && 'active']" @click="vistaMarcaciones = 'normal'">
+        <span class="u u-list" style="font-size:13px"></span> Lista
+      </button>
+      <button :class="['marc-vbtn', vistaMarcaciones === 'proyectos' && 'active']" @click="vistaMarcaciones = 'proyectos'">
+        <span class="u u-grid" style="font-size:13px"></span> Por Proyectos
+      </button>
+    </div>
+
     <!-- ── KPIs compactos ─────────────────────────────────────────────── -->
     <div class="kpi-mini-row">
       <div class="kpi-mini">
@@ -207,8 +258,93 @@ function tipoBadge(m) {
       </div>
     </div>
 
-    <!-- ── Tabla ──────────────────────────────────────────────────────── -->
-    <div class="table-card">
+    <!-- ── Vista por Proyectos ───────────────────────────────────────── -->
+    <div v-if="vistaMarcaciones === 'proyectos'" class="marc-proy-grid">
+      <div v-for="grupo in marcacionesPorProyecto" :key="grupo.key" class="marc-proy-card">
+
+        <!-- Header del proyecto -->
+        <div class="marc-proy-card__header">
+          <div class="marc-proy-card__icon">
+            <span class="u u-grid" style="font-size:18px;color:#3ac7a5"></span>
+          </div>
+          <div class="marc-proy-card__title-col">
+            <h3 class="marc-proy-card__title">{{ grupo.nombre }}</h3>
+            <span class="marc-proy-card__sub">{{ grupo.marcaciones.length }} marcaciones · {{ grupo.trabajadoresIds.size }} trabajadores</span>
+          </div>
+          <div class="marc-proy-card__badges">
+            <span v-if="grupo.pendientes > 0" class="mproy-badge orange">{{ grupo.pendientes }} pend.</span>
+            <span v-if="grupo.atrasos > 0" class="mproy-badge red">{{ grupo.atrasos }} atrasos</span>
+          </div>
+        </div>
+
+        <!-- Stats del proyecto -->
+        <div class="marc-proy-card__stats">
+          <div class="marc-proy-stat">
+            <span class="marc-proy-stat__val">{{ grupo.totalHoras.toFixed(1) }}h</span>
+            <span class="marc-proy-stat__label">Total horas</span>
+          </div>
+          <div class="marc-proy-stat">
+            <span class="marc-proy-stat__val purple">{{ grupo.totalExtra.toFixed(1) }}h</span>
+            <span class="marc-proy-stat__label">Horas extra</span>
+          </div>
+          <div class="marc-proy-stat">
+            <span class="marc-proy-stat__val">{{ grupo.trabajadoresIds.size }}</span>
+            <span class="marc-proy-stat__label">Trabajadores</span>
+          </div>
+          <div class="marc-proy-stat">
+            <span class="marc-proy-stat__val teal">{{ grupo.marcaciones.filter(m=>m.estado==='aprobado').length }}</span>
+            <span class="marc-proy-stat__label">Aprobadas</span>
+          </div>
+        </div>
+
+        <!-- Lista de trabajadores con resumen -->
+        <div class="marc-proy-workers">
+          <div
+            v-for="wid in [...grupo.trabajadoresIds]"
+            :key="wid"
+            class="marc-proy-worker"
+          >
+            <div class="avatar-xs" :style="{ background: avatarColor(wid) }">
+              {{ initiales(getWorker(wid)?.nombre) }}
+            </div>
+            <div class="marc-proy-worker__info">
+              <span class="marc-proy-worker__name">{{ getWorker(wid)?.nombre || wid }}</span>
+              <div class="marc-proy-worker__chips">
+                <span class="wchip">
+                  {{ grupo.marcaciones.filter(m=>m.trabajador_id===wid).length }} reg.
+                </span>
+                <span class="wchip teal">
+                  {{ grupo.marcaciones.filter(m=>m.trabajador_id===wid).reduce((s,m)=>s+(m.horas_trabajadas||0),0).toFixed(1) }}h
+                </span>
+                <span v-if="grupo.marcaciones.filter(m=>m.trabajador_id===wid && m.horas_extra>0).length" class="wchip purple">
+                  +{{ grupo.marcaciones.filter(m=>m.trabajador_id===wid).reduce((s,m)=>s+(m.horas_extra||0),0).toFixed(1) }}h extra
+                </span>
+              </div>
+            </div>
+            <!-- mini marcaciones timeline -->
+            <div class="marc-mini-row">
+              <div
+                v-for="m in grupo.marcaciones.filter(ma=>ma.trabajador_id===wid).slice(0,7)"
+                :key="m.id"
+                :class="['marc-mini-dot', m.estado]"
+                :title="`${fmtFecha(m.fecha)} ${m.entrada||''}–${m.salida||''}`"
+              ></div>
+              <span v-if="grupo.marcaciones.filter(ma=>ma.trabajador_id===wid).length > 7" class="marc-mini-more">
+                +{{ grupo.marcaciones.filter(ma=>ma.trabajador_id===wid).length - 7 }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div v-if="!marcacionesPorProyecto.length" class="marc-proy-empty">
+        No hay marcaciones para los filtros seleccionados
+      </div>
+    </div>
+
+    <!-- ── Tabla (vista normal) ───────────────────────────────────────── -->
+    <div v-else class="table-card">
       <table class="marc-table">
         <thead>
           <tr>
@@ -494,4 +630,131 @@ function tipoBadge(m) {
   color: #9ca3af; border-radius: 8px;
   padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
 }
+
+/* ── Toggle de vista ──────────────────────────────────────────────── */
+.marc-vista-toggle {
+  display: flex;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  width: fit-content;
+  overflow: hidden;
+}
+.marc-vbtn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 14px; height: 32px;
+  font-family: Nunito; font-size: 12px; font-weight: 600;
+  color: #6b7280; background: transparent; border: none; cursor: pointer;
+  transition: all .15s;
+}
+.marc-vbtn + .marc-vbtn { border-left: 1px solid rgba(255,255,255,0.08); }
+.marc-vbtn:hover { color: #f3f4f6; background: rgba(255,255,255,0.05); }
+.marc-vbtn.active { color: #3ac7a5; background: rgba(58,199,165,0.1); }
+
+/* ── Grid de proyectos (marcaciones) ─────────────────────────────── */
+.marc-proy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 18px;
+}
+.marc-proy-empty {
+  grid-column: 1 / -1;
+  text-align: center; padding: 48px; color: #6b7280; font-size: 14px;
+}
+
+/* Tarjeta */
+.marc-proy-card {
+  background: #1e2d3a;
+  border: 1.5px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+.marc-proy-card:hover {
+  border-color: rgba(58,199,165,0.25);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+}
+
+/* Header */
+.marc-proy-card__header {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.marc-proy-card__icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: rgba(58,199,165,0.1); border: 1px solid rgba(58,199,165,0.2);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.marc-proy-card__title-col { flex: 1; min-width: 0; }
+.marc-proy-card__title {
+  margin: 0; font-size: 14px; font-weight: 800; color: #f3f4f6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.marc-proy-card__sub { font-size: 11px; color: #6b7280; }
+.marc-proy-card__badges { display: flex; gap: 5px; align-items: flex-start; flex-shrink: 0; }
+.mproy-badge {
+  padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700;
+}
+.mproy-badge.orange { background: rgba(244,162,97,0.15); color: #f4a261; }
+.mproy-badge.red    { background: rgba(239,68,68,0.12);  color: #f87171; }
+
+/* Stats */
+.marc-proy-card__stats {
+  display: flex; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.marc-proy-stat {
+  flex: 1;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 14px;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.marc-proy-stat:last-child { border-right: none; }
+.marc-proy-stat__val {
+  font-size: 16px; font-weight: 800; color: #f3f4f6;
+}
+.marc-proy-stat__val.teal   { color: #3ac7a5; }
+.marc-proy-stat__val.purple { color: #a78bfa; }
+.marc-proy-stat__label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Workers list */
+.marc-proy-workers { display: flex; flex-direction: column; }
+.marc-proy-worker {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.marc-proy-worker:last-child { border-bottom: none; }
+.marc-proy-worker__info {
+  display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;
+}
+.marc-proy-worker__name {
+  font-size: 12.5px; font-weight: 700; color: #f3f4f6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.marc-proy-worker__chips {
+  display: flex; gap: 5px; flex-wrap: wrap;
+}
+.wchip {
+  font-size: 10px; font-weight: 600; color: #6b7280;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 6px; border-radius: 4px;
+}
+.wchip.teal   { background: rgba(58,199,165,0.1);   color: #3ac7a5; }
+.wchip.purple { background: rgba(133,140,240,0.12); color: #a78bfa; }
+
+/* Mini dots timeline */
+.marc-mini-row {
+  display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+}
+.marc-mini-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #374151;
+  transition: transform .1s;
+}
+.marc-mini-dot.aprobado  { background: #3ac7a5; }
+.marc-mini-dot.pendiente { background: #f4a261; }
+.marc-mini-dot.rechazado { background: #f87171; }
+.marc-mini-dot:hover { transform: scale(1.4); }
+.marc-mini-more { font-size: 10px; color: #6b7280; margin-left: 2px; }
 </style>
