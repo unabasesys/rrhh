@@ -4,7 +4,7 @@
  * Registro completo de marcaciones con corrección del supervisor y asignación
  * de proyecto / línea presupuestal.
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
 import useGlobalStore from '@/stores/global'
@@ -164,6 +164,90 @@ const marcacionesPorProyecto = computed(() => {
   })
 })
 
+// ─── Panel detalle de proyecto ────────────────────────────────────────────
+const proyectoPanel    = ref(null)   // grupo seleccionado
+const showProyPanel    = ref(false)
+
+function abrirProyecto(grupo) {
+  proyectoPanel.value = grupo
+  showProyPanel.value = true
+}
+function cerrarProyPanel() {
+  showProyPanel.value = false
+  setTimeout(() => { proyectoPanel.value = null }, 300)
+}
+
+// ─── Estado de marcación hoy para un trabajador ───────────────────────────
+function marcacionHoy(wid) {
+  return asistencia.marcaciones.find(m => m.trabajador_id === wid && m.fecha === hoy) || null
+}
+
+function estadoHoy(wid) {
+  const m = marcacionHoy(wid)
+  if (!m)          return 'sin_marcar'
+  if (!m.salida)   return 'entrada'
+  return 'completo'
+}
+
+// ─── Modal marcar trabajador ──────────────────────────────────────────────
+const marcarWorker  = ref(null)
+const marcarGrupo   = ref(null)
+const showMarcar    = ref(false)
+const marcarHora    = ref('')
+const marcarGuardando = ref(false)
+const marcarError   = ref('')
+
+function horaAhora() {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+}
+
+function abrirMarcar(wid, grupo) {
+  marcarWorker.value  = wid
+  marcarGrupo.value   = grupo
+  marcarHora.value    = horaAhora()
+  marcarError.value   = ''
+  marcarGuardando.value = false
+  showMarcar.value    = true
+}
+
+function cerrarMarcar() {
+  showMarcar.value = false
+}
+
+const marcarTipo = computed(() => estadoHoy(marcarWorker.value))
+
+function ejecutarMarcacion() {
+  if (!marcarWorker.value) return
+  marcarGuardando.value = true
+  marcarError.value = ''
+
+  try {
+    let result
+    const proyId = marcarGrupo.value?.proyecto?.id || ''
+    if (marcarTipo.value === 'sin_marcar') {
+      result = asistencia.marcarEntrada({
+        trabajador_id: marcarWorker.value,
+        proyecto_id: proyId,
+        turno_id: null,
+        linea_id: null,
+      })
+    } else if (marcarTipo.value === 'entrada') {
+      result = asistencia.marcarSalida({ trabajador_id: marcarWorker.value })
+    }
+
+    if (result?.ok === false) {
+      marcarError.value = result.error || 'Error al registrar'
+    } else {
+      showMarcar.value = false
+    }
+  } catch (e) {
+    marcarError.value = 'Error inesperado al marcar'
+  } finally {
+    marcarGuardando.value = false
+  }
+}
+
 // ─── Formato de fecha ─────────────────────────────────────────────────────
 function fmtFecha(f) {
   if (!f) return '—'
@@ -260,7 +344,7 @@ function tipoBadge(m) {
 
     <!-- ── Vista por Proyectos ───────────────────────────────────────── -->
     <div v-if="vistaMarcaciones === 'proyectos'" class="marc-proy-grid">
-      <div v-for="grupo in marcacionesPorProyecto" :key="grupo.key" class="marc-proy-card">
+      <div v-for="grupo in marcacionesPorProyecto" :key="grupo.key" class="marc-proy-card" @click="abrirProyecto(grupo)" style="cursor:pointer">
 
         <!-- Header del proyecto -->
         <div class="marc-proy-card__header">
@@ -480,6 +564,185 @@ function tipoBadge(m) {
     </div>
 
   </div>
+
+  <!-- ── Panel detalle de proyecto ──────────────────────────────────────── -->
+  <Teleport to="body">
+    <!-- Overlay -->
+    <Transition name="fade">
+      <div v-if="showProyPanel" class="proy-overlay" @click="cerrarProyPanel"></div>
+    </Transition>
+
+    <!-- Drawer panel -->
+    <Transition name="slide-right">
+      <div v-if="showProyPanel && proyectoPanel" class="proy-panel">
+
+        <!-- Header -->
+        <div class="proy-panel__header">
+          <div class="proy-panel__icon">
+            <span class="u u-grid" style="font-size:20px;color:#3ac7a5"></span>
+          </div>
+          <div class="proy-panel__title-col">
+            <h2 class="proy-panel__title">{{ proyectoPanel.nombre }}</h2>
+            <span class="proy-panel__sub">{{ proyectoPanel.marcaciones.length }} marcaciones · {{ proyectoPanel.trabajadoresIds.size }} trabajadores</span>
+          </div>
+          <button class="proy-panel__close" @click="cerrarProyPanel">
+            <span class="u u-cerrar" style="font-size:14px"></span>
+          </button>
+        </div>
+
+        <!-- Stats compactos -->
+        <div class="proy-panel__stats">
+          <div class="proy-pstat">
+            <span class="proy-pstat__val">{{ proyectoPanel.totalHoras.toFixed(1) }}h</span>
+            <span class="proy-pstat__label">Horas</span>
+          </div>
+          <div class="proy-pstat">
+            <span class="proy-pstat__val purple">{{ proyectoPanel.totalExtra.toFixed(1) }}h</span>
+            <span class="proy-pstat__label">Extra</span>
+          </div>
+          <div class="proy-pstat">
+            <span class="proy-pstat__val orange" v-if="proyectoPanel.pendientes > 0">{{ proyectoPanel.pendientes }}</span>
+            <span class="proy-pstat__val teal" v-else>✓</span>
+            <span class="proy-pstat__label">Pendientes</span>
+          </div>
+          <div class="proy-pstat">
+            <span class="proy-pstat__val teal">{{ proyectoPanel.marcaciones.filter(m=>m.estado==='aprobado').length }}</span>
+            <span class="proy-pstat__label">Aprobadas</span>
+          </div>
+        </div>
+
+        <!-- Fecha de hoy -->
+        <div class="proy-panel__date-label">
+          <span class="u u-fecha" style="font-size:13px;color:#6b7280"></span>
+          Hoy: {{ new Date().toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' }) }}
+        </div>
+
+        <!-- Lista de trabajadores -->
+        <div class="proy-panel__workers">
+          <div
+            v-for="wid in [...proyectoPanel.trabajadoresIds]"
+            :key="wid"
+            class="proy-pw"
+            @click.stop="abrirMarcar(wid, proyectoPanel)"
+          >
+            <!-- Avatar -->
+            <div class="proy-pw__avatar" :style="{ background: avatarColor(wid) }">
+              <img v-if="getWorker(wid)?.foto" :src="getWorker(wid).foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+              <template v-else>{{ initiales(getWorker(wid)?.nombre) }}</template>
+            </div>
+
+            <!-- Info -->
+            <div class="proy-pw__info">
+              <span class="proy-pw__name">{{ getWorker(wid)?.nombre || wid }}</span>
+              <div class="proy-pw__chips">
+                <span class="wchip">{{ proyectoPanel.marcaciones.filter(m=>m.trabajador_id===wid).length }} reg.</span>
+                <span class="wchip teal">{{ proyectoPanel.marcaciones.filter(m=>m.trabajador_id===wid).reduce((s,m)=>s+(m.horas_trabajadas||0),0).toFixed(1) }}h</span>
+              </div>
+            </div>
+
+            <!-- Estado hoy -->
+            <div class="proy-pw__estado">
+              <template v-if="estadoHoy(wid) === 'completo'">
+                <span class="estado-pill completo">
+                  <span class="u u-check" style="font-size:11px"></span>
+                  Completo
+                </span>
+              </template>
+              <template v-else-if="estadoHoy(wid) === 'entrada'">
+                <div class="estado-pill entrada">
+                  <span>↪ {{ marcacionHoy(wid)?.entrada }}</span>
+                </div>
+                <span class="marcar-hint">Tap para salida</span>
+              </template>
+              <template v-else>
+                <span class="estado-pill sin-marcar">Sin marcar</span>
+                <span class="marcar-hint">Tap para marcar</span>
+              </template>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- ── Modal rápido de marcación ──────────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showMarcar" class="marcar-overlay" @click.self="cerrarMarcar">
+        <Transition name="slide-up">
+          <div v-if="showMarcar" class="marcar-modal">
+
+            <!-- Handle bar (mobile) -->
+            <div class="marcar-handle"></div>
+
+            <!-- Worker header -->
+            <div class="marcar-worker-header">
+              <div class="marcar-avatar" :style="{ background: avatarColor(marcarWorker) }">
+                <img v-if="getWorker(marcarWorker)?.foto" :src="getWorker(marcarWorker).foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+                <template v-else>{{ initiales(getWorker(marcarWorker)?.nombre) }}</template>
+              </div>
+              <div>
+                <div class="marcar-worker-name">{{ getWorker(marcarWorker)?.nombre || marcarWorker }}</div>
+                <div class="marcar-worker-sub">{{ marcarGrupo?.nombre }}</div>
+              </div>
+            </div>
+
+            <!-- Estado actual -->
+            <div v-if="estadoHoy(marcarWorker) === 'entrada'" class="marcar-status-row">
+              <span class="marcar-status-badge entrada">Entrada registrada: {{ marcacionHoy(marcarWorker)?.entrada }}</span>
+            </div>
+            <div v-else-if="estadoHoy(marcarWorker) === 'completo'" class="marcar-status-row">
+              <span class="marcar-status-badge completo">
+                {{ marcacionHoy(marcarWorker)?.entrada }} → {{ marcacionHoy(marcarWorker)?.salida }}
+                · {{ marcacionHoy(marcarWorker)?.horas_trabajadas }}h
+              </span>
+            </div>
+
+            <!-- Hora -->
+            <div class="marcar-hora-row" v-if="marcarTipo !== 'completo'">
+              <label class="marcar-hora-label">
+                {{ marcarTipo === 'sin_marcar' ? 'Hora de Entrada' : 'Hora de Salida' }}
+              </label>
+              <div class="marcar-hora-inputs">
+                <input type="time" v-model="marcarHora" class="marcar-time-input" />
+                <button class="btn-ahora" @click="marcarHora = horaAhora()">Ahora</button>
+              </div>
+            </div>
+
+            <!-- Error -->
+            <div v-if="marcarError" class="marcar-error">⚠ {{ marcarError }}</div>
+
+            <!-- Botones de acción -->
+            <div class="marcar-actions">
+              <button class="marcar-btn-cancel" @click="cerrarMarcar">Cancelar</button>
+              <button
+                v-if="marcarTipo === 'sin_marcar'"
+                class="marcar-btn-entrada"
+                :disabled="marcarGuardando"
+                @click="ejecutarMarcacion"
+              >
+                <span class="u u-plus" style="font-size:14px"></span>
+                {{ marcarGuardando ? 'Registrando...' : 'Registrar Entrada' }}
+              </button>
+              <button
+                v-else-if="marcarTipo === 'entrada'"
+                class="marcar-btn-salida"
+                :disabled="marcarGuardando"
+                @click="ejecutarMarcacion"
+              >
+                <span class="u u-check" style="font-size:14px"></span>
+                {{ marcarGuardando ? 'Registrando...' : 'Registrar Salida' }}
+              </button>
+              <div v-else class="marcar-btn-done">✓ Jornada completa</div>
+            </div>
+
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
+
 </template>
 
 <style scoped>
@@ -757,4 +1020,325 @@ function tipoBadge(m) {
 .marc-mini-dot.rechazado { background: #f87171; }
 .marc-mini-dot:hover { transform: scale(1.4); }
 .marc-mini-more { font-size: 10px; color: #6b7280; margin-left: 2px; }
+
+/* ── Panel de proyecto (slide-in desde la derecha) ───────────────── */
+.proy-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(3px);
+}
+.proy-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 401;
+  width: min(480px, 100vw);
+  background: #131f2b;
+  border-left: 1.5px solid rgba(255,255,255,0.08);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: -8px 0 40px rgba(0,0,0,0.45);
+}
+
+.proy-panel__header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 18px;
+  background: #1a2a38;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.proy-panel__icon {
+  width: 40px; height: 40px; border-radius: 11px;
+  background: rgba(58,199,165,0.12);
+  border: 1px solid rgba(58,199,165,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.proy-panel__title-col { flex: 1; min-width: 0; }
+.proy-panel__title {
+  margin: 0; font-size: 15px; font-weight: 800; color: #f3f4f6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proy-panel__sub { display: block; margin: 2px 0 0; font-size: 11px; color: #6b7280; }
+
+.proy-panel__close {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af; border-radius: 8px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px; flex-shrink: 0;
+  transition: all .15s;
+}
+.proy-panel__close:hover { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.3); }
+
+.proy-panel__stats {
+  display: flex;
+  padding: 12px 18px; gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.proy-pstat {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.proy-pstat__val { font-size: 18px; font-weight: 800; color: #f3f4f6; }
+.proy-pstat__val.teal   { color: #3ac7a5; }
+.proy-pstat__val.orange { color: #f4a261; }
+.proy-pstat__val.red    { color: #f87171; }
+.proy-pstat__val.purple { color: #a78bfa; }
+.proy-pstat__label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.proy-panel__date-label {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 18px;
+  font-size: 12px; color: #6b7280;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0; text-transform: capitalize;
+}
+
+.proy-panel__workers {
+  flex: 1; overflow-y: auto;
+  padding: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.proy-panel__workers::-webkit-scrollbar { width: 4px; }
+.proy-panel__workers::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+/* Fila de trabajador en el panel */
+.proy-pw {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 56px; padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.06);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.proy-pw:hover { background: rgba(255,255,255,0.08); border-color: rgba(58,199,165,0.2); }
+.proy-pw:active { background: rgba(58,199,165,0.08); }
+
+.proy-pw__avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(58,199,165,0.12);
+  border: 1.5px solid rgba(58,199,165,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #3ac7a5;
+  flex-shrink: 0;
+}
+.proy-pw__info { flex: 1; min-width: 0; }
+.proy-pw__name {
+  font-size: 13px; font-weight: 700; color: #f3f4f6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proy-pw__sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+
+/* Estado dentro del panel / worker row */
+.proy-pw__estado {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0;
+}
+.marcar-hint {
+  font-size: 10px; color: #4b5563; margin-top: 2px;
+}
+
+/* Estado pill */
+.estado-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+  white-space: nowrap;
+}
+.estado-pill.sin-marcar {
+  background: rgba(107,114,128,0.12);
+  border: 1px solid rgba(107,114,128,0.2);
+  color: #9ca3af;
+}
+.estado-pill.entrada {
+  background: rgba(244,162,97,0.12);
+  border: 1px solid rgba(244,162,97,0.25);
+  color: #f4a261;
+}
+.estado-pill.completo {
+  background: rgba(58,199,165,0.12);
+  border: 1px solid rgba(58,199,165,0.25);
+  color: #3ac7a5;
+}
+
+/* ── Modal de marcación (slide-up bottom sheet) ───────────────────── */
+.marcar-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+}
+.marcar-modal {
+  position: fixed; left: 50%; bottom: 0; z-index: 501;
+  transform: translateX(-50%);
+  width: min(480px, 100vw);
+  background: #131f2b;
+  border-radius: 20px 20px 0 0;
+  border-top: 1.5px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+  box-shadow: 0 -12px 48px rgba(0,0,0,0.5);
+}
+.marcar-handle {
+  width: 40px; height: 4px; border-radius: 4px;
+  background: rgba(255,255,255,0.15);
+  margin: 12px auto 0;
+}
+.marcar-worker-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.marcar-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(58,199,165,0.12);
+  border: 1.5px solid rgba(58,199,165,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #3ac7a5;
+  flex-shrink: 0; overflow: hidden;
+}
+.marcar-worker-name { font-size: 15px; font-weight: 800; color: #f3f4f6; }
+.marcar-worker-sub  { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+.marcar-status-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.marcar-status-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 700;
+}
+.marcar-status-badge.entrada  { background: rgba(244,162,97,0.12); border: 1px solid rgba(244,162,97,0.25); color: #f4a261; }
+.marcar-status-badge.completo { background: rgba(58,199,165,0.12); border: 1px solid rgba(58,199,165,0.25); color: #3ac7a5; }
+
+.marcar-hora-row {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.marcar-hora-label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.marcar-hora-inputs {
+  display: flex; align-items: center; gap: 10px;
+}
+.marcar-time-input {
+  flex: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #f3f4f6; font-size: 16px; font-weight: 700;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  outline: none; text-align: center;
+}
+.marcar-time-input:focus { border-color: rgba(58,199,165,0.5); }
+.btn-ahora {
+  background: rgba(58,199,165,0.1);
+  border: 1px solid rgba(58,199,165,0.25);
+  color: #3ac7a5; border-radius: 9px;
+  padding: 9px 14px; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: all .15s; white-space: nowrap;
+}
+.btn-ahora:hover { background: rgba(58,199,165,0.2); }
+
+.marcar-actions {
+  display: flex; gap: 10px;
+  padding: 14px 20px 28px;
+}
+.marcar-btn-cancel {
+  height: 52px; padding: 0 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af; border-radius: 13px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  transition: all .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.marcar-btn-cancel:hover { background: rgba(255,255,255,0.1); color: #f3f4f6; }
+
+.marcar-btn-done {
+  flex: 1; height: 52px; border-radius: 13px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(58,199,165,0.08);
+  border: 1.5px solid rgba(58,199,165,0.2);
+  color: #3ac7a5; font-size: 14px; font-weight: 800;
+}
+
+.marcar-btn-entrada {
+  flex: 1; height: 52px; border: none; border-radius: 13px;
+  background: linear-gradient(135deg, #2a9d8f, #3ac7a5);
+  color: #fff; font-size: 15px; font-weight: 800;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: opacity .15s, transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.marcar-btn-entrada:hover { opacity: 0.9; }
+.marcar-btn-entrada:active { transform: scale(0.97); }
+.marcar-btn-entrada:disabled { opacity: 0.45; cursor: default; }
+
+.marcar-btn-salida {
+  flex: 1; height: 52px; border: none; border-radius: 13px;
+  background: linear-gradient(135deg, #b45309, #f4a261);
+  color: #fff; font-size: 15px; font-weight: 800;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: opacity .15s, transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.marcar-btn-salida:hover { opacity: 0.9; }
+.marcar-btn-salida:active { transform: scale(0.97); }
+.marcar-btn-salida:disabled { opacity: 0.45; cursor: default; }
+
+.marcar-error {
+  margin: 0 20px 12px;
+  padding: 10px 14px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 9px;
+  color: #f87171; font-size: 12px;
+}
+
+/* ── Transiciones Vue ────────────────────────────────────────────── */
+/* Overlay fade */
+.fade-enter-active, .fade-leave-active { transition: opacity .25s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Panel slide-in desde la derecha */
+.slide-right-enter-active { transition: transform .28s cubic-bezier(0.22,1,0.36,1); }
+.slide-right-leave-active { transition: transform .22s cubic-bezier(0.55,0,1,0.45); }
+.slide-right-enter-from  { transform: translateX(100%); }
+.slide-right-leave-to    { transform: translateX(100%); }
+
+/* Modal slide-up desde abajo */
+.slide-up-enter-active { transition: transform .3s cubic-bezier(0.22,1,0.36,1); }
+.slide-up-leave-active { transition: transform .22s cubic-bezier(0.55,0,1,0.45); }
+.slide-up-enter-from  { transform: translateX(-50%) translateY(100%); }
+.slide-up-leave-to    { transform: translateX(-50%) translateY(100%); }
+
+/* ── Responsive (iPad y móvil) ───────────────────────────────────── */
+@media (max-width: 768px) {
+  .marc-proy-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .proy-panel {
+    width: 100vw;
+    border-left: none;
+    border-top: 1.5px solid rgba(255,255,255,0.08);
+  }
+  .marcar-modal {
+    border-radius: 20px 20px 0 0;
+  }
+}
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* iPad landscape: panel toma 55% del ancho */
+  .proy-panel { width: min(520px, 55vw); }
+  .marc-proy-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
 </style>
