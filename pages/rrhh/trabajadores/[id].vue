@@ -1642,19 +1642,9 @@ function horasExtraDelMesContrato(c) {
   return marcas.reduce((s, m) => s + (m.horas_extra || 0), 0)
 }
 
-// Estimar días trabajados de un contrato dentro del mes/año seleccionado
-function estimarDiasContrato(c) {
-  if (!c.fecha_inicio) return 30
-  const mes = liqForm.value.mes, anio = liqForm.value.anio
-  const inicio = new Date(c.fecha_inicio + 'T12:00:00')
-  const fin    = c.fecha_termino ? new Date(c.fecha_termino + 'T12:00:00') : null
-  const primerDia = new Date(anio, mes - 1, 1)
-  const ultimoDia = new Date(anio, mes, 0)
-  const efectivoInicio = inicio > primerDia ? inicio : primerDia
-  const efectivoFin    = fin && fin < ultimoDia ? fin : ultimoDia
-  if (efectivoFin < efectivoInicio) return 0
-  const dias = Math.round((efectivoFin - efectivoInicio) / (1000 * 60 * 60 * 24)) + 1
-  return Math.min(Math.max(dias, 1), 30)
+// Días trabajados por defecto: siempre 30 (mes completo) para contratos proyecto/honorarios
+function estimarDiasContrato(_c) {
+  return 30
 }
 
 // ¿Está un contrato seleccionado en modo multi?
