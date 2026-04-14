@@ -935,12 +935,81 @@
         </div>
         <div class="modal-body">
 
-          <!-- Seleccionar Contrato -->
-          <div class="form-section" v-if="contratosTrabajador.length > 1 || contratosTrabajador.some(c => c.tipo_contrato === 'proyecto')">
+          <!-- ── 0. Seleccionar Contrato(s) ───────────────────────────────── -->
+          <div class="form-section" v-if="contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo').length > 0">
             <h4 class="section-title">0. Contrato a Liquidar</h4>
-            <div style="display:flex;flex-direction:column;gap:8px">
+
+            <!-- Modo multi-proyecto: checkboxes + días/horas por contrato -->
+            <div v-if="liqHayProyectos" style="display:flex;flex-direction:column;gap:10px">
               <div
-                v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador')"
+                v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')"
+                :key="c._id"
+                class="liq-contrato-option"
+                :class="{ active: esContratoSeleccionado(c._id) }"
+                @click="toggleContratoLiq(c)"
+              >
+                <div class="liq-contrato-check">
+                  <span :class="['liq-checkbox', esContratoSeleccionado(c._id) && 'checked']">
+                    <i v-if="esContratoSeleccionado(c._id)" class="u u-check" style="font-size:10px"></i>
+                  </span>
+                </div>
+                <div class="liq-contrato-left" style="flex:1">
+                  <span class="tipo-pill" :class="`tipo-${c.tipo_contrato}`">{{ labelContrato(c.tipo_contrato) }}</span>
+                  <div>
+                    <div style="font-weight:700;font-size:13px;color:#f3f4f6">{{ c.nombre_proyecto || c.negocio_nombre || c.cargo || '—' }}</div>
+                    <div style="font-size:11px;color:#94a3b8">
+                      {{ formatCLP(c.sueldo_base) }}
+                      · Desde {{ c.fecha_inicio ? new Date(c.fecha_inicio + 'T12:00').toLocaleDateString('es-CL') : '—' }}
+                    </div>
+                  </div>
+                </div>
+                <!-- Inputs de días y horas (sólo si está seleccionado) -->
+                <div v-if="esContratoSeleccionado(c._id)" class="liq-contrato-inputs" @click.stop>
+                  <div class="liq-mini-input-group">
+                    <label>Días</label>
+                    <input
+                      type="number" min="0" max="31"
+                      :value="getContratoSel(c._id)?.dias_trabajados"
+                      @input="getContratoSel(c._id).dias_trabajados = +$event.target.value"
+                      class="form-input liq-mini-input"
+                    />
+                  </div>
+                  <div class="liq-mini-input-group">
+                    <label>
+                      Hs. Extra
+                      <span
+                        v-if="horasExtraDelMesContrato(c) > 0"
+                        class="hint-badge teal"
+                        style="cursor:pointer"
+                        @click.stop="getContratoSel(c._id).horas_extra = horasExtraDelMesContrato(c)"
+                        :title="`${horasExtraDelMesContrato(c)}h desde marcas`"
+                      >↙ {{ horasExtraDelMesContrato(c) }}h</span>
+                    </label>
+                    <input
+                      type="number" min="0"
+                      :value="getContratoSel(c._id)?.horas_extra"
+                      @input="getContratoSel(c._id).horas_extra = +$event.target.value"
+                      class="form-input liq-mini-input"
+                    />
+                  </div>
+                  <!-- preview proporcional -->
+                  <div class="liq-contrato-preview">
+                    {{ formatCLP(Math.round((c.sueldo_base||0) / 30 * (getContratoSel(c._id)?.dias_trabajados||0))) }}
+                    <span v-if="getContratoSel(c._id)?.horas_extra > 0" style="color:#a78bfa">
+                      +{{ formatCLP(Math.round((c.sueldo_base||0)/30/8*1.5*(getContratoSel(c._id)?.horas_extra||0))) }} extra
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="liqForm.contratos_sel.length === 0" style="font-size:12px;color:#f59e0b;padding:8px 0">
+                ⚠ Selecciona al menos un contrato
+              </div>
+            </div>
+
+            <!-- Modo single contract (no proyecto) -->
+            <div v-else style="display:flex;flex-direction:column;gap:8px">
+              <div
+                v-for="c in contratosTrabajador.filter(c => c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')"
                 :key="c._id"
                 class="liq-contrato-option"
                 :class="{ active: liqForm.contrato_id === c._id }"
@@ -952,7 +1021,7 @@
                     <div style="font-weight:600;font-size:13px">{{ c.nombre_proyecto || c.negocio_nombre || c.cargo || '—' }}</div>
                     <div style="font-size:11px;color:#94a3b8">
                       {{ formatCLP(c.sueldo_base) }}
-                      · Desde {{ c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-CL') : '—' }}
+                      · Desde {{ c.fecha_inicio ? new Date(c.fecha_inicio + 'T12:00').toLocaleDateString('es-CL') : '—' }}
                     </div>
                   </div>
                 </div>
@@ -961,7 +1030,7 @@
             </div>
           </div>
 
-          <!-- Período -->
+          <!-- ── 1. Período ──────────────────────────────────────────────── -->
           <div class="form-section">
             <h4 class="section-title">1. Período y Días</h4>
             <div class="liq-form-grid">
@@ -975,26 +1044,52 @@
                 <label>Año</label>
                 <input v-model.number="liqForm.anio" type="number" class="form-input" min="2020" max="2030" />
               </div>
-              <div class="form-group">
-                <label>Días Trabajados</label>
-                <input v-model.number="liqForm.dias_trabajados" type="number" class="form-input" min="1" max="30" />
-              </div>
-              <div class="form-group">
-                <label>
-                  Horas Extra
-                  <span v-if="horasExtraDelMes > 0" class="hint-badge teal" style="font-size:10px;margin-left:4px;cursor:pointer" @click="liqForm.horas_extra = horasExtraDelMes" title="Click para usar horas de marcas">
-                    ↙ {{ horasExtraDelMes }}h desde marcas
-                  </span>
-                </label>
-                <input v-model.number="liqForm.horas_extra" type="number" class="form-input" min="0" />
-              </div>
+
+              <!-- En modo multi-proyecto, los días y horas son por contrato (arriba) -->
+              <template v-if="!liqHayProyectos">
+                <div class="form-group">
+                  <label>Días Trabajados</label>
+                  <input v-model.number="liqForm.dias_trabajados" type="number" class="form-input" min="1" max="30" />
+                </div>
+                <div class="form-group">
+                  <label>
+                    Horas Extra
+                    <span v-if="horasExtraDelMes > 0" class="hint-badge teal" style="font-size:10px;margin-left:4px;cursor:pointer" @click="liqForm.horas_extra = horasExtraDelMes" title="Click para usar horas de marcas">
+                      ↙ {{ horasExtraDelMes }}h desde marcas
+                    </span>
+                  </label>
+                  <input v-model.number="liqForm.horas_extra" type="number" class="form-input" min="0" />
+                </div>
+              </template>
+              <template v-else>
+                <!-- Resumen de días / horas del multi-proyecto -->
+                <div class="form-group">
+                  <label>Total Días</label>
+                  <div class="form-input" style="opacity:0.7;cursor:default">
+                    {{ liqForm.contratos_sel.reduce((s,x)=>s+(x.dias_trabajados||0),0) }} días
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Total Hs. Extra</label>
+                  <div class="form-input" style="opacity:0.7;cursor:default">
+                    {{ liqForm.contratos_sel.reduce((s,x)=>s+(x.horas_extra||0),0) }}h
+                  </div>
+                </div>
+              </template>
             </div>
-            <!-- chip info trabajador + contrato -->
+
+            <!-- chip info trabajador -->
             <div class="trabajador-info-box" v-if="trabajador">
               <div class="info-chips">
                 <span class="chip">{{ trabajador.afp }}</span>
                 <span class="chip">{{ trabajador.sistema_salud || 'FONASA' }}</span>
-                <template v-if="liqContratoActivo">
+                <template v-if="liqHayProyectos && liqForm.contratos_sel.length > 0">
+                  <span class="chip teal">{{ liqForm.contratos_sel.length }} proyectos</span>
+                  <span v-for="s in liqForm.contratos_sel" :key="s.contrato_id" class="chip" style="color:#60a5fa">
+                    {{ contratosTrabajador.find(c=>c._id===s.contrato_id)?.negocio_nombre || contratosTrabajador.find(c=>c._id===s.contrato_id)?.nombre_proyecto || '—' }}
+                  </span>
+                </template>
+                <template v-else-if="liqContratoActivo">
                   <span class="chip teal">{{ labelContrato(liqContratoActivo.tipo_contrato) }}</span>
                   <span class="chip teal">{{ formatCLP(liqContratoActivo.sueldo_base) }}</span>
                   <span v-if="liqContratoActivo.negocio_nombre" class="chip" style="color:#60a5fa">{{ liqContratoActivo.negocio_nombre }}</span>
@@ -1090,19 +1185,40 @@
           <!-- Resultado cálculo -->
           <div class="liq-resultado" v-if="liqCalc">
             <h4>Resumen Liquidación</h4>
+
+            <!-- Desglose por proyecto (modo multi) -->
+            <div v-if="liqCalc._multiContrato && liqCalc._detalle?.length" class="liq-detalle-proyectos">
+              <div v-for="(d, i) in liqCalc._detalle" :key="i" class="liq-detalle-row">
+                <span class="liq-detalle-name">{{ d.contrato.nombre_proyecto || d.contrato.negocio_nombre || d.contrato.cargo || '—' }}</span>
+                <span class="liq-detalle-info">{{ d.sel.dias_trabajados }}d × {{ formatCLP(d.contrato.sueldo_base) }}/mes</span>
+                <span class="liq-detalle-monto">{{ formatCLP(d.proporcional) }}</span>
+                <span v-if="d.montoHorasExtra > 0" class="liq-detalle-extra">+{{ formatCLP(d.montoHorasExtra) }} extra</span>
+              </div>
+            </div>
+
             <div class="liq-cols">
               <div class="liq-col">
                 <div class="liq-section-title">Haberes</div>
-                <div class="liq-line">
-                  <span>Sueldo Base ({{ liqForm.dias_trabajados }}/30)</span>
-                  <span>{{ formatCLP(liqCalc.sueldoProporcional) }}</span>
-                </div>
-                <div class="liq-line" v-if="liqCalc.montoHorasExtra > 0">
-                  <span>Horas Extra</span><span>{{ formatCLP(liqCalc.montoHorasExtra) }}</span>
-                </div>
-                <div class="liq-line" v-if="liqCalc.gratificacion > 0">
-                  <span>Gratificación Legal</span><span>{{ formatCLP(liqCalc.gratificacion) }}</span>
-                </div>
+                <!-- Modo multi: mostrar total combinado como "Honorarios proyectos" -->
+                <template v-if="liqCalc._multiContrato">
+                  <div class="liq-line">
+                    <span>Honorarios ({{ liqForm.contratos_sel.length }} proyectos)</span>
+                    <span>{{ formatCLP(liqCalc.sueldoProporcional) }}</span>
+                  </div>
+                </template>
+                <!-- Modo single: desglose normal -->
+                <template v-else>
+                  <div class="liq-line">
+                    <span>Sueldo Base ({{ liqForm.dias_trabajados }}/30)</span>
+                    <span>{{ formatCLP(liqCalc.sueldoProporcional) }}</span>
+                  </div>
+                  <div class="liq-line" v-if="liqCalc.montoHorasExtra > 0">
+                    <span>Horas Extra</span><span>{{ formatCLP(liqCalc.montoHorasExtra) }}</span>
+                  </div>
+                  <div class="liq-line" v-if="liqCalc.gratificacion > 0">
+                    <span>Gratificación Legal</span><span>{{ formatCLP(liqCalc.gratificacion) }}</span>
+                  </div>
+                </template>
                 <div v-for="bono in liqForm.bonos.filter(b => b.imponible && b.monto > 0)" :key="bono.tipo" class="liq-line">
                   <span>{{ getNombreBono(bono.tipo) }}</span><span>{{ formatCLP(bono.monto) }}</span>
                 </div>
@@ -1481,20 +1597,28 @@ const liqForm = ref({
   bonos: [],
   descuentos: [],
   notas: '',
-  contrato_id: null,  // contrato seleccionado para esta liquidación
+  contrato_id: null,       // contrato único (modo no-proyecto)
+  contratos_sel: [],       // [{ contrato_id, dias_trabajados, horas_extra }] – modo multi-proyecto
 })
 
-// Contrato activo seleccionado para la liquidación
+// ¿El trabajador tiene contratos tipo proyecto/honorarios vigentes?
+const liqHayProyectos = computed(() =>
+  contratosTrabajador.value.some(c =>
+    (c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'honorarios') &&
+    (c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')
+  )
+)
+
+// Contrato activo seleccionado para la liquidación (modo single)
 const liqContratoActivo = computed(() => {
   if (!liqForm.value.contrato_id) return contratoVigente.value
   return contratosTrabajador.value.find(c => c._id === liqForm.value.contrato_id) || contratoVigente.value
 })
 
-// Horas extra del mes actual según marcaciones
+// Horas extra del mes global (para modo single)
 const horasExtraDelMes = computed(() => {
   if (!trabajador.value) return 0
-  const mes = liqForm.value.mes
-  const anio = liqForm.value.anio
+  const mes = liqForm.value.mes, anio = liqForm.value.anio
   const marcas = asistenciaStore.marcaciones?.filter(m => {
     if (m.trabajador_id !== (trabajador.value._id || trabajador.value.id)) return false
     const d = new Date(m.fecha || m.timestamp)
@@ -1503,12 +1627,64 @@ const horasExtraDelMes = computed(() => {
   return marcas.reduce((s, m) => s + (m.horas_extra || 0), 0)
 })
 
+// Horas extra del mes filtradas por proyecto de un contrato específico
+function horasExtraDelMesContrato(c) {
+  if (!trabajador.value || !c) return 0
+  const mes = liqForm.value.mes, anio = liqForm.value.anio
+  const proyId = c.proyecto_id || null
+  const marcas = asistenciaStore.marcaciones?.filter(m => {
+    if (m.trabajador_id !== (trabajador.value._id || trabajador.value.id)) return false
+    const d = new Date(m.fecha || m.timestamp)
+    if (d.getMonth() + 1 !== mes || d.getFullYear() !== anio) return false
+    if (proyId && m.proyecto_id) return m.proyecto_id === proyId
+    return true
+  }) || []
+  return marcas.reduce((s, m) => s + (m.horas_extra || 0), 0)
+}
+
+// Estimar días trabajados de un contrato dentro del mes/año seleccionado
+function estimarDiasContrato(c) {
+  if (!c.fecha_inicio) return 30
+  const mes = liqForm.value.mes, anio = liqForm.value.anio
+  const inicio = new Date(c.fecha_inicio + 'T12:00:00')
+  const fin    = c.fecha_termino ? new Date(c.fecha_termino + 'T12:00:00') : null
+  const primerDia = new Date(anio, mes - 1, 1)
+  const ultimoDia = new Date(anio, mes, 0)
+  const efectivoInicio = inicio > primerDia ? inicio : primerDia
+  const efectivoFin    = fin && fin < ultimoDia ? fin : ultimoDia
+  if (efectivoFin < efectivoInicio) return 0
+  const dias = Math.round((efectivoFin - efectivoInicio) / (1000 * 60 * 60 * 24)) + 1
+  return Math.min(Math.max(dias, 1), 30)
+}
+
+// ¿Está un contrato seleccionado en modo multi?
+function esContratoSeleccionado(id) {
+  return liqForm.value.contratos_sel.some(s => s.contrato_id === id)
+}
+
+// Obtener el objeto sel de un contrato en modo multi
+function getContratoSel(id) {
+  return liqForm.value.contratos_sel.find(s => s.contrato_id === id)
+}
+
+// Toggle selección multi-contrato
+function toggleContratoLiq(c) {
+  const idx = liqForm.value.contratos_sel.findIndex(s => s.contrato_id === c._id)
+  if (idx !== -1) {
+    liqForm.value.contratos_sel.splice(idx, 1)
+  } else {
+    liqForm.value.contratos_sel.push({
+      contrato_id: c._id,
+      dias_trabajados: estimarDiasContrato(c),
+      horas_extra: horasExtraDelMesContrato(c),
+    })
+  }
+}
+
+// Selección single (no-proyecto)
 function seleccionarContratoLiq(c) {
   liqForm.value.contrato_id = c._id
-  // Auto-completar horas extra desde marcas si hay
-  if (horasExtraDelMes.value > 0) {
-    liqForm.value.horas_extra = horasExtraDelMes.value
-  }
+  if (horasExtraDelMes.value > 0) liqForm.value.horas_extra = horasExtraDelMes.value
 }
 
 const trabajador = computed(() => {
@@ -1760,7 +1936,49 @@ const checklistDocs = computed(() => {
 
 const liqCalc = computed(() => {
   if (!trabajador.value) return null
-  // Usar el contrato seleccionado para la liquidación (o el vigente por defecto)
+
+  // ── Modo multi-proyecto ───────────────────────────────────────────────────
+  if (liqHayProyectos.value && liqForm.value.contratos_sel.length > 0) {
+    let totalProporcional  = 0
+    let totalHorasExtraMonto = 0
+    let totalMovil = 0
+    let totalColac = 0
+    const detalle = []
+
+    for (const sel of liqForm.value.contratos_sel) {
+      const c = contratosTrabajador.value.find(x => x._id === sel.contrato_id)
+      if (!c) continue
+      const base            = c.sueldo_base || 0
+      const dias            = sel.dias_trabajados || 0
+      const proporcional    = Math.round(base / 30 * dias)
+      const valorHora       = Math.round(base / 30 / 8 * 1.5)
+      const montoHorasExtra = valorHora * (sel.horas_extra || 0)
+      totalProporcional    += proporcional
+      totalHorasExtraMonto += montoHorasExtra
+      totalMovil += c.movilizacion || 0
+      totalColac += c.colacion  || 0
+      detalle.push({ contrato: c, proporcional, montoHorasExtra, sel })
+    }
+
+    // Sueldo ya calculado proporcionalmente; pasamos dias=30 para que la función no re-prorratee
+    const resultado = rrhhStore.calcularLiquidacion({
+      sueldo_base:     totalProporcional + totalHorasExtraMonto,
+      afp:             trabajador.value.afp,
+      sistema_salud:   trabajador.value.sistema_salud,
+      isapre_uf:       trabajador.value.isapre_uf || 0,
+      tipo_contrato:   'proyecto',
+      gratificacion:   'anual',   // sin gratificación mensual en proyectos
+      movilizacion:    totalMovil,
+      colacion:        totalColac,
+      dias_trabajados: 30,        // ya incorporado en la base
+      horas_extra:     0,         // ya incorporado
+      bonos:           liqForm.value.bonos,
+      descuentos:      liqForm.value.descuentos,
+    })
+    return { ...resultado, _detalle: detalle, _multiContrato: true }
+  }
+
+  // ── Modo single contract ──────────────────────────────────────────────────
   const cv = liqContratoActivo.value || contratoVigente.value
   return rrhhStore.calcularLiquidacion({
     sueldo_base:    cv?.sueldo_base || trabajador.value.sueldo_base || 0,
@@ -1865,6 +2083,22 @@ function openNewLiquidacion() {
     bonos: [],
     descuentos: [],
     notas: '',
+    contrato_id: null,
+    contratos_sel: [],
+  }
+  // Para trabajadores con proyectos, pre-seleccionar contratos vigentes automáticamente
+  if (liqHayProyectos.value) {
+    const vigentes = contratosTrabajador.value.filter(c =>
+      (c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'honorarios') &&
+      (c.estado === 'vigente' || c.estado === 'borrador' || c.estado === 'activo')
+    )
+    vigentes.forEach(c => {
+      liqForm.value.contratos_sel.push({
+        contrato_id: c._id,
+        dias_trabajados: estimarDiasContrato(c),
+        horas_extra: horasExtraDelMesContrato(c),
+      })
+    })
   }
   activeTab.value = 'liquidaciones'
   showNewLiq.value = true
@@ -1880,18 +2114,34 @@ async function guardarLiqPagada() {
 
 async function saveLiq(estado) {
   if (!trabajador.value || !liqCalc.value) return
+  const isMulti = liqCalc.value._multiContrato
+
+  // Nombres de proyectos incluidos (para mostrar en historial)
+  const negocioNombres = isMulti
+    ? liqForm.value.contratos_sel
+        .map(s => contratosTrabajador.value.find(c => c._id === s.contrato_id))
+        .filter(Boolean)
+        .map(c => c.negocio_nombre || c.nombre_proyecto || c.cargo || '—')
+        .join(' + ')
+    : liqContratoActivo.value?.negocio_nombre || ''
+
   await rrhhStore.createLiquidacion({
     trabajador_id:       trabajador.value._id,
-    contrato_id:         liqForm.value.contrato_id || liqContratoActivo.value?._id || null,
-    negocio_nombre:      liqContratoActivo.value?.negocio_nombre || '',
+    contrato_id:         isMulti ? null : (liqForm.value.contrato_id || liqContratoActivo.value?._id || null),
+    contratos_sel:       isMulti ? liqForm.value.contratos_sel : null,
+    negocio_nombre:      negocioNombres,
     mes:                 liqForm.value.mes,
     anio:                liqForm.value.anio,
-    dias_trabajados:     liqForm.value.dias_trabajados,
-    horas_extra:         liqForm.value.horas_extra,
+    dias_trabajados:     isMulti
+                           ? liqForm.value.contratos_sel.reduce((s, x) => s + (x.dias_trabajados || 0), 0)
+                           : liqForm.value.dias_trabajados,
+    horas_extra:         isMulti
+                           ? liqForm.value.contratos_sel.reduce((s, x) => s + (x.horas_extra || 0), 0)
+                           : liqForm.value.horas_extra,
     bonos:               liqForm.value.bonos,
     descuentos:          liqForm.value.descuentos,
     notas:               liqForm.value.notas,
-    sueldo_base:         trabajador.value.sueldo_base,
+    sueldo_base:         liqCalc.value.sueldoProporcional,
     total_haberes:       liqCalc.value.totalHaberes,
     total_descuentos:    liqCalc.value.totalDescuentos,
     liquido_a_pagar:     liqCalc.value.liquidoAPagar,
@@ -3528,20 +3778,77 @@ onUnmounted(() => {
 .liq-contrato-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 12px 16px;
   border: 1.5px solid var(--border, rgba(255,255,255,0.08));
   border-radius: 10px;
   cursor: pointer;
   transition: border-color .15s, background .15s;
   background: var(--bg-secondary, #1e2d3a);
+  flex-wrap: wrap;
 }
 .liq-contrato-option:hover { border-color: var(--primary, #3ac7a5); }
 .liq-contrato-option.active {
   border-color: var(--primary, #3ac7a5);
   background: rgba(58,199,165,0.07);
 }
+.liq-contrato-check { flex-shrink: 0; }
+.liq-checkbox {
+  width: 18px; height: 18px; border-radius: 5px;
+  border: 2px solid rgba(255,255,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.liq-checkbox.checked {
+  background: #3ac7a5;
+  border-color: #3ac7a5;
+  color: #fff;
+}
 .liq-contrato-left { display: flex; align-items: center; gap: 12px; }
+
+/* Inputs de días/horas por contrato (en modo multi) */
+.liq-contrato-inputs {
+  display: flex; align-items: flex-end; gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.liq-mini-input-group {
+  display: flex; flex-direction: column; gap: 3px;
+}
+.liq-mini-input-group label {
+  font-size: 10px; font-weight: 600; color: #6b7280;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  display: flex; align-items: center; gap: 4px;
+}
+.liq-mini-input {
+  width: 72px !important; padding: 6px 8px !important;
+  font-size: 12px !important; text-align: center;
+}
+.liq-contrato-preview {
+  font-size: 11px; font-weight: 700; color: #3ac7a5;
+  white-space: nowrap; align-self: center;
+  background: rgba(58,199,165,0.1);
+  border-radius: 6px; padding: 4px 8px;
+}
+
+/* Desglose por proyecto en el resumen */
+.liq-detalle-proyectos {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.liq-detalle-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 11.5px;
+}
+.liq-detalle-name { font-weight: 700; color: #f3f4f6; flex: 1; }
+.liq-detalle-info { color: #6b7280; font-size: 11px; }
+.liq-detalle-monto { color: #3ac7a5; font-weight: 700; font-size: 12px; }
+.liq-detalle-extra { color: #a78bfa; font-size: 11px; font-weight: 600; }
+
 .hint-badge {
   background: rgba(58,199,165,0.15);
   color: #3ac7a5;
