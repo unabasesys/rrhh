@@ -728,18 +728,18 @@ onUnmounted(() => globalStore.cleanHeader());
 .rrhhTable { width: 100%; border-collapse: collapse; }
 
 .rrhhTable th {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .06em; color: #6b7280;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #9ca3af;
   padding: 12px 16px;
-  border-bottom: 1.5px solid rgba(255,255,255,0.08);
+  border-bottom: 1.5px solid rgba(255,255,255,0.09);
   text-align: left; white-space: nowrap;
-  background: #1e2d3a;
+  background: rgba(10,18,26,0.4);
   position: sticky; top: 0; z-index: 1;
 }
 
 .rrhhTable td {
   font-size: 13px; color: #e5e7eb;
-  padding: 12px 16px;
+  padding: 13px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   vertical-align: middle;
 }

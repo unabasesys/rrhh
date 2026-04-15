@@ -7,6 +7,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
 import useGlobalStore from '@/stores/global'
+import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
 definePageMeta({ layout: 'rrhh' })
 
@@ -14,14 +15,19 @@ const asistencia = useAsistenciaStore()
 const rrhhStore  = useRrhhStore()
 const global     = useGlobalStore()
 
+// ── Herramientas section tabs ─────────────────────────────────────────────
+const herramientasTabs = [
+  { key: 'reportes', label: 'Reportes y Nómina', path: '/rrhh/reportes' },
+  { key: 'informes', label: 'Informes Asistencia', path: '/rrhh/asistencia/informes' },
+]
+
 onMounted(async () => {
   asistencia.init()
-  global.title     = 'Informes de Asistencia'
+  global.title     = 'Herramientas'
   global.namePage  = 'RRHH'
   global.breadcrumb = [
-    { name: 'RRHH',       path: '/rrhh/trabajadores' },
-    { name: 'Asistencia', path: '/rrhh/asistencia' },
-    { name: 'Informes' },
+    { name: 'RRHH', path: '/rrhh/trabajadores' },
+    { name: 'Herramientas' },
   ]
   if (!rrhhStore.trabajadores?.length) {
     await rrhhStore.getTrabajadores()
@@ -133,6 +139,9 @@ function exportarCSV() {
 
 <template>
   <div class="informes-page">
+
+    <!-- ── Section Tabs: Herramientas ────────────────────────────────── -->
+    <RrhhSectionTabs :tabs="herramientasTabs" current="informes" />
 
     <!-- ── Header + controles ─────────────────────────────────────────── -->
     <div class="page-header">

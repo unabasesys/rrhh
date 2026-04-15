@@ -8,6 +8,7 @@ import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
 import useGlobalStore from '@/stores/global'
 import { useRouter } from 'vue-router'
+import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
 definePageMeta({ layout: 'rrhh' })
 
@@ -29,6 +30,9 @@ onMounted(async () => {
   }
   if (!rrhhStore.contratos?.length) {
     rrhhStore.getContratos?.()
+  }
+  if (!rrhhStore.liquidaciones?.length) {
+    rrhhStore.getLiquidaciones?.()
   }
 })
 
@@ -116,6 +120,58 @@ async function copiarLink() {
   } catch {}
 }
 
+// ─── RRHH-wide KPIs ──────────────────────────────────────────────────────
+const contratos = computed(() => rrhhStore.contratos || [])
+const liquidaciones = computed(() => rrhhStore.liquidaciones || [])
+
+const hoyDate = new Date()
+const hoyStr  = hoyDate.toISOString().split('T')[0]
+
+function diasHasta(fechaStr) {
+  if (!fechaStr) return Infinity
+  const d = new Date(fechaStr)
+  return Math.ceil((d - hoyDate) / 86400000)
+}
+
+const contratosPorVencer30 = computed(() =>
+  contratos.value.filter(c => {
+    if (!c.fecha_termino) return false
+    const d = diasHasta(c.fecha_termino)
+    return d >= 0 && d <= 30
+  })
+)
+
+const contratosPorVencer7 = computed(() =>
+  contratos.value.filter(c => {
+    if (!c.fecha_termino) return false
+    const d = diasHasta(c.fecha_termino)
+    return d >= 0 && d <= 7
+  })
+)
+
+const liquidacionesPendientes = computed(() => {
+  const mesActual = new Date().toISOString().slice(0, 7) // YYYY-MM
+  return liquidaciones.value.filter(l =>
+    l.estado === 'pendiente' ||
+    l.estado === 'borrador' ||
+    (l.periodo && l.periodo.startsWith(mesActual) && l.estado !== 'pagado')
+  )
+})
+
+const kpisRrhh = computed(() => ({
+  porVencer30:  contratosPorVencer30.value.length,
+  porVencer7:   contratosPorVencer7.value.length,
+  liqPendientes: liquidacionesPendientes.value.length,
+  trabajadoresActivos: trabajadores.value.filter(w => w.estado !== 'inactivo').length,
+}))
+
+// ─── Tabs de Asistencia ───────────────────────────────────────────────────
+const asistenciaTabs = [
+  { key: 'dashboard',   label: 'Dashboard',   path: '/rrhh/asistencia' },
+  { key: 'marcaciones', label: 'Marcaciones',  path: '/rrhh/asistencia/marcaciones' },
+  { key: 'turnos',      label: 'Turnos',       path: '/rrhh/asistencia/turnos' },
+]
+
 // ─── Iniciales ────────────────────────────────────────────────────────────
 function initiales(nombre) {
   if (!nombre) return '?'
@@ -132,7 +188,10 @@ function avatarColor(id) {
 <template>
   <div class="asist-page">
 
-    <!-- ── KPI cards ────────────────────────────────────────────────────── -->
+    <!-- ── Section tabs ─────────────────────────────────────────────────── -->
+    <RrhhSectionTabs :tabs="asistenciaTabs" current="dashboard" />
+
+    <!-- ── KPI cards (Asistencia) ───────────────────────────────────────── -->
     <div class="kpi-row">
       <div class="kpi-card">
         <div class="kpi-icon kpi-teal"><i class="u u-usuarios"></i></div>
@@ -169,6 +228,74 @@ function avatarColor(id) {
           <div class="kpi-label">Horas registradas hoy</div>
         </div>
       </div>
+    </div>
+
+    <!-- ── KPI RRHH (segunda fila) ──────────────────────────────────────── -->
+    <div class="kpi-row kpi-row--rrhh">
+      <div class="kpi-card kpi-card--rrhh" @click="router.push('/rrhh/trabajadores')">
+        <div class="kpi-icon kpi-teal"><i class="u u-usuarios"></i></div>
+        <div>
+          <div class="kpi-val">{{ kpisRrhh.trabajadoresActivos }}</div>
+          <div class="kpi-label">Trabajadores activos</div>
+        </div>
+        <i class="u u-flecha-derecha kpi-arrow"></i>
+      </div>
+      <div
+        class="kpi-card kpi-card--rrhh"
+        :class="{ 'kpi-card--warn': kpisRrhh.porVencer30 > 0 }"
+        @click="router.push('/rrhh/contratos?tab=vencimientos')"
+      >
+        <div class="kpi-icon" :class="kpisRrhh.porVencer30 > 0 ? 'kpi-orange' : 'kpi-teal'">
+          <i class="u u-folder-open"></i>
+        </div>
+        <div>
+          <div class="kpi-val" :class="{ 'kpi-val--warn': kpisRrhh.porVencer30 > 0 }">
+            {{ kpisRrhh.porVencer30 }}
+          </div>
+          <div class="kpi-label">Contratos por vencer (30d)</div>
+        </div>
+        <i class="u u-flecha-derecha kpi-arrow"></i>
+      </div>
+      <div
+        class="kpi-card kpi-card--rrhh"
+        :class="{ 'kpi-card--warn': kpisRrhh.liqPendientes > 0 }"
+        @click="router.push('/rrhh/liquidaciones')"
+      >
+        <div class="kpi-icon" :class="kpisRrhh.liqPendientes > 0 ? 'kpi-red' : 'kpi-teal'">
+          <i class="u u-cobros-y-pagos"></i>
+        </div>
+        <div>
+          <div class="kpi-val" :class="{ 'kpi-val--warn': kpisRrhh.liqPendientes > 0 }">
+            {{ kpisRrhh.liqPendientes }}
+          </div>
+          <div class="kpi-label">Liquidaciones pendientes</div>
+        </div>
+        <i class="u u-flecha-derecha kpi-arrow"></i>
+      </div>
+    </div>
+
+    <!-- ── Alert strip: contratos que vencen en ≤7 días ────────────────── -->
+    <div v-if="contratosPorVencer7.length" class="alert-strip">
+      <div class="alert-strip__icon"><i class="u u-alerta"></i></div>
+      <div class="alert-strip__content">
+        <span class="alert-strip__title">
+          {{ contratosPorVencer7.length === 1 ? '1 contrato vence' : `${contratosPorVencer7.length} contratos vencen` }}
+          en los próximos 7 días
+        </span>
+        <div class="alert-strip__chips">
+          <span
+            v-for="c in contratosPorVencer7"
+            :key="c._id"
+            class="alert-chip"
+          >
+            {{ c.trabajador_nombre || c.nombre || 'Trabajador' }}
+            <span class="alert-chip__days">{{ diasHasta(c.fecha_termino) === 0 ? 'hoy' : `${diasHasta(c.fecha_termino)}d` }}</span>
+          </span>
+        </div>
+      </div>
+      <button class="alert-strip__cta" @click="router.push('/rrhh/contratos?tab=vencimientos')">
+        Ver contratos <i class="u u-flecha-derecha"></i>
+      </button>
     </div>
 
     <!-- ── Strip semanal ─────────────────────────────────────────────────── -->
@@ -350,6 +477,111 @@ function avatarColor(id) {
 .kpi-val   { font-size: 26px; font-weight: 800; color: #f3f4f6; line-height: 1.1; }
 .kpi-label { font-size: 12px; color: #6b7280; margin-top: 2px; }
 
+/* ── KPI RRHH row ───────────────────────────────────────────────────────── */
+.kpi-row--rrhh { margin-top: -6px; }
+
+.kpi-card--rrhh {
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.kpi-card--rrhh:hover {
+  border-color: rgba(58,199,165,0.3);
+  transform: translateY(-1px);
+}
+.kpi-card--warn {
+  border-color: rgba(244,162,97,0.25) !important;
+}
+.kpi-val--warn { color: #f4a261; }
+
+.kpi-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  color: #374151;
+  transition: color 0.15s;
+}
+.kpi-card--rrhh:hover .kpi-arrow { color: #3ac7a5; }
+
+/* ── Alert strip ─────────────────────────────────────────────────────────── */
+.alert-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(244,162,97,0.08);
+  border: 1.5px solid rgba(244,162,97,0.25);
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+
+.alert-strip__icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(244,162,97,0.15);
+  color: #f4a261;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.alert-strip__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-strip__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f4a261;
+}
+
+.alert-strip__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alert-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(244,162,97,0.12);
+  border: 1px solid rgba(244,162,97,0.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #d1d5db;
+}
+
+.alert-chip__days {
+  background: rgba(244,162,97,0.25);
+  color: #f4a261;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.alert-strip__cta {
+  background: rgba(244,162,97,0.12);
+  border: 1px solid rgba(244,162,97,0.25);
+  color: #f4a261;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+  align-self: center;
+  transition: all 0.15s;
+}
+.alert-strip__cta:hover {
+  background: rgba(244,162,97,0.2);
+}
+
 /* ── Cards ───────────────────────────────────────────────────────────────── */
 .section-card {
   background: #1e2d3a;
@@ -439,20 +671,21 @@ function avatarColor(id) {
 }
 
 .asist-table th {
-  padding: 10px 16px;
+  padding: 11px 16px;
   text-align: left;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #6b7280;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  letter-spacing: 0.07em;
+  color: #9ca3af;
+  background: rgba(255,255,255,0.025);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .asist-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  color: #d1d5db;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: #e5e7eb;
   vertical-align: middle;
 }
 

@@ -1,5 +1,8 @@
 <template>
   <div class="reportes-page">
+    <!-- ── Section Tabs: Herramientas ─────────────────────────────────── -->
+    <RrhhSectionTabs :tabs="herramientasTabs" current="reportes" />
+
     <!-- Toolbar -->
     <div class="page-toolbar">
       <div class="toolbar-left">
@@ -367,6 +370,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import useRrhhStore from '@/stores/rrhh'
 import useGlobalStore from '@/stores/global'
+import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
 definePageMeta({ name: 'rrhh-reportes', layout: 'rrhh', middleware: ['auth'] })
 
@@ -397,6 +401,12 @@ const reporteTabs = [
   { id: 'costos_proyecto', label: 'Costos Proyecto', icon: 'u u-ventas' },
   { id: 'prevision', label: 'AFP / Salud', icon: 'u u-usuarios' },
   { id: 'vacaciones', label: 'Vacaciones', icon: 'u u-calendario' },
+]
+
+// ── Herramientas section tabs (unifica Reportes + Informes Asistencia) ──
+const herramientasTabs = [
+  { key: 'reportes', label: 'Reportes y Nómina', path: '/rrhh/reportes' },
+  { key: 'informes', label: 'Informes Asistencia', path: '/rrhh/asistencia/informes' },
 ]
 
 const liquidacionesPeriodo = computed(() => {
@@ -542,10 +552,10 @@ function exportarLibroDT() { console.log('Exportar Libro DT') }
 function exportarTodos() { console.log('Exportar todos los reportes') }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Reportes RRHH')
+  globalStore.updatedTitle('Herramientas')
   globalStore.updatedBreadcrumb([
     { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Reportes', path: '' },
+    { label: 'Herramientas' },
   ])
   globalStore.loading = true
   await Promise.all([

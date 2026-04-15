@@ -4,16 +4,18 @@
  * Registro completo de marcaciones con corrección del supervisor y asignación
  * de proyecto / línea presupuestal.
  */
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
 import useGlobalStore from '@/stores/global'
+import { useRoute } from 'vue-router'
 
 definePageMeta({ layout: 'rrhh' })
 
 const asistencia = useAsistenciaStore()
 const rrhhStore  = useRrhhStore()
 const global     = useGlobalStore()
+const route      = useRoute()
 
 onMounted(async () => {
   asistencia.init()
@@ -35,6 +37,104 @@ const asistenciaTabs = [
   { key: 'historial',   label: 'Historial',     path: '/rrhh/asistencia/marcaciones?tab=historial', icon: 'u u-calendar' },
   { key: 'incidencias', label: 'Incidencias',   path: '/rrhh/asistencia/marcaciones?tab=incidencias', icon: 'u u-alerta' },
 ]
+
+// ── Sub-tab activa (soporta ?tab=incidencias / ?tab=historial) ───────────────
+const subtabActual = computed(() => route.query.tab || 'marcaciones')
+
+// ─── Incidencias ──────────────────────────────────────────────────────────────
+// Período: últimos 30 días por defecto
+const incidPeriodoDays = ref(30)
+const incidPeriodoDesde = computed(() => {
+  const d = new Date(hoy)
+  d.setDate(d.getDate() - incidPeriodoDays.value)
+  return d.toISOString().split('T')[0]
+})
+
+const incidencias = computed(() => {
+  const desde = incidPeriodoDesde.value
+  const marcaciones = asistencia.marcaciones.filter(m => m.fecha >= desde && m.fecha <= hoy)
+  const trabajadoresActivos = trabajadores.value.filter(w => w.estado !== 'inactivo')
+
+  const result = []
+
+  // 1. Atrasos
+  marcaciones
+    .filter(m => m.atraso_minutos > 0)
+    .forEach(m => {
+      const w = getWorker(m.trabajador_id)
+      result.push({
+        tipo: 'atraso',
+        fecha: m.fecha,
+        trabajador_id: m.trabajador_id,
+        trabajador: w?.nombre || m.trabajador_id,
+        cargo: w?.cargo || '',
+        detalle: `${m.atraso_minutos} min de atraso`,
+        valor: m.atraso_minutos,
+        marcacion_id: m.id,
+      })
+    })
+
+  // 2. Ausencias (sin marcación en días laborales pasados)
+  const diasDesde = Math.abs(Math.ceil((new Date(desde) - new Date(hoy)) / 86400000))
+  for (let i = 1; i <= diasDesde; i++) {
+    const d = new Date(hoy)
+    d.setDate(d.getDate() - i)
+    const dow = d.getDay()
+    if (dow === 0 || dow === 6) continue // skip weekends
+    const fechaStr = d.toISOString().split('T')[0]
+
+    trabajadoresActivos.forEach(w => {
+      const wid = w._id || w.id
+      const tiene = marcaciones.some(m => m.trabajador_id === wid && m.fecha === fechaStr)
+      if (!tiene) {
+        result.push({
+          tipo: 'ausencia',
+          fecha: fechaStr,
+          trabajador_id: wid,
+          trabajador: w.nombre,
+          cargo: w.cargo || '',
+          detalle: 'Sin marcación',
+          valor: null,
+          marcacion_id: null,
+        })
+      }
+    })
+  }
+
+  // 3. Horas extra (>= 1 hora extra)
+  marcaciones
+    .filter(m => (m.horas_extra || 0) >= 1)
+    .forEach(m => {
+      const w = getWorker(m.trabajador_id)
+      result.push({
+        tipo: 'hora_extra',
+        fecha: m.fecha,
+        trabajador_id: m.trabajador_id,
+        trabajador: w?.nombre || m.trabajador_id,
+        cargo: w?.cargo || '',
+        detalle: `${m.horas_extra}h extra`,
+        valor: m.horas_extra,
+        marcacion_id: m.id,
+      })
+    })
+
+  // Ordenar: más reciente primero
+  return result.sort((a, b) => b.fecha.localeCompare(a.fecha))
+})
+
+const incidFiltroTipo = ref('') // '' | 'atraso' | 'ausencia' | 'hora_extra'
+
+const incidenciasFiltradas = computed(() => {
+  if (!incidFiltroTipo.value) return incidencias.value
+  return incidencias.value.filter(i => i.tipo === incidFiltroTipo.value)
+})
+
+const incidKpis = computed(() => ({
+  total: incidencias.value.length,
+  atrasos: incidencias.value.filter(i => i.tipo === 'atraso').length,
+  ausencias: incidencias.value.filter(i => i.tipo === 'ausencia').length,
+  horasExtra: incidencias.value.filter(i => i.tipo === 'hora_extra').length,
+}))
 
 // ─── Filtros ──────────────────────────────────────────────────────────────
 const filtroFechaDesde = ref('')
@@ -281,7 +381,10 @@ function tipoBadge(m) {
   <div class="marc-page">
 
     <!-- ── Tabs de sección: Asistencia unificada ─────────────────────── -->
-    <RrhhSectionTabs :tabs="asistenciaTabs" current="marcaciones" />
+    <RrhhSectionTabs :tabs="asistenciaTabs" :current="subtabActual === 'incidencias' ? 'incidencias' : subtabActual === 'historial' ? 'historial' : 'marcaciones'" />
+
+    <!-- ── Contenido principal (se oculta en sub-tab incidencias) ──────── -->
+    <template v-if="subtabActual !== 'incidencias'">
 
     <!-- ── Filtros ─────────────────────────────────────────────────────── -->
     <div class="filter-bar">
@@ -572,6 +675,103 @@ function tipoBadge(m) {
         </tbody>
       </table>
     </div>
+
+    </template>
+    <!-- ── /Contenido principal ─────────────────────────────────────────── -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- ── Tab: Incidencias ─────────────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div v-if="subtabActual === 'incidencias'" class="incid-section">
+
+      <!-- Header + controles -->
+      <div class="incid-header">
+        <div class="incid-periodo">
+          <span class="incid-header__label">Período:</span>
+          <button :class="['incid-periodo-btn', incidPeriodoDays === 7 && 'active']" @click="incidPeriodoDays = 7">7 días</button>
+          <button :class="['incid-periodo-btn', incidPeriodoDays === 30 && 'active']" @click="incidPeriodoDays = 30">30 días</button>
+          <button :class="['incid-periodo-btn', incidPeriodoDays === 90 && 'active']" @click="incidPeriodoDays = 90">90 días</button>
+        </div>
+        <div class="incid-tipo-filter">
+          <button :class="['incid-tipo-btn', !incidFiltroTipo && 'active']" @click="incidFiltroTipo = ''">
+            Todas <span class="incid-count">{{ incidKpis.total }}</span>
+          </button>
+          <button :class="['incid-tipo-btn incid-tipo-btn--atraso', incidFiltroTipo === 'atraso' && 'active']" @click="incidFiltroTipo = 'atraso'">
+            <i class="u u-reloj"></i> Atrasos <span class="incid-count">{{ incidKpis.atrasos }}</span>
+          </button>
+          <button :class="['incid-tipo-btn incid-tipo-btn--ausencia', incidFiltroTipo === 'ausencia' && 'active']" @click="incidFiltroTipo = 'ausencia'">
+            <i class="u u-cerrar"></i> Ausencias <span class="incid-count">{{ incidKpis.ausencias }}</span>
+          </button>
+          <button :class="['incid-tipo-btn incid-tipo-btn--extra', incidFiltroTipo === 'hora_extra' && 'active']" @click="incidFiltroTipo = 'hora_extra'">
+            <i class="u u-cobros-y-pagos"></i> Horas extra <span class="incid-count">{{ incidKpis.horasExtra }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="incid-kpis">
+        <div class="incid-kpi incid-kpi--orange">
+          <div class="incid-kpi__val">{{ incidKpis.atrasos }}</div>
+          <div class="incid-kpi__label">Atrasos</div>
+        </div>
+        <div class="incid-kpi incid-kpi--red">
+          <div class="incid-kpi__val">{{ incidKpis.ausencias }}</div>
+          <div class="incid-kpi__label">Ausencias</div>
+        </div>
+        <div class="incid-kpi incid-kpi--purple">
+          <div class="incid-kpi__val">{{ incidKpis.horasExtra }}</div>
+          <div class="incid-kpi__label">Con horas extra</div>
+        </div>
+        <div class="incid-kpi incid-kpi--neutral">
+          <div class="incid-kpi__val">{{ incidKpis.total }}</div>
+          <div class="incid-kpi__label">Total incidencias</div>
+        </div>
+      </div>
+
+      <!-- Tabla de incidencias -->
+      <div class="incid-table-wrap">
+        <table class="incid-table">
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Fecha</th>
+              <th>Trabajador</th>
+              <th>Cargo</th>
+              <th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inc in incidenciasFiltradas" :key="`${inc.tipo}-${inc.fecha}-${inc.trabajador_id}`">
+              <td>
+                <span class="incid-badge" :class="`incid-badge--${inc.tipo}`">
+                  <i :class="inc.tipo === 'atraso' ? 'u u-reloj' : inc.tipo === 'ausencia' ? 'u u-cerrar' : 'u u-cobros-y-pagos'"></i>
+                  {{ inc.tipo === 'atraso' ? 'Atraso' : inc.tipo === 'ausencia' ? 'Ausencia' : 'Hora extra' }}
+                </span>
+              </td>
+              <td class="incid-fecha">{{ new Date(inc.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' }) }}</td>
+              <td>
+                <div class="worker-cell-sm">
+                  <div class="avatar-xs" :style="{ background: avatarColor(inc.trabajador_id) }">
+                    {{ initiales(inc.trabajador) }}
+                  </div>
+                  <span class="incid-nombre">{{ inc.trabajador }}</span>
+                </div>
+              </td>
+              <td class="incid-cargo">{{ inc.cargo || '—' }}</td>
+              <td class="incid-detalle">{{ inc.detalle }}</td>
+            </tr>
+            <tr v-if="!incidenciasFiltradas.length">
+              <td colspan="5" class="incid-empty">
+                <i class="u u-check" style="color:#3ac7a5;font-size:20px"></i>
+                <span>Sin incidencias para el período seleccionado</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+    <!-- ── /Incidencias ───────────────────────────────────────────────────── -->
 
   </div>
 
@@ -1350,5 +1550,212 @@ function tipoBadge(m) {
   /* iPad landscape: panel toma 55% del ancho */
   .proy-panel { width: min(520px, 55vw); }
   .marc-proy-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* ── Incidencias ────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.incid-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Header */
+.incid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.incid-periodo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.incid-header__label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-right: 4px;
+}
+
+.incid-periodo-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.incid-periodo-btn.active,
+.incid-periodo-btn:hover {
+  background: rgba(58,199,165,0.12);
+  border-color: rgba(58,199,165,0.3);
+  color: #3ac7a5;
+}
+
+.incid-tipo-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.incid-tipo-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.incid-tipo-btn.active,
+.incid-tipo-btn:hover { background: rgba(255,255,255,0.1); color: #f3f4f6; }
+
+.incid-tipo-btn--atraso.active   { background: rgba(244,162,97,0.15); border-color: rgba(244,162,97,0.3); color: #f4a261; }
+.incid-tipo-btn--ausencia.active { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.25); color: #f87171; }
+.incid-tipo-btn--extra.active    { background: rgba(133,140,240,0.15);border-color: rgba(133,140,240,0.3);color: #858cf0; }
+
+.incid-count {
+  background: rgba(255,255,255,0.1);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* KPI mini */
+.incid-kpis {
+  display: flex;
+  gap: 12px;
+}
+
+.incid-kpi {
+  flex: 1;
+  background: #1e2d3a;
+  border: 1.5px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.incid-kpi__val {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.incid-kpi__label {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.incid-kpi--orange  { border-color: rgba(244,162,97,0.2); }
+.incid-kpi--orange  .incid-kpi__val { color: #f4a261; }
+.incid-kpi--red     { border-color: rgba(239,68,68,0.2); }
+.incid-kpi--red     .incid-kpi__val { color: #f87171; }
+.incid-kpi--purple  { border-color: rgba(133,140,240,0.2); }
+.incid-kpi--purple  .incid-kpi__val { color: #858cf0; }
+.incid-kpi--neutral .incid-kpi__val { color: #f3f4f6; }
+
+/* Table */
+.incid-table-wrap {
+  background: #1e2d3a;
+  border: 1.5px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.incid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.incid-table th {
+  padding: 11px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #9ca3af;
+  background: rgba(255,255,255,0.025);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.incid-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: #e5e7eb;
+  vertical-align: middle;
+}
+
+.incid-table tbody tr:hover td { background: rgba(58,199,165,0.03); }
+
+/* Badges */
+.incid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.incid-badge--atraso    { background: rgba(244,162,97,0.15); color: #f4a261; }
+.incid-badge--ausencia  { background: rgba(239,68,68,0.12);  color: #f87171; }
+.incid-badge--hora_extra{ background: rgba(133,140,240,0.15);color: #858cf0; }
+
+.incid-fecha {
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.incid-nombre { font-weight: 600; color: #f3f4f6; }
+.incid-cargo  { font-size: 12px; color: #6b7280; }
+
+.incid-detalle {
+  font-size: 13px;
+  color: #d1d5db;
+}
+
+.incid-empty {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Worker cell small */
+.worker-cell-sm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar-xs {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
 }
 </style>

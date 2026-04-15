@@ -1003,12 +1003,12 @@ onUnmounted(() => {
   padding: 12px 14px;
   text-align: left;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--neutral-text-body, #9ca3af);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--neutral-border-light, rgba(255,255,255,0.08));
-  background: rgba(0,0,0,0.1);
+  letter-spacing: 0.07em;
+  border-bottom: 1.5px solid rgba(255,255,255,0.09);
+  background: rgba(10,18,26,0.35);
   white-space: nowrap;
 }
 
@@ -1016,8 +1016,8 @@ onUnmounted(() => {
 .data-table th.sortable:hover { color: var(--neutral-text-title, #f3f4f6); }
 
 .data-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--neutral-border-light, rgba(255,255,255,0.04));
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
   color: var(--neutral-text-title, #f3f4f6);
   vertical-align: middle;
 }
