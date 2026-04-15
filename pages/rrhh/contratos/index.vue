@@ -3,36 +3,13 @@
     <!-- Tabs de sección unificada -->
     <RrhhSectionTabs :tabs="sectionTabs" :current="sectionTabActual" />
 
-    <!-- Toolbar -->
-    <div class="page-toolbar">
-      <div class="toolbar-left">
-        <div class="filterInput">
-          <span class="u u-buscar"></span>
-          <input v-model="searchQ" type="text" placeholder="Buscar trabajador o contrato..." />
-        </div>
-
-        <!-- Estado pills -->
-        <button
-          v-for="f in estadoFiltros"
-          :key="f.v"
-          class="chip"
-          :class="{ active: filtroEstado === f.v }"
-          @click="filtroEstado = f.v"
-        >{{ f.l }}</button>
-
-        <!-- Separador visual -->
-        <div class="filter-sep"></div>
-
-        <!-- Tipo pills -->
-        <button
-          v-for="f in tipoFiltros"
-          :key="f.v"
-          class="chip"
-          :class="{ active: filtroTipo === f.v }"
-          @click="filtroTipo = f.v"
-        >{{ f.l }}</button>
+    <!-- Page header: título + acciones -->
+    <div class="page-header">
+      <div class="page-header__left">
+        <h2 class="page-header__title">Contratos y Liquidaciones</h2>
+        <span class="page-header__sub">{{ contratosFiltrados.length }} contratos · {{ rrhhStore.contratos?.length || 0 }} total</span>
       </div>
-      <div class="toolbar-right">
+      <div class="page-header__right">
         <button class="btn btn-outline" @click="exportarContratos">
           <i class="u u-descargar"></i> Exportar
         </button>
@@ -40,6 +17,35 @@
           <i class="u u-agregar"></i> Nuevo Contrato
         </button>
       </div>
+    </div>
+
+    <!-- Filter bar: buscador + chips (igual que Personas) -->
+    <div class="filter-bar">
+      <div class="filterInput">
+        <span class="u u-buscar"></span>
+        <input v-model="searchQ" type="text" placeholder="Buscar trabajador o contrato..." />
+      </div>
+
+      <!-- Estado pills -->
+      <button
+        v-for="f in estadoFiltros"
+        :key="f.v"
+        class="chip"
+        :class="{ active: filtroEstado === f.v }"
+        @click="filtroEstado = f.v"
+      >{{ f.l }}</button>
+
+      <!-- Separador visual -->
+      <div class="filter-sep"></div>
+
+      <!-- Tipo pills -->
+      <button
+        v-for="f in tipoFiltros"
+        :key="f.v"
+        class="chip"
+        :class="{ active: filtroTipo === f.v }"
+        @click="filtroTipo = f.v"
+      >{{ f.l }}</button>
     </div>
 
     <!-- Alertas próximos vencimientos -->
@@ -390,13 +396,12 @@ const route  = useRoute()
 const pdfLoading = ref(null)
 
 const searchQ = ref('')
-const filtroEstado = ref('todos')
+const filtroEstado = ref('vigente')
 
 // ── Tab "Vencimientos" via query param ?tab=vencimientos ─────────────────────
-// Cuando se llega con ese param, forzar el filtro a "por_vencer"
 watch(() => route.query.tab, (tab) => {
   if (tab === 'vencimientos') filtroEstado.value = 'por_vencer'
-  else if (!tab) filtroEstado.value = 'todos'
+  // no resetear a 'todos' cuando no hay tab — dejar el default vigente
 }, { immediate: true })
 
 // Current tab para el SectionTabs (qué pestaña está activa visualmente)
@@ -489,11 +494,30 @@ const contratosFiltrados = computed(() => {
 
   if (filtroEstado.value !== 'todos') {
     if (filtroEstado.value === 'por_vencer') {
+      // vence en los próximos 30 días (y no está ya vencido)
       list = list.filter(c => {
         const dias = getDiasVence(c)
         return dias !== null && dias <= 30 && dias > 0
       })
+    } else if (filtroEstado.value === 'vigente') {
+      // vigente real = tiene fecha_termino en el futuro (>30d) O no tiene fecha_termino
+      //                Y no está guardado como borrador/vencido
+      list = list.filter(c => {
+        if (c.estado === 'borrador' || c.estado === 'vencido') return false
+        if (!c.fecha_termino) return true                // indefinido → siempre vigente
+        const dias = getDiasVence(c)
+        return dias !== null && dias > 30                // más de 30 días → vigente (no por-vencer)
+      })
+    } else if (filtroEstado.value === 'vencido') {
+      // vencido real = fecha_termino pasada O estado guardado como vencido
+      list = list.filter(c => {
+        if (c.estado === 'vencido') return true
+        if (!c.fecha_termino) return false
+        const dias = getDiasVence(c)
+        return dias === null                             // getDiasVence devuelve null si ya venció
+      })
     } else {
+      // borrador: filtrar por campo estado directamente
       list = list.filter(c => c.estado === filtroEstado.value)
     }
   }
@@ -691,18 +715,28 @@ onUnmounted(() => {
 <style scoped>
 .contratos-page { padding: 24px; }
 
-/* Toolbar */
-.page-toolbar {
+/* ── Page header (título + botones de acción) ────────────────────────────── */
+.page-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
+.page-header__left { display: flex; flex-direction: column; gap: 2px; }
+.page-header__title {
+  font-size: 20px; font-weight: 800; color: #f3f4f6; margin: 0;
+}
+.page-header__sub { font-size: 12px; color: #6b7280; }
+.page-header__right { display: flex; gap: 10px; align-items: center; }
 
-.toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.toolbar-right { display: flex; gap: 10px; }
+/* ── Filter bar (buscador + chips) ──────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
 
 /* ── Search input — idéntico a Personas ────────────────────────────────── */
 .filterInput {

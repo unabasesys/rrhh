@@ -32,16 +32,15 @@ const orgName = computed(() =>
 )
 
 // ── Badges dinámicos ─────────────────────────────────────────────────────────
-// Contratos por vencer en los próximos 30 días
+// Contratos que vencen en los próximos 30 días (misma lógica que proximosVencer en contratos/index)
 const badgeContratos = computed(() => {
   const contratos = rrhhStore.contratos || []
-  const hoy  = new Date()
-  const lim  = new Date(); lim.setDate(lim.getDate() + 30)
+  const hoy = new Date()
   return contratos.filter(c => {
-    if (!['vigente', 'activo', 'borrador'].includes(c.estado)) return false
     if (!c.fecha_termino) return false
-    const fin = new Date(c.fecha_termino + 'T12:00:00')
-    return fin >= hoy && fin <= lim
+    if (c.estado === 'vencido') return false
+    const dias = Math.ceil((new Date(c.fecha_termino) - hoy) / 86400000)
+    return dias > 0 && dias <= 30
   }).length
 })
 
