@@ -15,47 +15,101 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import useGlobalStore from '@/stores/global'
+import useRrhhStore   from '@/stores/rrhh'
+import { useAsistenciaStore } from '@/stores/asistencia'
 
 const globalStore = useGlobalStore()
+const rrhhStore   = useRrhhStore()
+const asistencia  = useAsistenciaStore()
 const route   = useRoute()
 const router  = useRouter()
 
 const sidebarExpanded = ref(true)
 
-// Org info — solo para mostrar nombre en el header; PDFs lo toman de coverInfo
+// Org info
 const orgName = computed(() =>
   globalStore.organization?.name || globalStore.organization?.razon_social || 'RRHH'
 )
 
-// Navegación RRHH — agrupada por sección
-const navSections = [
-  {
-    label: 'Equipo',
-    items: [
-      { label: 'Trabajadores', icon: 'u u-usuarios',       path: '/rrhh/trabajadores', matches: (p) => p.startsWith('/rrhh/trabajadores') },
-      { label: 'Contratos',    icon: 'u u-ventas',          path: '/rrhh/contratos',    matches: (p) => p.startsWith('/rrhh/contratos') },
-      { label: 'Liquidaciones',icon: 'u u-cobros-y-pagos',  path: '/rrhh/liquidaciones',matches: (p) => p.startsWith('/rrhh/liquidaciones') },
-    ],
-  },
-  {
-    label: 'Asistencia',
-    items: [
-      { label: 'Dashboard',    icon: 'u u-dashboard',        path: '/rrhh/asistencia',           matches: (p) => p === '/rrhh/asistencia' },
-      { label: 'Turnos',       icon: 'u u-reloj',             path: '/rrhh/asistencia/turnos',    matches: (p) => p.startsWith('/rrhh/asistencia/turnos') },
-      { label: 'Marcaciones',  icon: 'u u-check',             path: '/rrhh/asistencia/marcaciones', matches: (p) => p.startsWith('/rrhh/asistencia/marcaciones') },
-      { label: 'Informes',     icon: 'u u-reportes',          path: '/rrhh/asistencia/informes',  matches: (p) => p.startsWith('/rrhh/asistencia/informes') },
-    ],
-  },
-  {
-    label: 'Análisis',
-    items: [
-      { label: 'Reportes',     icon: 'u u-reportes',          path: '/rrhh/reportes',             matches: (p) => p.startsWith('/rrhh/reportes') },
-    ],
-  },
-]
+// ── Badges dinámicos ─────────────────────────────────────────────────────────
+// Contratos por vencer en los próximos 30 días
+const badgeContratos = computed(() => {
+  const contratos = rrhhStore.contratos || []
+  const hoy  = new Date()
+  const lim  = new Date(); lim.setDate(lim.getDate() + 30)
+  return contratos.filter(c => {
+    if (!['vigente', 'activo', 'borrador'].includes(c.estado)) return false
+    if (!c.fecha_termino) return false
+    const fin = new Date(c.fecha_termino + 'T12:00:00')
+    return fin >= hoy && fin <= lim
+  }).length
+})
 
-// Flat para compatibilidad con isActive
-const navItems = navSections.flatMap(s => s.items)
+// Personas sin marcación hoy
+const badgeAsistencia = computed(() => {
+  const hoy = new Date().toISOString().slice(0,10)
+  const marcadas = new Set(
+    (asistencia.marcaciones || [])
+      .filter(m => m.fecha === hoy || m.fecha?.startsWith(hoy))
+      .map(m => m.trabajador_id)
+  )
+  const activos = (rrhhStore.trabajadores || []).filter(t => t.estado === 'activo' || t.estado === 'Activo')
+  return activos.filter(t => !marcadas.has(t._id || t.id)).length
+})
+
+// ── Navegación v1.1 ──────────────────────────────────────────────────────────
+const navSections = computed(() => [
+  {
+    label: 'Principal',
+    items: [
+      {
+        label:   'Personas',
+        icon:    'u u-usuarios',
+        path:    '/rrhh/trabajadores',
+        matches: (p) => p.startsWith('/rrhh/trabajadores'),
+        badge:   null,
+        badgeColor: null,
+      },
+      {
+        label:   'Contratos y Liq.',
+        icon:    'u u-ventas',
+        path:    '/rrhh/contratos',
+        matches: (p) => p.startsWith('/rrhh/contratos') || p.startsWith('/rrhh/liquidaciones'),
+        badge:   badgeContratos.value > 0 ? `${badgeContratos.value} por vencer` : null,
+        badgeColor: 'orange',
+      },
+      {
+        label:   'Asistencia',
+        icon:    'u u-check',
+        path:    '/rrhh/asistencia/marcaciones',
+        matches: (p) => p.startsWith('/rrhh/asistencia'),
+        badge:   badgeAsistencia.value > 0 ? `${badgeAsistencia.value} sin marcar` : null,
+        badgeColor: 'red',
+      },
+    ],
+  },
+  {
+    label: 'Herramientas',
+    items: [
+      {
+        label:   'Dashboard',
+        icon:    'u u-dashboard',
+        path:    '/rrhh/asistencia',
+        matches: (p) => p === '/rrhh/asistencia',
+        badge:   null,
+        badgeColor: null,
+      },
+      {
+        label:   'Reportes',
+        icon:    'u u-reportes',
+        path:    '/rrhh/reportes',
+        matches: (p) => p.startsWith('/rrhh/reportes') || p.startsWith('/rrhh/asistencia/informes'),
+        badge:   null,
+        badgeColor: null,
+      },
+    ],
+  },
+])
 
 const isActive = (item) => item.matches(route.path)
 
@@ -66,6 +120,13 @@ function goTo(path) {
 function toggleSidebar() {
   sidebarExpanded.value = !sidebarExpanded.value
 }
+
+onMounted(() => {
+  // Cargar datos necesarios para badges si no están en memoria
+  if (!rrhhStore.contratos?.length)   rrhhStore.getContratos?.()
+  if (!rrhhStore.trabajadores?.length) rrhhStore.getTrabajadores?.()
+  asistencia.init?.()
+})
 
 // Breadcrumb reactivo desde el store
 // Las páginas pueden usar { name, path } o { label, path }
@@ -111,6 +172,14 @@ const pageTitle  = computed(() =>
             <i :class="item.icon" class="nav-icon"></i>
             <transition name="fade-label">
               <span v-if="sidebarExpanded" class="nav-label">{{ item.label }}</span>
+            </transition>
+            <!-- Badge dinámico -->
+            <transition name="fade-label">
+              <span
+                v-if="sidebarExpanded && item.badge"
+                class="nav-badge"
+                :class="`nav-badge--${item.badgeColor}`"
+              >{{ item.badge }}</span>
             </transition>
             <span v-if="isActive(item) && sidebarExpanded" class="nav-active-bar"></span>
           </button>
@@ -295,6 +364,28 @@ const pageTitle  = computed(() =>
 }
 
 .nav-label { flex: 1; }
+
+/* Badge en nav */
+.nav-badge {
+  font-size: 9.5px; font-weight: 800;
+  padding: 2px 7px; border-radius: 20px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.nav-badge--orange {
+  background: rgba(244,162,97,0.15);
+  color: #f4a261;
+  border: 1px solid rgba(244,162,97,0.25);
+}
+.nav-badge--red {
+  background: rgba(239,68,68,0.12);
+  color: #f87171;
+  border: 1px solid rgba(239,68,68,0.2);
+}
+.nav-badge--teal {
+  background: rgba(58,199,165,0.1);
+  color: #3ac7a5;
+  border: 1px solid rgba(58,199,165,0.2);
+}
 
 /* Secciones del nav */
 .nav-section-label {

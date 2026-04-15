@@ -12,7 +12,7 @@ definePageMeta({
   middleware: ["auth"],
 });
 
-useHead({ title: "Trabajadores – RRHH" });
+useHead({ title: "Personas – RRHH" });
 
 // ── Estado local ──────────────────────────────────────────────────────────────
 const busqueda       = ref("");
@@ -186,9 +186,9 @@ const trabajadoresPorProyecto = computed(() => {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   globalStore.loading = true;
-  globalStore.updatedTitle("Trabajadores");
+  globalStore.updatedTitle("Personas");
   globalStore.namePage = "RRHH";
-  globalStore.updatedBreadcrumb([{ name: "RRHH", path: "/rrhh/trabajadores" }, { name: "Trabajadores", path: "/rrhh/trabajadores" }]);
+  globalStore.updatedBreadcrumb([{ name: "RRHH", path: "/rrhh/trabajadores" }, { name: "Personas", path: "/rrhh/trabajadores" }]);
   try {
     const saved = localStorage.getItem('rrhh_fotos_proyectos');
     if (saved) fotoProyecto.value = JSON.parse(saved);
@@ -209,7 +209,7 @@ onUnmounted(() => globalStore.cleanHeader());
     <!-- Header -->
     <div class="rrhhPage__header">
       <div class="rrhhPage__header-left">
-        <h2 class="rrhhPage__title">Trabajadores</h2>
+        <h2 class="rrhhPage__title">Personas</h2>
         <span class="rrhhPage__subtitle">
           {{ rrhhStore.trabajadoresActivos.length }} activos · {{ rrhhStore.trabajadores.length }} total
         </span>
@@ -217,7 +217,7 @@ onUnmounted(() => globalStore.cleanHeader());
       <div class="rrhhPage__header-right">
         <button class="btn btn-secondary" disabled>Importar Contacto</button>
         <button class="btn btn-primary" @click="abrirNuevoTrabajador">
-          <span class="u u-plus"></span> Nuevo Trabajador
+          <span class="u u-plus"></span> Nueva Persona
         </button>
       </div>
     </div>

@@ -1,5 +1,8 @@
 <template>
   <div class="contratos-page">
+    <!-- Tabs de sección unificada -->
+    <RrhhSectionTabs :tabs="sectionTabs" current="contratos" />
+
     <!-- Toolbar -->
     <div class="page-toolbar">
       <div class="toolbar-left">
@@ -349,6 +352,24 @@ import useGlobalStore from '@/stores/global'
 
 definePageMeta({ name: 'rrhh-contratos', layout: 'rrhh', middleware: ['auth'] })
 
+// ── Tabs de sección: Contratos + Liquidaciones unificados ────────────────────
+const sectionTabs = computed(() => {
+  const porVencer = (rrhhStore.contratos || []).filter(c => {
+    if (!['vigente','activo','borrador'].includes(c.estado)) return false
+    if (!c.fecha_termino) return false
+    const fin = new Date(c.fecha_termino + 'T12:00:00')
+    const lim = new Date(); lim.setDate(lim.getDate() + 30)
+    return fin >= new Date() && fin <= lim
+  }).length
+
+  return [
+    { key: 'contratos',    label: 'Contratos',     path: '/rrhh/contratos',    icon: 'u u-ventas' },
+    { key: 'liquidaciones',label: 'Liquidaciones',  path: '/rrhh/liquidaciones', icon: 'u u-cobros-y-pagos' },
+    { key: 'vencimientos', label: 'Vencimientos',   path: '/rrhh/contratos?tab=vencimientos', icon: 'u u-alerta',
+      badge: porVencer > 0 ? `${porVencer}` : null, badgeColor: 'orange' },
+  ]
+})
+
 const { t } = useI18n()
 const rrhhStore = useRrhhStore()
 const globalStore = useGlobalStore()
@@ -607,10 +628,10 @@ function exportarContratos() {
 }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Contratos')
+  globalStore.updatedTitle('Contratos y Liquidaciones')
   globalStore.updatedBreadcrumb([
     { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Contratos', path: '' },
+    { label: 'Contratos y Liquidaciones', path: '' },
   ])
   globalStore.loading = true
   await Promise.all([

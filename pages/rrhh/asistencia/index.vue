@@ -18,15 +18,17 @@ const router     = useRouter()
 
 onMounted(async () => {
   asistencia.init()
-  global.title    = 'Asistencia'
+  global.title    = 'Dashboard RRHH'
   global.namePage = 'RRHH'
   global.breadcrumb = [
     { name: 'RRHH', path: '/rrhh/trabajadores' },
-    { name: 'Asistencia' },
+    { name: 'Dashboard' },
   ]
-  // Cargar trabajadores si no están en memoria
   if (!rrhhStore.trabajadores?.length) {
     await rrhhStore.getTrabajadores()
+  }
+  if (!rrhhStore.contratos?.length) {
+    rrhhStore.getContratos?.()
   }
 })
 

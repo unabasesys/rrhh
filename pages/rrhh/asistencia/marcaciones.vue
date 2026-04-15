@@ -17,17 +17,24 @@ const global     = useGlobalStore()
 
 onMounted(async () => {
   asistencia.init()
-  global.title     = 'Marcaciones'
+  global.title     = 'Asistencia'
   global.namePage  = 'RRHH'
   global.breadcrumb = [
-    { name: 'RRHH',       path: '/rrhh/trabajadores' },
-    { name: 'Asistencia', path: '/rrhh/asistencia' },
-    { name: 'Marcaciones' },
+    { name: 'RRHH',      path: '/rrhh/trabajadores' },
+    { name: 'Asistencia' },
   ]
   if (!rrhhStore.trabajadores?.length) {
     await rrhhStore.getTrabajadores()
   }
 })
+
+// ── Tabs de sección: Asistencia unificada ────────────────────────────────────
+const asistenciaTabs = [
+  { key: 'marcaciones', label: 'Marcaciones',  path: '/rrhh/asistencia/marcaciones', icon: 'u u-check' },
+  { key: 'turnos',      label: 'Turnos',        path: '/rrhh/asistencia/turnos',      icon: 'u u-reloj' },
+  { key: 'historial',   label: 'Historial',     path: '/rrhh/asistencia/marcaciones?tab=historial', icon: 'u u-calendar' },
+  { key: 'incidencias', label: 'Incidencias',   path: '/rrhh/asistencia/marcaciones?tab=incidencias', icon: 'u u-alerta' },
+]
 
 // ─── Filtros ──────────────────────────────────────────────────────────────
 const filtroFechaDesde = ref('')
@@ -272,6 +279,9 @@ function tipoBadge(m) {
 
 <template>
   <div class="marc-page">
+
+    <!-- ── Tabs de sección: Asistencia unificada ─────────────────────── -->
+    <RrhhSectionTabs :tabs="asistenciaTabs" current="marcaciones" />
 
     <!-- ── Filtros ─────────────────────────────────────────────────────── -->
     <div class="filter-bar">

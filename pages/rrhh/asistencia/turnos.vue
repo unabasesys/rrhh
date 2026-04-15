@@ -14,14 +14,22 @@ const global     = useGlobalStore()
 
 onMounted(() => {
   asistencia.init()
-  global.title     = 'Turnos y Jornadas'
+  global.title     = 'Asistencia'
   global.namePage  = 'RRHH'
   global.breadcrumb = [
-    { name: 'RRHH',       path: '/rrhh/trabajadores' },
-    { name: 'Asistencia', path: '/rrhh/asistencia' },
+    { name: 'RRHH',      path: '/rrhh/trabajadores' },
+    { name: 'Asistencia', path: '/rrhh/asistencia/marcaciones' },
     { name: 'Turnos' },
   ]
 })
+
+// ── Tabs de sección compartidos ───────────────────────────────────────────────
+const asistenciaTabs = [
+  { key: 'marcaciones', label: 'Marcaciones', path: '/rrhh/asistencia/marcaciones', icon: 'u u-check' },
+  { key: 'turnos',      label: 'Turnos',       path: '/rrhh/asistencia/turnos',      icon: 'u u-reloj' },
+  { key: 'historial',   label: 'Historial',    path: '/rrhh/asistencia/marcaciones?tab=historial', icon: 'u u-calendar' },
+  { key: 'incidencias', label: 'Incidencias',  path: '/rrhh/asistencia/marcaciones?tab=incidencias', icon: 'u u-alerta' },
+]
 
 // ─── Form ─────────────────────────────────────────────────────────────────
 const showModal = ref(false)
@@ -108,6 +116,8 @@ function tipoStyle(t) {
 
 <template>
   <div class="turnos-page">
+    <!-- Tabs de sección: Asistencia unificada -->
+    <RrhhSectionTabs :tabs="asistenciaTabs" current="turnos" />
     <!-- Header -->
     <div class="page-header">
       <div>

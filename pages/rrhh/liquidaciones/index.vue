@@ -1,5 +1,8 @@
 <template>
   <div class="liquidaciones-page">
+    <!-- Tabs de sección unificada -->
+    <RrhhSectionTabs :tabs="sectionTabs" current="liquidaciones" />
+
     <!-- Toolbar -->
     <div class="page-toolbar">
       <div class="toolbar-left">
@@ -444,6 +447,23 @@ import { TIPOS_BONOS, TIPOS_DESCUENTOS, calcularSemanaCorrida } from '@/stores/r
 
 definePageMeta({ name: 'rrhh-liquidaciones', layout: 'rrhh', middleware: ['auth'] })
 
+// ── Tabs de sección compartida ───────────────────────────────────────────────
+const sectionTabs = computed(() => {
+  const porVencer = (rrhhStore.contratos || []).filter(c => {
+    if (!['vigente','activo','borrador'].includes(c.estado)) return false
+    if (!c.fecha_termino) return false
+    const fin = new Date(c.fecha_termino + 'T12:00:00')
+    const lim = new Date(); lim.setDate(lim.getDate() + 30)
+    return fin >= new Date() && fin <= lim
+  }).length
+  return [
+    { key: 'contratos',    label: 'Contratos',    path: '/rrhh/contratos',    icon: 'u u-ventas' },
+    { key: 'liquidaciones',label: 'Liquidaciones', path: '/rrhh/liquidaciones', icon: 'u u-cobros-y-pagos' },
+    { key: 'vencimientos', label: 'Vencimientos',  path: '/rrhh/contratos?tab=vencimientos', icon: 'u u-alerta',
+      badge: porVencer > 0 ? `${porVencer}` : null, badgeColor: 'orange' },
+  ]
+})
+
 const { t } = useI18n()
 const rrhhStore = useRrhhStore()
 const globalStore = useGlobalStore()
@@ -828,10 +848,10 @@ function exportarExcel() {
 }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Liquidaciones')
+  globalStore.updatedTitle('Contratos y Liquidaciones')
   globalStore.updatedBreadcrumb([
     { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Liquidaciones', path: '' },
+    { label: 'Contratos y Liquidaciones', path: '' },
   ])
   globalStore.loading = true
   await Promise.all([
