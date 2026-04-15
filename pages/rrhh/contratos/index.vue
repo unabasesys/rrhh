@@ -6,28 +6,31 @@
     <!-- Toolbar -->
     <div class="page-toolbar">
       <div class="toolbar-left">
-        <div class="search-wrap">
-          <i class="u u-buscar search-icon"></i>
-          <input v-model="searchQ" type="text" class="search-input" placeholder="Buscar trabajador o contrato..." />
+        <div class="filterInput">
+          <span class="u u-buscar"></span>
+          <input v-model="searchQ" type="text" placeholder="Buscar trabajador o contrato..." />
         </div>
-        <div class="filters">
-          <button
-            v-for="f in estadoFiltros"
-            :key="f.v"
-            class="filter-chip"
-            :class="{ active: filtroEstado === f.v }"
-            @click="filtroEstado = f.v"
-          >{{ f.l }}</button>
-        </div>
-        <div class="filters">
-          <button
-            v-for="f in tipoFiltros"
-            :key="f.v"
-            class="filter-chip"
-            :class="{ active: filtroTipo === f.v }"
-            @click="filtroTipo = f.v"
-          >{{ f.l }}</button>
-        </div>
+
+        <!-- Estado pills -->
+        <button
+          v-for="f in estadoFiltros"
+          :key="f.v"
+          class="chip"
+          :class="{ active: filtroEstado === f.v }"
+          @click="filtroEstado = f.v"
+        >{{ f.l }}</button>
+
+        <!-- Separador visual -->
+        <div class="filter-sep"></div>
+
+        <!-- Tipo pills -->
+        <button
+          v-for="f in tipoFiltros"
+          :key="f.v"
+          class="chip"
+          :class="{ active: filtroTipo === f.v }"
+          @click="filtroTipo = f.v"
+        >{{ f.l }}</button>
       </div>
       <div class="toolbar-right">
         <button class="btn btn-outline" @click="exportarContratos">
@@ -698,17 +701,39 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .toolbar-right { display: flex; gap: 10px; }
 
-.search-wrap { position: relative; }
-.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--neutral-text-body, #9ca3af); font-size: 14px; pointer-events: none; }
-.search-input { background: var(--neutral-background-strong, #2a3a4a); border: 1.5px solid var(--neutral-border-light, rgba(255,255,255,0.1)); border-radius: 8px; padding: 8px 12px 8px 34px; color: var(--neutral-text-title, #f3f4f6); font-size: 13px; font-family: inherit; width: 220px; }
-.search-input:focus { outline: none; border-color: var(--primary-text-default, #3ac7a5); }
+/* ── Search input — idéntico a Personas ────────────────────────────────── */
+.filterInput {
+  display: flex; align-items: center; gap: 6px;
+  background: #1e2d3a;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 8px; padding: 0 12px; height: 34px;
+  transition: border-color .15s;
+}
+.filterInput:focus-within { border-color: #3ac7a5; }
+.filterInput input {
+  background: transparent; border: none; outline: none;
+  font-family: Nunito, sans-serif; font-size: 13px;
+  color: #f3f4f6; width: 210px;
+}
+.filterInput span { color: #9ca3af; font-size: 14px; }
 
-.filters { display: flex; gap: 6px; }
-.filter-chip { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; background: var(--neutral-background-strong, #2a3a4a); color: var(--neutral-text-body, #9ca3af); border: 1.5px solid var(--neutral-border-light, rgba(255,255,255,0.08)); cursor: pointer; font-family: inherit; transition: all 0.2s; }
-.filter-chip.active { background: var(--primary-surface-shadow-8a, rgba(58,199,165,0.12)); color: var(--primary-text-default, #3ac7a5); border-color: rgba(58,199,165,0.4); }
+/* ── Chips — idéntico a Personas ───────────────────────────────────────── */
+.chip {
+  height: 32px; padding: 0 14px; border-radius: 20px;
+  font-family: Nunito, sans-serif; font-size: 12px; font-weight: 600;
+  color: #9ca3af;
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  cursor: pointer; transition: all .15s;
+}
+.chip.active { background: rgba(58,199,165,0.15); color: #3ac7a5; border-color: rgba(58,199,165,0.5); }
+.chip:not(.active):hover { background: rgba(255,255,255,0.05); color: #f3f4f6; border-color: rgba(255,255,255,0.18); }
+
+/* Separador entre grupos de chips */
+.filter-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.1); margin: 0 4px; }
 
 /* Alert banner */
 .alerts-row { margin-bottom: 20px; }

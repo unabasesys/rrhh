@@ -75,7 +75,7 @@ const navSections = computed(() => [
         icon:    'u u-ventas',
         path:    '/rrhh/contratos',
         matches: (p) => p.startsWith('/rrhh/contratos') || p.startsWith('/rrhh/liquidaciones'),
-        badge:   badgeContratos.value > 0 ? `${badgeContratos.value} por vencer` : null,
+        badge:   badgeContratos.value > 0 ? badgeContratos.value : null,
         badgeColor: 'orange',
       },
       {
@@ -83,7 +83,7 @@ const navSections = computed(() => [
         icon:    'u u-check',
         path:    '/rrhh/asistencia/marcaciones',
         matches: (p) => p.startsWith('/rrhh/asistencia'),
-        badge:   badgeAsistencia.value > 0 ? `${badgeAsistencia.value} sin marcar` : null,
+        badge:   badgeAsistencia.value > 0 ? badgeAsistencia.value : null,
         badgeColor: 'red',
       },
     ],
@@ -365,26 +365,32 @@ const pageTitle  = computed(() =>
 
 .nav-label { flex: 1; }
 
-/* Badge en nav */
+/* Badge en nav — solo número, estilo notificación */
 .nav-badge {
-  font-size: 9.5px; font-weight: 800;
-  padding: 2px 7px; border-radius: 20px;
-  white-space: nowrap; flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .nav-badge--orange {
-  background: rgba(244,162,97,0.15);
-  color: #f4a261;
-  border: 1px solid rgba(244,162,97,0.25);
+  background: #f4a261;
+  color: #1a1a1a;
 }
 .nav-badge--red {
-  background: rgba(239,68,68,0.12);
-  color: #f87171;
-  border: 1px solid rgba(239,68,68,0.2);
+  background: #f87171;
+  color: #1a1a1a;
 }
 .nav-badge--teal {
-  background: rgba(58,199,165,0.1);
-  color: #3ac7a5;
-  border: 1px solid rgba(58,199,165,0.2);
+  background: #3ac7a5;
+  color: #0a1218;
 }
 
 /* Secciones del nav */

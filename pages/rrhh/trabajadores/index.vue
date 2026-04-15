@@ -16,7 +16,7 @@ useHead({ title: "Personas – RRHH" });
 
 // ── Estado local ──────────────────────────────────────────────────────────────
 const busqueda       = ref("");
-const filtroEstado   = ref("todos");
+const filtroEstado   = ref("activo");
 const filtroContrato = ref("todos");
 const vistaActual    = ref("lista"); // "lista" | "fijos" | "proyectos"
 
@@ -49,6 +49,18 @@ const trabajadoresFiltrados = computed(() => {
     lista = lista.filter((t) => t.estado === filtroEstado.value);
   if (filtroContrato.value !== "todos")
     lista = lista.filter((t) => t.tipoContrato === filtroContrato.value);
+
+  // Ordenar por modalidad: indefinido → plazo_fijo → part_time → proyecto → honorarios → sin contrato
+  const modalidadOrder = { indefinido: 0, plazo_fijo: 1, part_time: 2, proyecto: 3, honorarios: 4 }
+  lista = [...lista].sort((a, b) => {
+    const ca = contratoVigenteMap.value[a._id || a.id]
+    const cb = contratoVigenteMap.value[b._id || b.id]
+    const oa = ca ? (modalidadOrder[ca.tipo_contrato] ?? 5) : 6
+    const ob = cb ? (modalidadOrder[cb.tipo_contrato] ?? 5) : 6
+    if (oa !== ob) return oa - ob
+    return (a.nombre || '').localeCompare(b.nombre || '')
+  })
+
   return lista;
 });
 
