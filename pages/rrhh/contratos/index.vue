@@ -1,7 +1,7 @@
 <template>
   <div class="contratos-page">
     <!-- Tabs de sección unificada -->
-    <RrhhSectionTabs :tabs="sectionTabs" current="contratos" />
+    <RrhhSectionTabs :tabs="sectionTabs" :current="sectionTabActual" />
 
     <!-- Toolbar -->
     <div class="page-toolbar">
@@ -97,7 +97,15 @@
 
           <div class="contrato-sueldo">
             <span>Sueldo</span>
-            <span class="teal">{{ formatCLP(getSueldoTrabajador(c.trabajador_id)) }}</span>
+            <span v-if="c.tipo_contrato === 'honorarios'" class="sueldo-var">Variable</span>
+            <span v-else-if="c.tipo_contrato === 'proyecto'" class="sueldo-var">Por contrato</span>
+            <span v-else-if="c.sueldo_base" class="teal">{{ formatCLP(c.sueldo_base) }}</span>
+            <span v-else-if="getSueldoTrabajador(c.trabajador_id)" class="teal">{{ formatCLP(getSueldoTrabajador(c.trabajador_id)) }}</span>
+            <span v-else class="sueldo-nd">No definido</span>
+          </div>
+          <!-- Pills de estado doble -->
+          <div class="contrato-status-pills">
+            <span :class="['pill-contrato-v', estadoContratoInfo(c).cls]">{{ estadoContratoInfo(c).label }}</span>
           </div>
         </div>
 
@@ -344,9 +352,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import useRrhhStore from '@/stores/rrhh'
 import useGlobalStore from '@/stores/global'
 
@@ -371,14 +379,44 @@ const sectionTabs = computed(() => {
 })
 
 const { t } = useI18n()
-const rrhhStore = useRrhhStore()
+const rrhhStore   = useRrhhStore()
 const globalStore = useGlobalStore()
 const router = useRouter()
+const route  = useRoute()
 
-const pdfLoading = ref(null) // _id del contrato que se está generando
+const pdfLoading = ref(null)
 
 const searchQ = ref('')
 const filtroEstado = ref('todos')
+
+// ── Tab "Vencimientos" via query param ?tab=vencimientos ─────────────────────
+// Cuando se llega con ese param, forzar el filtro a "por_vencer"
+watch(() => route.query.tab, (tab) => {
+  if (tab === 'vencimientos') filtroEstado.value = 'por_vencer'
+  else if (!tab) filtroEstado.value = 'todos'
+}, { immediate: true })
+
+// Current tab para el SectionTabs (qué pestaña está activa visualmente)
+const sectionTabActual = computed(() =>
+  route.query.tab === 'vencimientos' ? 'vencimientos' : 'contratos'
+)
+
+// Helpers de estado para pills
+function estadoContratoInfo(c) {
+  if (!c) return { label: 'Sin contrato', cls: 'sin-contrato' }
+  const est = (c.estado_contrato || c.estado || '').toLowerCase()
+  if (est === 'vencido') return { label: 'Vencido', cls: 'vencido-c' }
+  if (!c.fecha_termino)  return { label: 'Indefinido', cls: 'indefinido-c' }
+  const fin = new Date(c.fecha_termino + 'T12:00:00')
+  const hoy = new Date()
+  const lim = new Date(); lim.setDate(lim.getDate() + 30)
+  if (fin < hoy)  return { label: 'Vencido', cls: 'vencido-c' }
+  if (fin <= lim) {
+    const dias = Math.ceil((fin - hoy) / (1000 * 60 * 60 * 24))
+    return { label: `Vence en ${dias}d`, cls: 'por-vencer-c' }
+  }
+  return { label: 'Vigente', cls: 'vigente-c' }
+}
 const filtroTipo = ref('todos')
 const showNewModal = ref(false)
 const showDetailModal = ref(false)
@@ -740,6 +778,32 @@ onUnmounted(() => {
 .spacer { flex: 1; }
 .dias-vence { font-size: 11px; color: var(--neutral-text-body, #9ca3af); }
 .dias-vence.urgent { color: #f87171; font-weight: 600; }
+
+/* Sprint 2: sueldo contextual + pills estado contrato */
+.sueldo-var { font-size: 12px; color: #9ca3af; font-style: italic; }
+.sueldo-nd  { font-size: 12px; color: #6b7280; font-style: italic; }
+
+.contrato-status-pills {
+  display: flex; gap: 5px; flex-wrap: wrap;
+  padding-top: 6px;
+}
+.pill-contrato-v {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 20px;
+  font-size: 10.5px; font-weight: 700;
+  border: 1px solid transparent;
+}
+.pill-contrato-v.vigente-c    { background: rgba(58,199,165,0.1);  color: #3ac7a5; border-color: rgba(58,199,165,0.25); }
+.pill-contrato-v.indefinido-c { background: rgba(58,199,165,0.1);  color: #3ac7a5; border-color: rgba(58,199,165,0.25); }
+.pill-contrato-v.por-vencer-c { background: rgba(244,162,97,0.12); color: #f4a261; border-color: rgba(244,162,97,0.3); }
+.pill-contrato-v.vencido-c    { background: rgba(239,68,68,0.1);   color: #f87171; border-color: rgba(239,68,68,0.25); }
+.pill-contrato-v.sin-contrato { background: rgba(107,114,128,0.1); color: #6b7280; border-color: rgba(107,114,128,0.2); }
+
+/* Highlight de fila cuando está "por vencer" */
+.contrato-card:has(.por-vencer-c) {
+  border-color: rgba(244,162,97,0.35);
+  background: linear-gradient(135deg, rgba(244,162,97,0.04) 0%, transparent 60%);
+}
 
 /* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }

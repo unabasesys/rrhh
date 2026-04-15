@@ -18,7 +18,7 @@ useHead({ title: "Personas – RRHH" });
 const busqueda       = ref("");
 const filtroEstado   = ref("todos");
 const filtroContrato = ref("todos");
-const vistaActual    = ref("normal"); // "normal" | "proyectos"
+const vistaActual    = ref("lista"); // "lista" | "fijos" | "proyectos"
 
 // Laboral defaults (para inicializar el form de Info Contrato)
 const laboralDefaults = {
@@ -183,6 +183,79 @@ const trabajadoresPorProyecto = computed(() => {
   });
 });
 
+// ── Sprint 2: contrato vigente, estado doble, labels contextuales ─────────────
+
+// Map: trabajador_id → contrato vigente
+const contratoVigenteMap = computed(() => {
+  const map = {}
+  ;(rrhhStore.contratos || []).forEach(c => {
+    if (!c.trabajador_id) return
+    const est = (c.estado_contrato || c.estado || '').toLowerCase()
+    if (['vigente', 'activo', 'borrador'].includes(est)) {
+      if (!map[c.trabajador_id]) map[c.trabajador_id] = c
+    }
+  })
+  return map
+})
+function contratoVigente(tid) { return contratoVigenteMap.value[tid] || null }
+
+// Semáforo de vigencia del contrato
+function estadoContratoInfo(c) {
+  if (!c) return { label: 'Sin contrato', cls: 'sin-contrato' }
+  const est = (c.estado_contrato || c.estado || '').toLowerCase()
+  if (est === 'vencido') return { label: 'Vencido', cls: 'vencido-c' }
+  if (!c.fecha_termino)  return { label: 'Indefinido', cls: 'indefinido-c' }
+  const fin = new Date(c.fecha_termino + 'T12:00:00')
+  const hoy = new Date()
+  const lim = new Date(); lim.setDate(lim.getDate() + 30)
+  if (fin < hoy)  return { label: 'Vencido', cls: 'vencido-c' }
+  if (fin <= lim) {
+    const dias = Math.ceil((fin - hoy) / (1000 * 60 * 60 * 24))
+    return { label: `Vence en ${dias}d`, cls: 'por-vencer-c' }
+  }
+  return { label: 'Vigente', cls: 'vigente-c' }
+}
+
+// Mostrar sueldo sin $0 — etiqueta contextual según tipo
+function sueldoDisplay(t) {
+  const c    = contratoVigente(t._id || t.id)
+  const tipo = (c?.tipo_contrato || t.tipo_contrato || '').toLowerCase()
+  const val  = c?.sueldo_base ?? t.sueldo_base ?? 0
+  if (tipo === 'honorarios') return { label: 'Variable',    cls: 'lbl-var' }
+  if (tipo === 'proyecto')   return { label: 'Por contrato', cls: 'lbl-var' }
+  if (!val)                  return { label: 'No definido',  cls: 'lbl-nd' }
+  return { label: fmtCLP(val), cls: '' }
+}
+
+// Labels de tipo contrato
+const TIPO_LABELS = {
+  indefinido: 'Indefinido', plazo_fijo: 'Plazo fijo',
+  proyecto: 'Proyecto', honorarios: 'Honorarios', part_time: 'Part-time',
+}
+function tipoLabel(t) {
+  const c    = contratoVigente(t._id || t.id)
+  const tipo = c?.tipo_contrato || t.tipo_contrato || ''
+  return TIPO_LABELS[tipo] || tipo || '—'
+}
+
+// Vista "Fijos": solo indefinido / plazo_fijo / part_time
+const trabajadoresFiltradosFijos = computed(() =>
+  trabajadoresFiltrados.value.filter(t => {
+    const c    = contratoVigente(t._id || t.id)
+    const tipo = (c?.tipo_contrato || t.tipo_contrato || '').toLowerCase()
+    return ['indefinido', 'plazo_fijo', 'part_time'].includes(tipo)
+  })
+)
+
+// Vista "Por proyecto": solo proyecto / honorarios
+const trabajadoresFiltradosProyecto = computed(() =>
+  trabajadoresFiltrados.value.filter(t => {
+    const c    = contratoVigente(t._id || t.id)
+    const tipo = (c?.tipo_contrato || t.tipo_contrato || '').toLowerCase()
+    return ['proyecto', 'honorarios'].includes(tipo)
+  })
+)
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   globalStore.loading = true;
@@ -237,11 +310,16 @@ onUnmounted(() => globalStore.cleanHeader());
       <!-- Separador -->
       <div class="filter-sep"></div>
 
-      <!-- Toggle de vista -->
+      <!-- Toggle de vista — 3 opciones -->
       <div class="view-toggle">
-        <button :class="['view-btn', vistaActual === 'normal' && 'active']" @click="vistaActual = 'normal'" title="Vista lista">
+        <button :class="['view-btn', vistaActual === 'lista' && 'active']" @click="vistaActual = 'lista'" title="Lista completa">
           <span class="u u-list"></span>
           <span>Lista</span>
+        </button>
+        <button :class="['view-btn', vistaActual === 'fijos' && 'active']" @click="vistaActual = 'fijos'" title="Solo fijos">
+          <span class="u u-usuarios"></span>
+          <span>Fijos</span>
+          <span v-if="trabajadoresFiltradosFijos.length" class="view-count">{{ trabajadoresFiltradosFijos.length }}</span>
         </button>
         <button :class="['view-btn', vistaActual === 'proyectos' && 'active']" @click="vistaActual = 'proyectos'" title="Vista por proyectos">
           <span class="u u-grid"></span>
@@ -328,75 +406,114 @@ onUnmounted(() => globalStore.cleanHeader());
               <span class="proyecto-worker__name">{{ t.nombre }} {{ t.apellido || '' }}</span>
               <span class="proyecto-worker__cargo">{{ t.cargo || '—' }}</span>
             </div>
-            <span :class="['tagEstado', t.estado]" style="margin-left:auto">{{ t.estado === 'activo' ? 'Activo' : 'Inactivo' }}</span>
+            <div class="proyecto-worker__pills">
+              <span :class="['tagEstado', t.estado]">{{ t.estado === 'activo' ? '● Activo' : 'Inactivo' }}</span>
+              <span :class="['tagContrato-v', estadoContratoInfo(contratoVigente(t._id || t.id)).cls]" style="font-size:10px">
+                {{ estadoContratoInfo(contratoVigente(t._id || t.id)).label }}
+              </span>
+            </div>
           </div>
-          <div v-if="!grupo.trabajadores.length" class="proyecto-empty">Sin trabajadores asignados</div>
+          <div v-if="!grupo.trabajadores.length" class="proyecto-empty">Sin personas asignadas</div>
         </div>
 
       </div>
     </div>
 
-    <!-- ── Vista Lista (tabla original) ─────────────────────────────────── -->
-    <div v-else class="rrhhPage__table-wrap">
+    <!-- ── Vista Lista completa ──────────────────────────────────────────── -->
+    <div v-else-if="vistaActual === 'lista'" class="rrhhPage__table-wrap">
       <table class="rrhhTable">
         <thead>
           <tr>
             <th></th>
             <th>Nombre</th>
             <th>Cargo</th>
-            <th>Tipo Contrato</th>
-            <th>Sueldo Base</th>
-            <th>AFP</th>
+            <th>Modalidad</th>
+            <th>Sueldo base</th>
             <th>Ingreso</th>
-            <th>Vacaciones</th>
-            <th>Estado</th>
+            <th>Persona</th>
+            <th>Contrato</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="t in trabajadoresFiltrados"
-            :key="t._id"
-            class="rrhhTable__row"
-            @click="$router.push(`/rrhh/trabajadores/${t._id}`)"
-          >
+          <tr v-for="t in trabajadoresFiltrados" :key="t._id" class="rrhhTable__row" @click="$router.push(`/rrhh/trabajadores/${t._id}`)">
+            <td><div class="avatar" :style="t.foto ? '' : 'background:#2a9d8f'">
+              <img v-if="t.foto" :src="t.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+              <template v-else>{{ t.nombre?.charAt(0) }}{{ (t.apellido || t.nombre?.split(' ')[1] || '')?.charAt(0) }}</template>
+            </div></td>
+            <td><div class="cellName">
+              <span class="name">{{ t.nombre }} {{ t.apellido || '' }}</span>
+              <span class="email">{{ t.email }}</span>
+            </div></td>
+            <td class="muted">{{ t.cargo || '—' }}</td>
+            <td><span :class="['tagContrato', contratoVigente(t._id || t.id)?.tipo_contrato || t.tipo_contrato]">
+              {{ tipoLabel(t) }}
+            </span></td>
             <td>
-              <div class="avatar" :style="t.foto ? '' : `background:var(--primary-surface-default)`">
-                <img v-if="t.foto" :src="t.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
-                <template v-else>{{ t.nombre?.charAt(0) }}{{ (t.apellido || t.nombre?.split(' ')[1] || '')?.charAt(0) }}</template>
-              </div>
+              <span :class="['sueldo-lbl', sueldoDisplay(t).cls]">{{ sueldoDisplay(t).label }}</span>
             </td>
+            <td class="muted">{{ t.fecha_ingreso ? new Date(t.fecha_ingreso).toLocaleDateString('es-CL', { year:'numeric', month:'short' }) : '—' }}</td>
+            <td><span :class="['tagEstado', t.estado]">{{ t.estado === 'activo' ? '● Activo' : 'Inactivo' }}</span></td>
             <td>
-              <div class="cellName">
-                <span class="name">{{ t.nombre }}</span>
-                <span class="email">{{ t.email }}</span>
-              </div>
-            </td>
-            <td class="muted">{{ t.cargo }}</td>
-            <td>
-              <span :class="['tagContrato', t.tipo_contrato]">
-                {{ t.tipo_contrato === 'indefinido' ? 'Indefinido' : 'Proyecto' }}
+              <span :class="['tagContrato-v', estadoContratoInfo(contratoVigente(t._id || t.id)).cls]">
+                {{ estadoContratoInfo(contratoVigente(t._id || t.id)).label }}
               </span>
             </td>
-            <td class="bold">{{ fmtCLP(t.sueldo_base) }}</td>
-            <td class="muted">{{ t.afp }}</td>
-            <td class="muted">{{ t.fecha_ingreso ? new Date(t.fecha_ingreso).toLocaleDateString('es-CL', { year:'numeric', month:'short' }) : '—' }}</td>
-            <td :class="['vacaciones', (t.vacaciones_pendientes || 0) >= 15 && 'warn']">
-              {{ t.vacaciones_pendientes || calcVacaciones(t) }} días
-            </td>
-            <td>
-              <span :class="['tagEstado', t.estado]">{{ t.estado === 'activo' ? 'Activo' : 'Inactivo' }}</span>
-            </td>
-            <td @click.stop>
-              <button class="btnDots" @click="$router.push(`/rrhh/trabajadores/${t._id}`)">···</button>
-            </td>
+            <td @click.stop><button class="btnDots" @click="$router.push(`/rrhh/trabajadores/${t._id}`)">···</button></td>
           </tr>
           <tr v-if="!trabajadoresFiltrados.length">
-            <td colspan="10" class="emptyRow">No hay trabajadores que coincidan con el filtro</td>
+            <td colspan="9" class="emptyRow">No hay personas que coincidan con el filtro</td>
           </tr>
         </tbody>
       </table>
-    </div><!-- end v-else tabla -->
+    </div>
+
+    <!-- ── Vista Fijos ────────────────────────────────────────────────────── -->
+    <div v-else-if="vistaActual === 'fijos'" class="rrhhPage__table-wrap">
+      <table class="rrhhTable">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Nombre</th>
+            <th>Cargo</th>
+            <th>Tipo vínculo</th>
+            <th>Sueldo base</th>
+            <th>Ingreso</th>
+            <th>Vacaciones</th>
+            <th>Contrato</th>
+            <th>Persona</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in trabajadoresFiltradosFijos" :key="t._id" class="rrhhTable__row" @click="$router.push(`/rrhh/trabajadores/${t._id}`)">
+            <td><div class="avatar" :style="t.foto ? '' : 'background:#2a9d8f'">
+              <img v-if="t.foto" :src="t.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+              <template v-else>{{ t.nombre?.charAt(0) }}{{ (t.apellido || t.nombre?.split(' ')[1] || '')?.charAt(0) }}</template>
+            </div></td>
+            <td><div class="cellName">
+              <span class="name">{{ t.nombre }} {{ t.apellido || '' }}</span>
+              <span class="email">{{ t.email }}</span>
+            </div></td>
+            <td class="muted">{{ t.cargo || '—' }}</td>
+            <td><span :class="['tagContrato', contratoVigente(t._id || t.id)?.tipo_contrato || t.tipo_contrato]">{{ tipoLabel(t) }}</span></td>
+            <td><span :class="['sueldo-lbl', sueldoDisplay(t).cls]">{{ sueldoDisplay(t).label }}</span></td>
+            <td class="muted">{{ t.fecha_ingreso ? new Date(t.fecha_ingreso).toLocaleDateString('es-CL', { year:'numeric', month:'short' }) : '—' }}</td>
+            <td :class="['vacaciones', calcVacaciones(t) >= 15 && 'warn']">{{ calcVacaciones(t) }} días</td>
+            <td>
+              <span :class="['tagContrato-v', estadoContratoInfo(contratoVigente(t._id || t.id)).cls]">
+                {{ estadoContratoInfo(contratoVigente(t._id || t.id)).label }}
+              </span>
+            </td>
+            <td><span :class="['tagEstado', t.estado]">{{ t.estado === 'activo' ? '● Activo' : 'Inactivo' }}</span></td>
+            <td @click.stop><button class="btnDots" @click="$router.push(`/rrhh/trabajadores/${t._id}`)">···</button></td>
+          </tr>
+          <tr v-if="!trabajadoresFiltradosFijos.length">
+            <td colspan="10" class="emptyRow">No hay personas con contrato fijo activo</td>
+          </tr>
+        </tbody>
+      </table>
+    </div><!-- end vista fijos -->
 
 
   </div>
@@ -661,15 +778,33 @@ onUnmounted(() => globalStore.cleanHeader());
 .tagContrato.honorarios  { background: rgba(249,115,22,0.15);  color: #fb923c; }
 .tagContrato.part_time   { background: rgba(96,165,250,0.15);  color: #60a5fa; }
 
-/* ── Badge Estado ────────────────────────────────────────────────────────── */
+/* ── Badge Estado persona ────────────────────────────────────────────────── */
 .tagEstado {
   display: inline-flex; align-items: center;
   padding: 3px 10px; border-radius: 20px;
   font-size: 11px; font-weight: 700;
 }
-.tagEstado.activo   { background: rgba(74,222,128,0.14); color: #4ade80; }
-.tagEstado.inactivo { background: rgba(156,163,175,0.14); color: #9ca3af; }
-.tagEstado.pendiente { background: rgba(251,191,36,0.14); color: #fbbf24; }
+.tagEstado.activo    { background: rgba(74,222,128,0.14);  color: #4ade80; }
+.tagEstado.inactivo  { background: rgba(156,163,175,0.14); color: #9ca3af; }
+.tagEstado.pendiente { background: rgba(251,191,36,0.14);  color: #fbbf24; }
+
+/* ── Badge estado de contrato (semáforo) ─────────────────────────────────── */
+.tagContrato-v {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  border: 1px solid transparent;
+}
+.tagContrato-v.vigente-c     { background: rgba(58,199,165,0.1);   color: #3ac7a5; border-color: rgba(58,199,165,0.25); }
+.tagContrato-v.indefinido-c  { background: rgba(58,199,165,0.1);   color: #3ac7a5; border-color: rgba(58,199,165,0.25); }
+.tagContrato-v.por-vencer-c  { background: rgba(244,162,97,0.12);  color: #f4a261; border-color: rgba(244,162,97,0.3); }
+.tagContrato-v.vencido-c     { background: rgba(239,68,68,0.1);    color: #f87171; border-color: rgba(239,68,68,0.25); }
+.tagContrato-v.sin-contrato  { background: rgba(107,114,128,0.1);  color: #6b7280; border-color: rgba(107,114,128,0.2); }
+
+/* ── Label sueldo contextual ─────────────────────────────────────────────── */
+.sueldo-lbl { font-size: 13px; font-weight: 700; color: #f3f4f6; }
+.sueldo-lbl.lbl-var { color: #9ca3af; font-style: italic; font-weight: 500; font-size: 12px; }
+.sueldo-lbl.lbl-nd  { color: #6b7280; font-style: italic; font-weight: 500; font-size: 12px; }
 
 /* ── Celdas especiales ───────────────────────────────────────────────────── */
 .muted   { color: #9ca3af !important; }
@@ -837,6 +972,11 @@ onUnmounted(() => globalStore.cleanHeader());
 .view-btn:hover { color: #f3f4f6; background: rgba(255,255,255,0.05); }
 .view-btn.active { color: #3ac7a5; background: rgba(58,199,165,0.1); }
 .view-btn .u { font-size: 13px; }
+.view-count {
+  background: rgba(58,199,165,0.15); color: #3ac7a5;
+  font-size: 9.5px; font-weight: 800; padding: 1px 6px;
+  border-radius: 20px; margin-left: 2px;
+}
 
 /* ── Grid de proyectos ────────────────────────────────────────────────────── */
 .proyectos-grid {
@@ -971,6 +1111,9 @@ onUnmounted(() => globalStore.cleanHeader());
 .proyecto-worker__cargo {
   font-size: 11px; color: #6b7280;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proyecto-worker__pills {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0;
 }
 .proyecto-empty { padding: 20px; text-align: center; color: #4b5563; font-size: 13px; }
 </style>
