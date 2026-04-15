@@ -44,15 +44,24 @@ const badgeContratos = computed(() => {
   }).length
 })
 
-// Personas sin marcación hoy
+// Personas sin marcación hoy — solo visible en días laborales (L-V) dentro de horario laboral
 const badgeAsistencia = computed(() => {
-  const hoy = new Date().toISOString().slice(0,10)
+  const ahora = new Date()
+  const dow  = ahora.getDay()          // 0=dom, 6=sab
+  const hora = ahora.getHours()
+  // Solo lunes-viernes entre 08:00 y 20:00
+  if (dow === 0 || dow === 6) return 0
+  if (hora < 8 || hora >= 20) return 0
+
+  const hoy = ahora.toISOString().slice(0, 10)
   const marcadas = new Set(
     (asistencia.marcaciones || [])
-      .filter(m => m.fecha === hoy || m.fecha?.startsWith(hoy))
+      .filter(m => m.fecha === hoy)
       .map(m => m.trabajador_id)
   )
-  const activos = (rrhhStore.trabajadores || []).filter(t => t.estado === 'activo' || t.estado === 'Activo')
+  const activos = (rrhhStore.trabajadores || []).filter(t =>
+    t.estado === 'activo' || t.estado === 'Activo'
+  )
   return activos.filter(t => !marcadas.has(t._id || t.id)).length
 })
 
