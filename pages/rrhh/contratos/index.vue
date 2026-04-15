@@ -19,33 +19,37 @@
       </div>
     </div>
 
-    <!-- Filter bar: buscador + chips (igual que Personas) -->
+    <!-- Filter bar: buscador + toggles (igual que Personas) -->
     <div class="filter-bar">
       <div class="filterInput">
         <span class="u u-buscar"></span>
         <input v-model="searchQ" type="text" placeholder="Buscar trabajador o contrato..." />
       </div>
 
-      <!-- Estado pills -->
-      <button
-        v-for="f in estadoFiltros"
-        :key="f.v"
-        class="chip"
-        :class="{ active: filtroEstado === f.v }"
-        @click="filtroEstado = f.v"
-      >{{ f.l }}</button>
+      <!-- Estado: grupo toggle -->
+      <div class="view-toggle">
+        <button
+          v-for="f in estadoFiltros"
+          :key="f.v"
+          class="view-btn"
+          :class="{ active: filtroEstado === f.v }"
+          @click="filtroEstado = f.v"
+        >{{ f.l }}</button>
+      </div>
 
       <!-- Separador visual -->
       <div class="filter-sep"></div>
 
-      <!-- Tipo pills -->
-      <button
-        v-for="f in tipoFiltros"
-        :key="f.v"
-        class="chip"
-        :class="{ active: filtroTipo === f.v }"
-        @click="filtroTipo = f.v"
-      >{{ f.l }}</button>
+      <!-- Tipo: grupo toggle -->
+      <div class="view-toggle">
+        <button
+          v-for="f in tipoFiltros"
+          :key="f.v"
+          class="view-btn"
+          :class="{ active: filtroTipo === f.v }"
+          @click="filtroTipo = f.v"
+        >{{ f.l }}</button>
+      </div>
     </div>
 
     <!-- Alertas próximos vencimientos -->
@@ -500,13 +504,12 @@ const contratosFiltrados = computed(() => {
         return dias !== null && dias <= 30 && dias > 0
       })
     } else if (filtroEstado.value === 'vigente') {
-      // vigente real = tiene fecha_termino en el futuro (>30d) O no tiene fecha_termino
-      //                Y no está guardado como borrador/vencido
+      // Vigente = cualquier contrato activo (incluye los "por vencer", siguen siendo válidos)
       list = list.filter(c => {
-        if (c.estado === 'borrador' || c.estado === 'vencido') return false
-        if (!c.fecha_termino) return true                // indefinido → siempre vigente
+        if (c.estado === 'borrador') return false
+        if (!c.fecha_termino) return true                // sin término → indefinido, siempre vigente
         const dias = getDiasVence(c)
-        return dias !== null && dias > 30                // más de 30 días → vigente (no por-vencer)
+        return dias !== null && dias > 0                 // fecha_termino en el futuro
       })
     } else if (filtroEstado.value === 'vencido') {
       // vencido real = fecha_termino pasada O estado guardado como vencido
@@ -576,8 +579,10 @@ function formatCLP(v) {
 
 function getDiasVence(c) {
   if (!c.fecha_termino) return null
-  const diff = new Date(c.fecha_termino) - today
-  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
+  // Usar T12:00:00 (noon local) igual que estadoContratoInfo → sin discrepancias de timezone
+  const fin  = new Date(c.fecha_termino + 'T12:00:00')
+  const diff = fin - new Date()
+  const dias = Math.ceil(diff / 86400000)
   return dias > 0 ? dias : null
 }
 
@@ -754,20 +759,32 @@ onUnmounted(() => {
 }
 .filterInput span { color: #9ca3af; font-size: 14px; }
 
-/* ── Chips — idéntico a Personas ───────────────────────────────────────── */
-.chip {
-  height: 32px; padding: 0 14px; border-radius: 20px;
-  font-family: Nunito, sans-serif; font-size: 12px; font-weight: 600;
-  color: #9ca3af;
-  background: transparent;
-  border: 1.5px solid rgba(255,255,255,0.1);
-  cursor: pointer; transition: all .15s;
-}
-.chip.active { background: rgba(58,199,165,0.15); color: #3ac7a5; border-color: rgba(58,199,165,0.5); }
-.chip:not(.active):hover { background: rgba(255,255,255,0.05); color: #f3f4f6; border-color: rgba(255,255,255,0.18); }
 
-/* Separador entre grupos de chips */
-.filter-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+/* Separador entre grupos */
+.filter-sep { width: 1px; height: 24px; background: rgba(255,255,255,0.12); margin: 0 4px; align-self: center; }
+
+/* ── Toggle groups (idéntico a Personas) ───────────────────────────────── */
+.view-toggle {
+  display: flex;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  gap: 0;
+}
+.view-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 13px; height: 32px;
+  font-family: Nunito, sans-serif; font-size: 12px; font-weight: 600;
+  color: #6b7280;
+  background: transparent;
+  border: none; cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.view-btn + .view-btn { border-left: 1px solid rgba(255,255,255,0.08); }
+.view-btn:hover { color: #f3f4f6; background: rgba(255,255,255,0.05); }
+.view-btn.active { color: #3ac7a5; background: rgba(58,199,165,0.1); }
 
 /* Alert banner */
 .alerts-row { margin-bottom: 20px; }
