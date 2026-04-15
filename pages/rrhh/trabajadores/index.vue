@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import useGlobalStore from "@/stores/global";
 import useRrhhStore from "@/stores/rrhh";
 
@@ -18,15 +18,7 @@ useHead({ title: "Personas – RRHH" });
 const busqueda       = ref("");
 const filtroEstado   = ref("activo");
 const filtroContrato = ref("todos");
-const filtroMes      = ref(new Date().toISOString().slice(0, 7)); // YYYY-MM
-
-// Vista por defecto persistida en localStorage (feature 8)
-const _vistaGuardada = (() => { try { return localStorage.getItem('rrhh_vista_defecto') || 'lista' } catch { return 'lista' } })()
-const vistaActual    = ref(_vistaGuardada); // "lista" | "fijos" | "proyectos"
-watch(vistaActual, (v) => { try { localStorage.setItem('rrhh_vista_defecto', v) } catch {} })
-
-// Filtro de estado en vista proyectos (feature 7)
-const filtroEstadoProyecto = ref('todos'); // 'todos' | 'activo' | 'por_vencer' | 'vencido' | 'cerrado'
+const vistaActual    = ref("lista"); // "lista" | "fijos" | "proyectos"
 
 // Laboral defaults (para inicializar el form de Info Contrato)
 const laboralDefaults = {
@@ -166,9 +158,6 @@ const trabajadoresPorProyecto = computed(() => {
     }
   });
 
-  const hoy = new Date();
-  const lim30 = new Date(); lim30.setDate(lim30.getDate() + 30);
-
   const grupos = {};
   trabajadores.forEach(t => {
     const tid = t._id || t.id;
@@ -184,51 +173,18 @@ const trabajadoresPorProyecto = computed(() => {
         fecha_inicio: null,
         fecha_termino: null,
         total_costo: 0,
-        total_liquido: 0,
-        total_imposiciones: 0,
-        // conteo de estados para feature 6 / 7
-        count_activo: 0,
-        count_por_vencer: 0,
-        count_vencido: 0,
-        count_cerrado: 0,
       };
     }
     grupos[key].trabajadores.push(t);
-
-    // Estado del trabajador en este grupo
-    if (t.estado === 'inactivo') {
-      grupos[key].count_cerrado++;
-    } else if (c && c.fecha_termino) {
-      const fin = new Date(c.fecha_termino + 'T12:00:00');
-      if (fin < hoy)      { grupos[key].count_vencido++; }
-      else if (fin <= lim30) { grupos[key].count_por_vencer++; }
-      else                { grupos[key].count_activo++; }
-    } else {
-      grupos[key].count_activo++;
-    }
-
     if (c) {
       grupos[key].contratos.push(c);
       const fi = c.fecha_inicio || c.fecha_ingreso;
       const ft = c.fecha_termino;
       if (fi && (!grupos[key].fecha_inicio || fi < grupos[key].fecha_inicio))  grupos[key].fecha_inicio = fi;
       if (ft && (!grupos[key].fecha_termino || ft > grupos[key].fecha_termino)) grupos[key].fecha_termino = ft;
-      const sueldo = c.sueldo_base || 0;
-      const mov    = c.movilizacion || 0;
-      const col    = c.colacion || 0;
-      const base   = sueldo + mov + col;
-      const tipo   = c.tipo_contrato || '';
-      const factor = (tipo === 'indefinido' || tipo === 'plazo_fijo') ? 1.2 : 1;
+      const base  = (c.sueldo_base || 0) + (c.movilizacion || 0) + (c.colacion || 0);
+      const factor = (c.tipo_contrato === 'indefinido' || c.tipo_contrato === 'plazo_fijo') ? 1.2 : 1;
       grupos[key].total_costo += Math.round(base * factor);
-      // Líquido estimado: sueldo_base neto (~18.44% desc trabajador) + asignaciones
-      if (tipo !== 'honorarios') {
-        grupos[key].total_liquido       += Math.round(sueldo * 0.8156 + mov + col);
-        // Imposiciones: AFP empleado 11.44% + salud 7% + cesantía empleador 2.4% + seg. laboral 0.93%
-        grupos[key].total_imposiciones  += Math.round(sueldo * 0.2077);
-      } else {
-        // Honorarios reciben bruto (pagan sus propias imposiciones)
-        grupos[key].total_liquido       += Math.round(sueldo);
-      }
     }
   });
 
@@ -237,84 +193,6 @@ const trabajadoresPorProyecto = computed(() => {
     if (b.key === '__sin_proyecto__') return -1;
     return a.nombre.localeCompare(b.nombre);
   });
-});
-
-// ── Vista proyectos filtrada por estado (feature 7) ───────────────────────────
-const trabajadoresPorProyectoFiltrado = computed(() => {
-  const grupos = trabajadoresPorProyecto.value;
-  if (filtroEstadoProyecto.value === 'todos') return grupos;
-  return grupos.filter(g => {
-    if (filtroEstadoProyecto.value === 'activo')     return g.count_activo > 0;
-    if (filtroEstadoProyecto.value === 'por_vencer') return g.count_por_vencer > 0;
-    if (filtroEstadoProyecto.value === 'vencido')    return g.count_vencido > 0;
-    if (filtroEstadoProyecto.value === 'cerrado')    return g.count_cerrado > 0;
-    return true;
-  });
-});
-
-// ── Resumen global proyectos para fila rosa (feature 6) ───────────────────────
-const resumenProyectos = computed(() => {
-  let activos = 0, por_vencer = 0, vencidos = 0, cerrados = 0;
-  trabajadoresPorProyecto.value.forEach(g => {
-    activos    += g.count_activo;
-    por_vencer += g.count_por_vencer;
-    vencidos   += g.count_vencido;
-    cerrados   += g.count_cerrado;
-  });
-  const total = activos + por_vencer + vencidos + cerrados;
-  return { total, activos, por_vencer, vencidos, cerrados };
-});
-
-// ── KPIs de nómina (features 2 y 3) ──────────────────────────────────────────
-const kpiTotalPagar = computed(() => {
-  const liqs = rrhhStore.liquidaciones || [];
-  const mes  = filtroMes.value;
-  const liqs_mes = liqs.filter(l => {
-    const p = l.periodo || l.mes || l.fecha_periodo || '';
-    return p.startsWith(mes);
-  });
-  if (liqs_mes.length) {
-    return { valor: liqs_mes.reduce((s, l) => s + (l.liquido_a_pagar || l.liquido || 0), 0), estimado: false };
-  }
-  // Fallback: suma estimada desde contratos activos
-  const activos = (rrhhStore.trabajadores || []).filter(t => t.estado === 'activo' || t.estado === 'Activo');
-  const val = activos.reduce((s, t) => {
-    const c = contratoVigenteMap.value[t._id || t.id];
-    const tipo = (c?.tipo_contrato || '').toLowerCase();
-    if (tipo === 'honorarios') return s + (c?.sueldo_base || 0);
-    const sueldo = c?.sueldo_base || 0;
-    const mov    = c?.movilizacion || 0;
-    const col    = c?.colacion || 0;
-    return s + Math.round(sueldo * 0.8156 + mov + col);
-  }, 0);
-  return { valor: val, estimado: true };
-});
-
-const kpiImposiciones = computed(() => {
-  const liqs = rrhhStore.liquidaciones || [];
-  const mes  = filtroMes.value;
-  const liqs_mes = liqs.filter(l => {
-    const p = l.periodo || l.mes || l.fecha_periodo || '';
-    return p.startsWith(mes);
-  });
-  if (liqs_mes.length) {
-    const val = liqs_mes.reduce((s, l) => {
-      const afp   = l.afp_empleado   || l.cotizacion_afp   || l.afp    || 0;
-      const salud = l.cotizacion_salud || l.salud            || 0;
-      const ces   = l.cesantia_empleador || l.cesantia       || 0;
-      return s + afp + salud + ces;
-    }, 0);
-    return { valor: val, estimado: false };
-  }
-  // Fallback: ~20.77% of sueldo_base activos
-  const activos = (rrhhStore.trabajadores || []).filter(t => t.estado === 'activo' || t.estado === 'Activo');
-  const val = activos.reduce((s, t) => {
-    const c    = contratoVigenteMap.value[t._id || t.id];
-    const tipo = (c?.tipo_contrato || '').toLowerCase();
-    if (tipo === 'honorarios') return s; // no imposiciones empleador para honorarios
-    return s + Math.round((c?.sueldo_base || 0) * 0.2077);
-  }, 0);
-  return { valor: val, estimado: true };
 });
 
 // ── Sprint 2: contrato vigente, estado doble, labels contextuales ─────────────
@@ -401,11 +279,7 @@ onMounted(async () => {
     if (saved) fotoProyecto.value = JSON.parse(saved);
   } catch {}
   try {
-    await Promise.all([
-      rrhhStore.getTrabajadores(),
-      rrhhStore.getContratos(),
-      rrhhStore.getLiquidaciones?.(),
-    ]);
+    await Promise.all([rrhhStore.getTrabajadores(), rrhhStore.getContratos()]);
   } finally {
     globalStore.loading = false;
   }
@@ -439,12 +313,6 @@ onUnmounted(() => globalStore.cleanHeader());
         <span class="u u-search"></span>
         <input v-model="busqueda" placeholder="Buscar trabajador..." />
       </div>
-      <!-- Filtro mes -->
-      <div class="filterInput filterInput--mes">
-        <span class="u u-calendar" style="font-size:13px"></span>
-        <input type="month" v-model="filtroMes" />
-      </div>
-
       <button :class="['chip', filtroEstado === 'todos' && 'active']"    @click="filtroEstado = 'todos'">Todos</button>
       <button :class="['chip', filtroEstado === 'activo' && 'active']"   @click="filtroEstado = 'activo'">Activos</button>
       <button :class="['chip', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
@@ -454,100 +322,30 @@ onUnmounted(() => globalStore.cleanHeader());
       <!-- Separador -->
       <div class="filter-sep"></div>
 
-      <!-- Toggle de vista — 3 opciones (view-btn activo = guardado como defecto) -->
+      <!-- Toggle de vista — 3 opciones -->
       <div class="view-toggle">
-        <button :class="['view-btn', vistaActual === 'lista' && 'active']" @click="vistaActual = 'lista'" title="Lista completa · Clic para guardar como vista por defecto">
+        <button :class="['view-btn', vistaActual === 'lista' && 'active']" @click="vistaActual = 'lista'" title="Lista completa">
           <span class="u u-list"></span>
           <span>Lista</span>
         </button>
-        <button :class="['view-btn', vistaActual === 'fijos' && 'active']" @click="vistaActual = 'fijos'" title="Solo fijos · Clic para guardar como vista por defecto">
+        <button :class="['view-btn', vistaActual === 'fijos' && 'active']" @click="vistaActual = 'fijos'" title="Solo fijos">
           <span class="u u-usuarios"></span>
           <span>Fijos</span>
           <span v-if="trabajadoresFiltradosFijos.length" class="view-count">{{ trabajadoresFiltradosFijos.length }}</span>
         </button>
-        <button :class="['view-btn', vistaActual === 'proyectos' && 'active']" @click="vistaActual = 'proyectos'" title="Vista por proyectos · Clic para guardar como vista por defecto">
+        <button :class="['view-btn', vistaActual === 'proyectos' && 'active']" @click="vistaActual = 'proyectos'" title="Vista por proyectos">
           <span class="u u-grid"></span>
           <span>Proyectos</span>
         </button>
       </div>
     </div>
 
-    <!-- KPIs de nómina (features 2 y 3) -->
-    <div class="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-card__icon">💰</div>
-        <div class="kpi-card__body">
-          <div class="kpi-card__val">{{ fmtCLP(kpiTotalPagar.valor) }}</div>
-          <div class="kpi-card__label">
-            Total a pagar
-            <span v-if="kpiTotalPagar.estimado" class="kpi-est">(estimado)</span>
-          </div>
-        </div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-card__icon">🏦</div>
-        <div class="kpi-card__body">
-          <div class="kpi-card__val kpi-card__val--orange">{{ fmtCLP(kpiImposiciones.valor) }}</div>
-          <div class="kpi-card__label">
-            Imposiciones Previred
-            <span v-if="kpiImposiciones.estimado" class="kpi-est">(estimado)</span>
-          </div>
-        </div>
-      </div>
-      <div class="kpi-card kpi-card--action">
-        <div class="kpi-card__icon">📋</div>
-        <div class="kpi-card__body">
-          <div class="kpi-card__val kpi-card__val--sm">{{ filtroMes }}</div>
-          <div class="kpi-card__label">Período seleccionado</div>
-        </div>
-        <button class="btn btn-rose" @click.stop title="Cerrar Nómina – próximamente">
-          Cerrar Nómina
-        </button>
-      </div>
-    </div>
-
     <!-- ── Vista por Proyectos ──────────────────────────────────────────── -->
-    <div v-if="vistaActual === 'proyectos'" class="proyectos-section">
+    <div v-if="vistaActual === 'proyectos'" class="proyectos-grid">
       <input ref="fotoFileRefProyecto" type="file" accept="image/*" style="display:none" @change="onFotoProyectoChange" />
 
-      <!-- Fila resumen rosa (feature 6) -->
-      <div class="resumen-rosa">
-        <div class="resumen-rosa__stat">
-          <span class="resumen-rosa__val">{{ resumenProyectos.total }}</span>
-          <span class="resumen-rosa__label">Total</span>
-        </div>
-        <div class="resumen-rosa__sep"></div>
-        <div class="resumen-rosa__stat">
-          <span class="resumen-rosa__val resumen-rosa__val--green">{{ resumenProyectos.activos }}</span>
-          <span class="resumen-rosa__label">Activos</span>
-        </div>
-        <div class="resumen-rosa__stat">
-          <span class="resumen-rosa__val resumen-rosa__val--orange">{{ resumenProyectos.por_vencer }}</span>
-          <span class="resumen-rosa__label">Por vencer</span>
-        </div>
-        <div class="resumen-rosa__stat">
-          <span class="resumen-rosa__val resumen-rosa__val--red">{{ resumenProyectos.vencidos }}</span>
-          <span class="resumen-rosa__label">Vencidos</span>
-        </div>
-        <div class="resumen-rosa__stat">
-          <span class="resumen-rosa__val resumen-rosa__val--gray">{{ resumenProyectos.cerrados }}</span>
-          <span class="resumen-rosa__label">Cerrados</span>
-        </div>
-        <div class="resumen-rosa__spacer"></div>
-        <!-- Filtros de estado en proyectos (feature 7) -->
-        <div class="view-toggle view-toggle--sm">
-          <button :class="['view-btn', filtroEstadoProyecto === 'todos' && 'active']" @click="filtroEstadoProyecto = 'todos'">Todos</button>
-          <button :class="['view-btn', filtroEstadoProyecto === 'activo' && 'active']" @click="filtroEstadoProyecto = 'activo'">Activos</button>
-          <button :class="['view-btn', filtroEstadoProyecto === 'por_vencer' && 'active']" @click="filtroEstadoProyecto = 'por_vencer'">Por vencer</button>
-          <button :class="['view-btn', filtroEstadoProyecto === 'vencido' && 'active']" @click="filtroEstadoProyecto = 'vencido'">Vencidos</button>
-          <button :class="['view-btn', filtroEstadoProyecto === 'cerrado' && 'active']" @click="filtroEstadoProyecto = 'cerrado'">Cerrados</button>
-        </div>
-      </div>
-
-      <!-- Grid de tarjetas -->
-      <div class="proyectos-grid">
       <div
-        v-for="grupo in trabajadoresPorProyectoFiltrado"
+        v-for="grupo in trabajadoresPorProyecto"
         :key="grupo.key"
         class="proyecto-card"
       >
@@ -573,28 +371,23 @@ onUnmounted(() => globalStore.cleanHeader());
           </div>
         </div>
 
-        <!-- Stats (feature 5) -->
+        <!-- Stats -->
         <div class="proyecto-card__stats">
           <div class="proyecto-stat">
             <span class="proyecto-stat__val">{{ grupo.trabajadores.length }}</span>
-            <div class="proyecto-stat__states">
-              <span v-if="grupo.count_activo" class="ps-dot ps-dot--green">{{ grupo.count_activo }} activos</span>
-              <span v-if="grupo.count_por_vencer" class="ps-dot ps-dot--orange">{{ grupo.count_por_vencer }} x vencer</span>
-              <span v-if="grupo.count_vencido" class="ps-dot ps-dot--red">{{ grupo.count_vencido }} venc.</span>
-            </div>
-            <span class="proyecto-stat__label">Personas</span>
+            <span class="proyecto-stat__label">Trabajadores</span>
           </div>
           <div class="proyecto-stat">
-            <span class="proyecto-stat__val teal">{{ fmtCLP(grupo.total_liquido) }}</span>
-            <span class="proyecto-stat__label">Líquido / mes</span>
+            <span class="proyecto-stat__val teal">{{ fmtCLP(grupo.total_costo) }}</span>
+            <span class="proyecto-stat__label">Costo empresa / mes</span>
           </div>
-          <div class="proyecto-stat">
-            <span class="proyecto-stat__val proyecto-stat__val--orange">{{ fmtCLP(grupo.total_costo) }}</span>
-            <span class="proyecto-stat__label">Costo empresa</span>
-          </div>
-          <div class="proyecto-stat" v-if="grupo.total_imposiciones">
-            <span class="proyecto-stat__val proyecto-stat__val--rose">{{ fmtCLP(grupo.total_imposiciones) }}</span>
-            <span class="proyecto-stat__label">Imposiciones</span>
+          <div class="proyecto-stat" v-if="grupo.contratos.length">
+            <span class="proyecto-stat__val">
+              {{ [...new Set(grupo.contratos.map(c => c.tipo_contrato))].map(t =>
+                ({indefinido:'Indef.',plazo_fijo:'P.Fijo',proyecto:'Proy.',honorarios:'Hon.',part_time:'P.Time'})[t] || t
+              ).join(' · ') }}
+            </span>
+            <span class="proyecto-stat__label">Tipos contrato</span>
           </div>
         </div>
 
@@ -636,8 +429,7 @@ onUnmounted(() => globalStore.cleanHeader());
         </div>
 
       </div>
-      </div><!-- /proyectos-grid -->
-    </div><!-- /proyectos-section -->
+    </div>
 
     <!-- ── Vista Lista completa ──────────────────────────────────────────── -->
     <div v-else-if="vistaActual === 'lista'" class="rrhhPage__table-wrap">
@@ -1197,114 +989,15 @@ onUnmounted(() => globalStore.cleanHeader());
   font-size: 9.5px; font-weight: 800; padding: 1px 6px;
   border-radius: 20px; margin-left: 2px;
 }
-.view-toggle--sm .view-btn {
-  font-size: 11px; height: 28px; padding: 0 10px;
-}
-
-/* ── Filtro mes ────────────────────────────────────────────────────────────── */
-.filterInput--mes { min-width: 140px; }
-.filterInput--mes input[type="month"] {
-  background: transparent; border: none; outline: none;
-  font-family: Nunito; font-size: 13px; color: #f3f4f6;
-  cursor: pointer;
-  color-scheme: dark;
-}
-
-/* ── KPI row ──────────────────────────────────────────────────────────────── */
-.kpi-row {
-  display: flex; gap: 12px; flex-wrap: wrap;
-}
-.kpi-card {
-  display: flex; align-items: center; gap: 14px;
-  background: #1e2d3a;
-  border: 1.5px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
-  padding: 14px 20px;
-  min-width: 200px; flex: 1;
-  transition: border-color .15s;
-}
-.kpi-card:hover { border-color: rgba(58,199,165,0.2); }
-.kpi-card--action { flex: 1.5; justify-content: space-between; }
-.kpi-card__icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
-.kpi-card__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.kpi-card__val {
-  font-size: 22px; font-weight: 900; color: #3ac7a5;
-  white-space: nowrap;
-}
-.kpi-card__val--orange { color: #f4a261; }
-.kpi-card__val--sm { font-size: 16px; color: #9ca3af; font-weight: 700; }
-.kpi-card__label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
-.kpi-est { font-style: italic; color: #9ca3af; text-transform: none; letter-spacing: 0; }
-
-/* ── Cerrar Nómina / Enviar a Unabase ─────────────────────────────────────── */
-.btn-rose {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 36px; padding: 0 18px; border-radius: 8px;
-  font-family: Nunito; font-size: 13px; font-weight: 700;
-  cursor: pointer; border: none; transition: all .15s;
-  white-space: nowrap; flex-shrink: 0;
-  background: rgba(244,114,182,0.18);
-  color: #f472b6;
-  border: 1.5px solid rgba(244,114,182,0.3);
-}
-.btn-rose:hover { background: rgba(244,114,182,0.28); border-color: rgba(244,114,182,0.5); }
-
-/* ── Sección proyectos (wrapper con flex-col) ─────────────────────────────── */
-.proyectos-section {
-  flex: 1; min-height: 0;
-  display: flex; flex-direction: column; gap: 12px;
-  overflow: hidden;
-}
-
-/* ── Fila resumen rosa ─────────────────────────────────────────────────────── */
-.resumen-rosa {
-  display: flex; align-items: center; gap: 20px;
-  background: rgba(244,114,182,0.08);
-  border: 1.5px solid rgba(244,114,182,0.2);
-  border-radius: 12px;
-  padding: 12px 20px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-.resumen-rosa__stat {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-}
-.resumen-rosa__val {
-  font-size: 22px; font-weight: 900; color: #f3f4f6;
-}
-.resumen-rosa__val--green  { color: #4ade80; }
-.resumen-rosa__val--orange { color: #f4a261; }
-.resumen-rosa__val--red    { color: #f87171; }
-.resumen-rosa__val--gray   { color: #9ca3af; }
-.resumen-rosa__label {
-  font-size: 10px; color: rgba(244,114,182,0.8);
-  text-transform: uppercase; letter-spacing: .06em;
-}
-.resumen-rosa__sep {
-  width: 1px; height: 32px; background: rgba(244,114,182,0.2);
-}
-.resumen-rosa__spacer { flex: 1; }
 
 /* ── Grid de proyectos ────────────────────────────────────────────────────── */
 .proyectos-grid {
   flex: 1; min-height: 0;
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 20px;
   overflow-y: auto;
   padding-bottom: 16px;
-  /* Responsive: 3 cols → 2 cols → 1 col */
-  grid-template-columns: repeat(3, 1fr);
-}
-/* Responsive breakpoints */
-@media (max-width: 1400px) {
-  .proyectos-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 900px) {
-  .proyectos-grid { grid-template-columns: 1fr; }
-}
-@media (min-width: 1800px) {
-  .proyectos-grid { grid-template-columns: repeat(4, 1fr); }
 }
 .proyectos-grid::-webkit-scrollbar { width: 6px; }
 .proyectos-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
@@ -1384,21 +1077,8 @@ onUnmounted(() => globalStore.cleanHeader());
 .proyecto-stat__val {
   font-size: 17px; font-weight: 800; color: #f3f4f6;
 }
-.proyecto-stat__val.teal              { color: #3ac7a5; }
-.proyecto-stat__val--orange           { color: #f4a261; }
-.proyecto-stat__val--rose             { color: #f472b6; }
+.proyecto-stat__val.teal { color: #3ac7a5; }
 .proyecto-stat__label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
-
-/* Dots de estado dentro del stat de personas */
-.proyecto-stat__states {
-  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;
-}
-.ps-dot {
-  font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 20px;
-}
-.ps-dot--green  { background: rgba(74,222,128,0.12); color: #4ade80; }
-.ps-dot--orange { background: rgba(244,162,97,0.12);  color: #f4a261; }
-.ps-dot--red    { background: rgba(248,113,113,0.12); color: #f87171; }
 
 /* Barra de tipos de contrato */
 .proyecto-card__bar {
