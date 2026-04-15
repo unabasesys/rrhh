@@ -166,10 +166,9 @@ const kpisRrhh = computed(() => ({
 }))
 
 // ─── Tabs de Asistencia ───────────────────────────────────────────────────
+// Solo el Dashboard en la barra — Marcaciones y Turnos van por el menú lateral
 const asistenciaTabs = [
-  { key: 'dashboard',   label: 'Dashboard',   path: '/rrhh/asistencia' },
-  { key: 'marcaciones', label: 'Marcaciones',  path: '/rrhh/asistencia/marcaciones' },
-  { key: 'turnos',      label: 'Turnos',       path: '/rrhh/asistencia/turnos' },
+  { key: 'dashboard', label: 'Dashboard', path: '/rrhh/asistencia' },
 ]
 
 // ─── Iniciales ────────────────────────────────────────────────────────────
