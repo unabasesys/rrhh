@@ -103,6 +103,104 @@ const trabajadoresFiltrados = computed(() => {
   return lista;
 });
 
+// ── KPIs pie de página ────────────────────────────────────────────────────────
+
+// Devuelve el contrato que estaba activo para un trabajador en un mes dado
+function contratoEnMes(tid, mes) {
+  const contratos = contratosPortrabajador.value[tid];
+  if (!contratos?.length) return null;
+  const primerDia = new Date(mes + '-01T00:00:00');
+  const ultimoDia = new Date(primerDia);
+  ultimoDia.setMonth(ultimoDia.getMonth() + 1);
+  ultimoDia.setDate(ultimoDia.getDate() - 1);
+  ultimoDia.setHours(23, 59, 59);
+  return contratos.find(c => {
+    const inicio   = c.fecha_inicio || c.fecha_ingreso;
+    const fin      = c.fecha_termino;
+    const inicioOk = !inicio || new Date(inicio + 'T12:00:00') <= ultimoDia;
+    const finOk    = !fin    || new Date(fin    + 'T12:00:00') >= primerDia;
+    return inicioOk && finOk;
+  }) || null;
+}
+
+// Mes anterior en formato YYYY-MM (para calcular imposiciones 13→13)
+const mesAnteriorStr = computed(() => {
+  const [y, m] = filtroMes.value.split('-').map(Number);
+  const d = new Date(y, m - 2, 1); // m-2: mes anterior, 0-indexed
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+});
+
+// Trabajadores con contrato en el mes anterior (base de imposiciones)
+const trabajadoresMesAnterior = computed(() =>
+  (rrhhStore.trabajadores || []).filter(t =>
+    tieniaContratoEnMes(t._id || t.id, mesAnteriorStr.value)
+  )
+);
+
+// KPI 1: Líquido a pagar a fin del mes seleccionado
+// = (sueldo_base - AFP 11.44% - salud 7%) + movilización + colación
+// Honorarios: reciben monto bruto (retención es responsabilidad del prestador)
+const kpiLiquido = computed(() => {
+  let total = 0;
+  trabajadoresFiltrados.value.forEach(t => {
+    const c = contratoEnMes(t._id || t.id, filtroMes.value);
+    if (!c) return;
+    const tipo   = (c.tipo_contrato || '').toLowerCase();
+    const sueldo = c.sueldo_base    || 0;
+    const mov    = c.movilizacion   || 0;
+    const col    = c.colacion       || 0;
+    if (tipo === 'honorarios') {
+      total += sueldo; // bruto, sin descuentos
+    } else {
+      total += Math.round(sueldo * (1 - 0.1844) + mov + col);
+    }
+  });
+  return total;
+});
+
+// KPI 2: Costo empresa mes seleccionado
+// = (sueldo + mov + col) × 1.2 para indefinido/plazo_fijo, ×1 para el resto
+const kpiCostoEmpresa = computed(() => {
+  let total = 0;
+  trabajadoresFiltrados.value.forEach(t => {
+    const c = contratoEnMes(t._id || t.id, filtroMes.value);
+    if (!c) return;
+    const tipo   = (c.tipo_contrato || '').toLowerCase();
+    const sueldo = c.sueldo_base  || 0;
+    const mov    = c.movilizacion || 0;
+    const col    = c.colacion     || 0;
+    const base   = sueldo + mov + col;
+    const factor = (tipo === 'indefinido' || tipo === 'plazo_fijo') ? 1.2 : 1;
+    total += Math.round(base * factor);
+  });
+  return total;
+});
+
+// KPI 3: Imposiciones período 13 mes anterior → 13 mes actual
+// Base: trabajadores activos en el mes anterior (excluye honorarios)
+// AFP empleado 11.44% + salud 7% + cesantía empleador 2.4% + seg.accidentes 0.93% + SIS 1.5%
+const kpiImposiciones = computed(() => {
+  let total = 0;
+  trabajadoresMesAnterior.value.forEach(t => {
+    const c = contratoEnMes(t._id || t.id, mesAnteriorStr.value);
+    if (!c) return;
+    const tipo   = (c.tipo_contrato || '').toLowerCase();
+    if (tipo === 'honorarios') return; // retención va por IVA, excluida
+    const sueldo = c.sueldo_base || 0;
+    total += Math.round(sueldo * (0.1144 + 0.07 + 0.024 + 0.0093 + 0.015));
+  });
+  return total;
+});
+
+// Label legible del período de imposiciones: "13 mar → 13 abr"
+const labelPeriodoImposiciones = computed(() => {
+  const [y, m] = filtroMes.value.split('-').map(Number);
+  const desde  = new Date(y, m - 2, 13);
+  const hasta  = new Date(y, m - 1, 13);
+  const fmt    = (d) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
+  return `${fmt(desde)} → ${fmt(hasta)}`;
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtCLP = (n) =>
   n ? `$${Math.round(n).toLocaleString("es-CL")}` : "$0";
@@ -572,6 +670,27 @@ onUnmounted(() => globalStore.cleanHeader());
       </table>
     </div><!-- end vista fijos -->
 
+    <!-- ── KPIs pie de página ──────────────────────────────────────────────── -->
+    <div class="footer-kpis">
+      <div class="footer-kpi">
+        <div class="footer-kpi__label">Líquido a pagar</div>
+        <div class="footer-kpi__val">{{ fmtCLP(kpiLiquido) }}</div>
+        <div class="footer-kpi__sub">fin de {{ filtroMes }}</div>
+      </div>
+      <div class="footer-kpi__sep"></div>
+      <div class="footer-kpi">
+        <div class="footer-kpi__label">Costo empresa</div>
+        <div class="footer-kpi__val footer-kpi__val--orange">{{ fmtCLP(kpiCostoEmpresa) }}</div>
+        <div class="footer-kpi__sub">mes {{ filtroMes }}</div>
+      </div>
+      <div class="footer-kpi__sep"></div>
+      <div class="footer-kpi">
+        <div class="footer-kpi__label">Imposiciones Previred</div>
+        <div class="footer-kpi__val footer-kpi__val--rose">{{ fmtCLP(kpiImposiciones) }}</div>
+        <div class="footer-kpi__sub">{{ labelPeriodoImposiciones }}</div>
+      </div>
+      <div class="footer-kpi__badge">estimado</div>
+    </div>
 
   </div>
 
@@ -1182,4 +1301,50 @@ onUnmounted(() => globalStore.cleanHeader());
   display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0;
 }
 .proyecto-empty { padding: 20px; text-align: center; color: #4b5563; font-size: 13px; }
+
+/* ── KPIs pie de página ──────────────────────────────────────────────────── */
+.footer-kpis {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(10,18,26,0.7);
+  border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 0 24px;
+  height: 68px;
+  flex-shrink: 0;
+  backdrop-filter: blur(6px);
+}
+.footer-kpi {
+  display: flex; flex-direction: column; gap: 3px;
+  flex: 1;
+  padding: 0 20px;
+}
+.footer-kpi:first-child { padding-left: 0; }
+.footer-kpi__label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #6b7280;
+}
+.footer-kpi__val {
+  font-size: 20px; font-weight: 900; color: #3ac7a5;
+  white-space: nowrap; line-height: 1.1;
+}
+.footer-kpi__val--orange { color: #f4a261; }
+.footer-kpi__val--rose   { color: #f472b6; }
+.footer-kpi__sub {
+  font-size: 10px; color: #4b5563;
+}
+.footer-kpi__sep {
+  width: 1px; height: 36px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.footer-kpi__badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #4b5563;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px; padding: 3px 8px;
+  flex-shrink: 0; margin-left: 8px;
+}
 </style>
