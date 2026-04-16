@@ -19,6 +19,7 @@ const busqueda       = ref("");
 const filtroEstado   = ref("activo");
 const filtroContrato = ref("todos");
 const vistaActual    = ref("lista"); // "lista" | "fijos" | "proyectos"
+const filtroMes      = ref(new Date().toISOString().slice(0, 7)); // YYYY-MM, por defecto mes actual
 
 // Laboral defaults (para inicializar el form de Info Contrato)
 const laboralDefaults = {
@@ -37,6 +38,41 @@ const laboralDefaults = {
 };
 
 // ── Computed ──────────────────────────────────────────────────────────────────
+
+// Todos los contratos agrupados por trabajador_id (para filtro de mes histórico)
+const contratosPortrabajador = computed(() => {
+  const map = {};
+  (rrhhStore.contratos || []).forEach(c => {
+    const tid = c.trabajador_id;
+    if (!tid) return;
+    if (!map[tid]) map[tid] = [];
+    map[tid].push(c);
+  });
+  return map;
+});
+
+// ¿Tenía este trabajador algún contrato vivo durante el mes YYYY-MM?
+function tieniaContratoEnMes(tid, mes) {
+  const contratos = contratosPortrabajador.value[tid];
+  if (!contratos?.length) return false;
+  // Primer y último día del mes seleccionado
+  const primerDia = new Date(mes + '-01T00:00:00');
+  const ultimoDia = new Date(primerDia);
+  ultimoDia.setMonth(ultimoDia.getMonth() + 1);
+  ultimoDia.setDate(ultimoDia.getDate() - 1);
+  ultimoDia.setHours(23, 59, 59);
+
+  return contratos.some(c => {
+    const inicio = c.fecha_inicio || c.fecha_ingreso;
+    const fin    = c.fecha_termino;
+    // El contrato empezó antes o durante el mes
+    const inicioOk = !inicio || new Date(inicio + 'T12:00:00') <= ultimoDia;
+    // El contrato termina durante o después del mes (o es indefinido)
+    const finOk    = !fin    || new Date(fin    + 'T12:00:00') >= primerDia;
+    return inicioOk && finOk;
+  });
+}
+
 const trabajadoresFiltrados = computed(() => {
   let lista = rrhhStore.trabajadores;
   if (busqueda.value) {
@@ -49,6 +85,9 @@ const trabajadoresFiltrados = computed(() => {
     lista = lista.filter((t) => t.estado === filtroEstado.value);
   if (filtroContrato.value !== "todos")
     lista = lista.filter((t) => t.tipoContrato === filtroContrato.value);
+
+  // Filtro por mes: solo personas con contrato vivo en ese período
+  lista = lista.filter(t => tieniaContratoEnMes(t._id || t.id, filtroMes.value));
 
   // Ordenar por modalidad: indefinido → plazo_fijo → part_time → proyecto → honorarios → sin contrato
   const modalidadOrder = { indefinido: 0, plazo_fijo: 1, part_time: 2, proyecto: 3, honorarios: 4 }
@@ -296,7 +335,7 @@ onUnmounted(() => globalStore.cleanHeader());
       <div class="rrhhPage__header-left">
         <h2 class="rrhhPage__title">Personas</h2>
         <span class="rrhhPage__subtitle">
-          {{ rrhhStore.trabajadoresActivos.length }} activos · {{ rrhhStore.trabajadores.length }} total
+          {{ trabajadoresFiltrados.length }} personas · {{ filtroMes }}
         </span>
       </div>
       <div class="rrhhPage__header-right">
@@ -313,6 +352,12 @@ onUnmounted(() => globalStore.cleanHeader());
         <span class="u u-search"></span>
         <input v-model="busqueda" placeholder="Buscar trabajador..." />
       </div>
+
+      <!-- Filtro mes -->
+      <div class="filterInput filterInput--mes">
+        <input type="month" v-model="filtroMes" title="Filtrar por mes" />
+      </div>
+
       <button :class="['chip', filtroEstado === 'todos' && 'active']"    @click="filtroEstado = 'todos'">Todos</button>
       <button :class="['chip', filtroEstado === 'activo' && 'active']"   @click="filtroEstado = 'activo'">Activos</button>
       <button :class="['chip', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
@@ -709,6 +754,15 @@ onUnmounted(() => globalStore.cleanHeader());
   font-family: Nunito; font-size: 13px; color: #f3f4f6; width: 180px;
 }
 .filterInput span { color: #9ca3af; font-size: 14px; }
+
+/* Filtro mes */
+.filterInput--mes { min-width: 130px; }
+.filterInput--mes input[type="month"] {
+  background: transparent; border: none; outline: none;
+  font-family: Nunito; font-size: 13px; color: #f3f4f6;
+  width: 120px; cursor: pointer;
+  color-scheme: dark;
+}
 
 .chip {
   height: 32px; padding: 0 14px; border-radius: 20px;
