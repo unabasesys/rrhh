@@ -26,6 +26,11 @@
         <input v-model="searchQ" type="text" placeholder="Buscar contrato..." />
       </div>
 
+      <!-- Filtro mes -->
+      <div class="filterInput filterInput--mes">
+        <input type="month" v-model="filtroMes" title="Filtrar por mes" />
+      </div>
+
       <!-- Tipo: view-toggle agrupado (va primero, como el selector de vista en Personas) -->
       <div class="view-toggle">
         <button
@@ -395,8 +400,23 @@ const route  = useRoute()
 
 const pdfLoading = ref(null)
 
-const searchQ = ref('')
+const searchQ  = ref('')
+const filtroMes = ref(new Date().toISOString().slice(0, 7)) // YYYY-MM, por defecto mes actual
 const filtroEstado = ref('vigente')
+
+// ¿Estaba este contrato activo durante el mes YYYY-MM?
+function contratoActivoEnMes(c, mes) {
+  const primerDia = new Date(mes + '-01T00:00:00')
+  const ultimoDia = new Date(primerDia)
+  ultimoDia.setMonth(ultimoDia.getMonth() + 1)
+  ultimoDia.setDate(ultimoDia.getDate() - 1)
+  ultimoDia.setHours(23, 59, 59)
+  const inicio   = c.fecha_inicio || c.fecha_ingreso
+  const fin      = c.fecha_termino
+  const inicioOk = !inicio || new Date(inicio + 'T12:00:00') <= ultimoDia
+  const finOk    = !fin    || new Date(fin    + 'T12:00:00') >= primerDia
+  return inicioOk && finOk
+}
 
 // ── Tab "Vencimientos" via query param ?tab=vencimientos ─────────────────────
 watch(() => route.query.tab, (tab) => {
@@ -491,6 +511,9 @@ const proximosVencer = computed(() => {
 
 const contratosFiltrados = computed(() => {
   let list = rrhhStore.contratos || []
+
+  // Filtro mes: contratos activos en el período seleccionado
+  list = list.filter(c => contratoActivoEnMes(c, filtroMes.value))
 
   if (filtroEstado.value !== 'todos') {
     if (filtroEstado.value === 'por_vencer') {
@@ -755,6 +778,12 @@ onUnmounted(() => {
 }
 .filterInput span { color: #9ca3af; font-size: 14px; }
 
+.filterInput--mes { min-width: 130px; }
+.filterInput--mes input[type="month"] {
+  background: transparent; border: none; outline: none;
+  font-family: Nunito, sans-serif; font-size: 13px; color: #f3f4f6;
+  width: 120px; cursor: pointer; color-scheme: dark;
+}
 
 /* Separador entre grupos */
 .filter-sep { width: 1px; height: 24px; background: rgba(255,255,255,0.12); margin: 0 4px; align-self: center; }
