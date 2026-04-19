@@ -456,16 +456,7 @@ onUnmounted(() => globalStore.cleanHeader());
         <input type="month" v-model="filtroMes" title="Filtrar por mes" />
       </div>
 
-      <button :class="['chip', filtroEstado === 'todos' && 'active']"    @click="filtroEstado = 'todos'">Todos</button>
-      <button :class="['chip', filtroEstado === 'activo' && 'active']"   @click="filtroEstado = 'activo'">Activos</button>
-      <button :class="['chip', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
-      <button :class="['chip', filtroContrato === 'indefinido' && 'active']" @click="filtroContrato = filtroContrato === 'indefinido' ? 'todos' : 'indefinido'">Indefinido</button>
-      <button :class="['chip', filtroContrato === 'proyecto' && 'active']"   @click="filtroContrato = filtroContrato === 'proyecto' ? 'todos' : 'proyecto'">Por Proyecto</button>
-
-      <!-- Separador -->
-      <div class="filter-sep"></div>
-
-      <!-- Toggle de vista — 3 opciones -->
+      <!-- Toggle de vista — primero (como en contratos) -->
       <div class="view-toggle">
         <button :class="['view-btn', vistaActual === 'lista' && 'active']" @click="vistaActual = 'lista'" title="Lista completa">
           <span class="u u-list"></span>
@@ -481,6 +472,16 @@ onUnmounted(() => globalStore.cleanHeader());
           <span>Proyectos</span>
         </button>
       </div>
+
+      <!-- Separador -->
+      <div class="filter-sep"></div>
+
+      <!-- Chips de filtro — van después del toggle de vista -->
+      <button :class="['chip', filtroEstado === 'todos' && 'active']"    @click="filtroEstado = 'todos'">Todos</button>
+      <button :class="['chip', filtroEstado === 'activo' && 'active']"   @click="filtroEstado = 'activo'">Activos</button>
+      <button :class="['chip', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
+      <button :class="['chip', filtroContrato === 'indefinido' && 'active']" @click="filtroContrato = filtroContrato === 'indefinido' ? 'todos' : 'indefinido'">Indefinido</button>
+      <button :class="['chip', filtroContrato === 'proyecto' && 'active']"   @click="filtroContrato = filtroContrato === 'proyecto' ? 'todos' : 'proyecto'">Por Proyecto</button>
     </div>
 
     <!-- ── Vista por Proyectos ──────────────────────────────────────────── -->
