@@ -26,23 +26,25 @@
         <input v-model="searchQ" type="text" placeholder="Buscar contrato..." />
       </div>
 
+      <!-- Tipo: view-toggle agrupado (va primero, como el selector de vista en Personas) -->
+      <div class="view-toggle">
+        <button
+          v-for="f in tipoFiltros"
+          :key="f.v"
+          :class="['view-btn', filtroTipo === f.v && 'active']"
+          @click="filtroTipo = f.v"
+        >{{ f.l }}</button>
+      </div>
+
+      <!-- Separador -->
+      <div class="filter-sep"></div>
+
       <!-- Estado: chips (igual que Personas) -->
       <button
         v-for="f in estadoFiltros"
         :key="f.v"
         :class="['chip', filtroEstado === f.v && 'active']"
         @click="filtroEstado = f.v"
-      >{{ f.l }}</button>
-
-      <!-- Separador -->
-      <div class="filter-sep"></div>
-
-      <!-- Tipo: chips -->
-      <button
-        v-for="f in tipoFiltros.slice(1)"
-        :key="f.v"
-        :class="['chip', filtroTipo === f.v && 'active']"
-        @click="filtroTipo = filtroTipo === f.v ? 'todos' : f.v"
       >{{ f.l }}</button>
     </div>
 
