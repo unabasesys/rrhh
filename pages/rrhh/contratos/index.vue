@@ -19,37 +19,31 @@
       </div>
     </div>
 
-    <!-- Filter bar: buscador + toggles (igual que Personas) -->
+    <!-- Filter bar: idéntico a Personas -->
     <div class="filter-bar">
       <div class="filterInput">
         <span class="u u-buscar"></span>
-        <input v-model="searchQ" type="text" placeholder="Buscar trabajador o contrato..." />
+        <input v-model="searchQ" type="text" placeholder="Buscar contrato..." />
       </div>
 
-      <!-- Estado: grupo toggle -->
-      <div class="view-toggle">
-        <button
-          v-for="f in estadoFiltros"
-          :key="f.v"
-          class="view-btn"
-          :class="{ active: filtroEstado === f.v }"
-          @click="filtroEstado = f.v"
-        >{{ f.l }}</button>
-      </div>
+      <!-- Estado: chips (igual que Personas) -->
+      <button
+        v-for="f in estadoFiltros"
+        :key="f.v"
+        :class="['chip', filtroEstado === f.v && 'active']"
+        @click="filtroEstado = f.v"
+      >{{ f.l }}</button>
 
-      <!-- Separador visual -->
+      <!-- Separador -->
       <div class="filter-sep"></div>
 
-      <!-- Tipo: grupo toggle -->
-      <div class="view-toggle">
-        <button
-          v-for="f in tipoFiltros"
-          :key="f.v"
-          class="view-btn"
-          :class="{ active: filtroTipo === f.v }"
-          @click="filtroTipo = f.v"
-        >{{ f.l }}</button>
-      </div>
+      <!-- Tipo: chips -->
+      <button
+        v-for="f in tipoFiltros.slice(1)"
+        :key="f.v"
+        :class="['chip', filtroTipo === f.v && 'active']"
+        @click="filtroTipo = filtroTipo === f.v ? 'todos' : f.v"
+      >{{ f.l }}</button>
     </div>
 
     <!-- Alertas próximos vencimientos -->
@@ -762,6 +756,18 @@ onUnmounted(() => {
 
 /* Separador entre grupos */
 .filter-sep { width: 1px; height: 24px; background: rgba(255,255,255,0.12); margin: 0 4px; align-self: center; }
+
+/* ── Chips (idéntico a Personas) ───────────────────────────────────────── */
+.chip {
+  height: 32px; padding: 0 14px; border-radius: 20px;
+  font-family: Nunito, sans-serif; font-size: 12px; font-weight: 600;
+  color: #9ca3af;
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  cursor: pointer; transition: all .15s;
+}
+.chip.active { background: rgba(58,199,165,0.15); color: #3ac7a5; border-color: rgba(58,199,165,0.5); }
+.chip:not(.active):hover { background: rgba(255,255,255,0.05); color: #f3f4f6; border-color: rgba(255,255,255,0.18); }
 
 /* ── Toggle groups (idéntico a Personas) ───────────────────────────────── */
 .view-toggle {
