@@ -458,9 +458,17 @@ const useRrhhStore = defineStore("rrhh", {
         const res = await $fetch(`${config.public.API_URL}/rrhh/trabajadores`, {
           headers: { Authorization: `Bearer ${token}`, organization: org },
         });
-        this.trabajadores = res.data || res || [];
+        const apiData = res.data || res || [];
+        // Mergear con registros locales (creados offline o en modo demo)
+        const localData = this._lsGet("rrhh_trabajadores");
+        const apiIds = new Set(apiData.map(t => t._id || t.id));
+        const soloLocales = localData.filter(t => !apiIds.has(t._id || t.id));
+        this.trabajadores = [...apiData, ...soloLocales];
+        // Actualizar LS con la data más reciente de la API
+        const merged = [...apiData, ...soloLocales];
+        this._lsSet("rrhh_trabajadores", merged);
       } catch (e) {
-        // LocalStorage con seed
+        // Sin API: usar solo localStorage (con seed si está vacío)
         let data = this._lsGet("rrhh_trabajadores");
         if (!data.length) {
           data = this._mockTrabajadores();
@@ -607,7 +615,13 @@ const useRrhhStore = defineStore("rrhh", {
         const res = await $fetch(`${config.public.API_URL}/rrhh/contratos`, {
           headers: { Authorization: `Bearer ${token}`, organization: org },
         });
-        this.contratos = res.data || res || [];
+        const apiData = res.data || res || [];
+        const localData = this._lsGet("rrhh_contratos");
+        const apiIds = new Set(apiData.map(c => c._id || c.id));
+        const soloLocales = localData.filter(c => !apiIds.has(c._id || c.id));
+        const merged = [...apiData, ...soloLocales];
+        this.contratos = merged;
+        this._lsSet("rrhh_contratos", merged);
       } catch (e) {
         let data = this._lsGet("rrhh_contratos");
         if (!data.length) {
