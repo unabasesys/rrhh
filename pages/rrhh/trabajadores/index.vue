@@ -220,10 +220,12 @@ const fotoFileRef        = ref(null);  // <input type="file"> ref
 
 const nuevoFormDefaults = () => ({
   nombre: '', apellido: '', email: '', telefono: '', rut: '',
+  sexo: '',
   cargo: '', departamento: '', profesion: '',
   fecha_nacimiento: '', nacionalidad: 'Chilena',
   direccion: '',
   afp: 'AFP Capital', sistema_salud: 'FONASA',
+  isapre_nombre: '', isapre_monto_uf: '',
   estado: 'activo',
   foto: null,
 });
@@ -724,11 +726,11 @@ onUnmounted(() => globalStore.cleanHeader());
           <!-- Nombre -->
           <div class="formGrid2">
             <div class="formRow">
-              <label>Nombre *</label>
+              <label>Nombre <span class="lbl-req">*</span></label>
               <input v-model="nuevoForm.nombre" placeholder="Ej: María" />
             </div>
             <div class="formRow">
-              <label>Apellido</label>
+              <label>Apellido <span class="lbl-req">*</span></label>
               <input v-model="nuevoForm.apellido" placeholder="Ej: González" />
             </div>
           </div>
@@ -736,7 +738,7 @@ onUnmounted(() => globalStore.cleanHeader());
           <!-- RUT / Teléfono -->
           <div class="formGrid2">
             <div class="formRow">
-              <label>RUT / ID</label>
+              <label>RUT / ID <span class="lbl-req">*</span></label>
               <input v-model="nuevoForm.rut" placeholder="12.345.678-9" />
             </div>
             <div class="formRow">
@@ -747,7 +749,7 @@ onUnmounted(() => globalStore.cleanHeader());
 
           <!-- Email -->
           <div class="formRow">
-            <label>Email</label>
+            <label>Email <span class="lbl-req">*</span></label>
             <input v-model="nuevoForm.email" type="email" placeholder="correo@ejemplo.cl" />
           </div>
 
@@ -772,7 +774,7 @@ onUnmounted(() => globalStore.cleanHeader());
           <!-- Cargo / Profesión -->
           <div class="formGrid2">
             <div class="formRow">
-              <label>Cargo</label>
+              <label>Cargo <span class="lbl-req">*</span></label>
               <input v-model="nuevoForm.cargo" placeholder="Ej: Director de Arte" />
             </div>
             <div class="formRow">
@@ -785,6 +787,17 @@ onUnmounted(() => globalStore.cleanHeader());
           <div class="formRow">
             <label>Departamento</label>
             <input v-model="nuevoForm.departamento" placeholder="Ej: Producción" />
+          </div>
+
+          <!-- Sexo -->
+          <div class="formRow">
+            <label>Sexo</label>
+            <select v-model="nuevoForm.sexo">
+              <option value="">Seleccionar...</option>
+              <option value="masculino">Masculino</option>
+              <option value="femenino">Femenino</option>
+              <option value="otro">Otro</option>
+            </select>
           </div>
 
           <!-- AFP / Salud -->
@@ -810,6 +823,27 @@ onUnmounted(() => globalStore.cleanHeader());
             </div>
           </div>
 
+          <!-- Isapre: campos adicionales cuando se selecciona Isapre -->
+          <div v-if="nuevoForm.sistema_salud === 'Isapre'" class="formGrid2">
+            <div class="formRow">
+              <label>Isapre <span class="lbl-opcional">(opcional)</span></label>
+              <select v-model="nuevoForm.isapre_nombre">
+                <option value="">Seleccionar Isapre...</option>
+                <option>Banmédica</option>
+                <option>Colmena</option>
+                <option>Cruz Blanca</option>
+                <option>Consalud</option>
+                <option>MásVida</option>
+                <option>Esencial</option>
+                <option>Vida Tres</option>
+              </select>
+            </div>
+            <div class="formRow">
+              <label>Monto pactado (UF) <span class="lbl-opcional">(opcional)</span></label>
+              <input v-model="nuevoForm.isapre_monto_uf" type="number" step="0.01" min="0" placeholder="Ej: 3.50" />
+            </div>
+          </div>
+
           <!-- Estado -->
           <div class="formRow">
             <label>Estado</label>
@@ -822,7 +856,7 @@ onUnmounted(() => globalStore.cleanHeader());
         </div>
         <div class="modalBox__footer">
           <button class="btn btn-secondary" @click="showModalNuevo = false">Cancelar</button>
-          <button class="btn btn-primary" :disabled="guardandoTrabajador || !nuevoForm.nombre" @click="guardarTrabajador">
+          <button class="btn btn-primary" :disabled="guardandoTrabajador || !nuevoForm.nombre || !nuevoForm.apellido || !nuevoForm.rut || !nuevoForm.email || !nuevoForm.cargo" @click="guardarTrabajador">
             {{ guardandoTrabajador ? 'Guardando...' : 'Crear Trabajador' }}
           </button>
         </div>
@@ -1073,7 +1107,10 @@ onUnmounted(() => globalStore.cleanHeader());
 .formRow label {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .05em; color: #9ca3af;
+  display: flex; align-items: center; gap: 4px;
 }
+.lbl-req { color: #f87171; font-size: 12px; text-transform: none; }
+.lbl-opcional { color: #6b7280; font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: 0; font-style: italic; }
 .formRow input,
 .formRow select {
   background: #0f1923;
