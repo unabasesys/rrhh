@@ -393,3 +393,250 @@ span:not(.u), h1, h2, h3, h4, h5, h6, p, a, label, button, input {
   font-weight: var(--font-weight-regular);
   text-transform: uppercase !important;
 }
+/* ── Light Theme Override ──────────────────────────────────────────────────── */
+/* Cuando está activo el modo claro, fuerza fondos y textos claros en las páginas */
+:root.light-theme {
+  color-scheme: light;
+}
+
+:root.light-theme body,
+:root.light-theme .rrhh-content {
+  background-color: #f8fafc;
+}
+
+/* Páginas principales */
+:root.light-theme .trabajadores-page,
+:root.light-theme .contratos-page,
+:root.light-theme .liquidaciones-page,
+:root.light-theme .reportes-page,
+:root.light-theme .asistencia-page,
+:root.light-theme .indicadores-page,
+:root.light-theme .ficha-trabajador {
+  background: #f8fafc !important;
+  color: #111827 !important;
+}
+
+/* Tablas */
+:root.light-theme .data-table,
+:root.light-theme table {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+:root.light-theme .data-table th {
+  background: #f1f5f9 !important;
+  color: #374151 !important;
+  border-color: #e2e8f0 !important;
+}
+
+:root.light-theme .data-table td,
+:root.light-theme .data-table tr {
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+}
+
+:root.light-theme .data-table tr:hover,
+:root.light-theme .table-row:hover {
+  background: #f0fdf9 !important;
+}
+
+/* Cards de contratos */
+:root.light-theme .contrato-card,
+:root.light-theme .kpi-card,
+:root.light-theme .kpi-row .kpi-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+}
+
+/* Toolbar y filtros */
+:root.light-theme .page-toolbar,
+:root.light-theme .filter-bar,
+:root.light-theme .page-header {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Inputs y selects */
+:root.light-theme .form-input,
+:root.light-theme input,
+:root.light-theme select {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Modales */
+:root.light-theme .modal-box {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+:root.light-theme .modal-header {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Bottom bar / KPI bar */
+:root.light-theme .kpi-bar,
+:root.light-theme .bottom-bar,
+:root.light-theme [class*="bottom"] {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #374151 !important;
+}
+
+/* Tabs */
+:root.light-theme .tabs-bar,
+:root.light-theme .tab-btn:not(.active),
+:root.light-theme .report-tabs .tab-btn:not(.active) {
+  background: transparent !important;
+  color: #6b7280 !important;
+}
+
+/* Texto general */
+:root.light-theme h1,
+:root.light-theme h2,
+:root.light-theme h3,
+:root.light-theme h4,
+:root.light-theme p,
+:root.light-theme span,
+:root.light-theme label {
+  color: inherit;
+}
+
+/* Búsqueda */
+:root.light-theme .search-input,
+:root.light-theme .filterInput input {
+  background: #f8fafc !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Sección table-container */
+:root.light-theme .table-container,
+:root.light-theme .table-wrap,
+:root.light-theme .contratos-grid {
+  background: transparent !important;
+}
+
+/* ── Light Mode: Overrides adicionales páginas ──────────────────────────── */
+:root.light-theme .trabajadores-page > *,
+:root.light-theme .contratos-page > *,
+:root.light-theme .liquidaciones-page > *,
+:root.light-theme .ficha-trabajador > * {
+  background-color: transparent;
+}
+
+/* Contenedor principal dark que envuelve todo */
+:root.light-theme [class$="-page"],
+:root.light-theme .ficha-trabajador {
+  background: #f8fafc !important;
+}
+
+/* Barra de herramientas superior */
+:root.light-theme .page-toolbar,
+:root.light-theme .filter-bar,
+:root.light-theme .page-header,
+:root.light-theme .kpi-row {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+}
+
+/* KPI cards */
+:root.light-theme .kpi-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #111827 !important;
+}
+
+:root.light-theme .kpi-label { color: #6b7280 !important; }
+:root.light-theme .kpi-value { color: #111827 !important; }
+:root.light-theme .kpi-value.teal { color: #0d9488 !important; }
+
+/* Barra inferior de KPIs */
+:root.light-theme div[style*="background"],
+:root.light-theme .bottom-kpi,
+:root.light-theme footer {
+  background: #f1f5f9 !important;
+}
+
+/* Texto dentro de páginas */
+:root.light-theme .trabajadores-page *:not(.badge):not(.btn):not(.btn-primary):not(.btn-danger):not(.btn-outline):not(.avatar-lg):not(.mini-avatar):not(.chip):not(.badge-estado-vigente):not(.badge-estado-activo) {
+  color: #374151;
+}
+
+/* Inputs y search */
+:root.light-theme .search-wrap,
+:root.light-theme .filterInput {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+:root.light-theme .search-input { color: #111827 !important; background: transparent !important; }
+
+/* Table headers */
+:root.light-theme thead tr { background: #f1f5f9 !important; }
+:root.light-theme th { color: #374151 !important; border-color: #e2e8f0 !important; }
+:root.light-theme td { border-color: #f1f5f9 !important; }
+
+/* Worker name, cargo */
+:root.light-theme .worker-name { color: #111827 !important; }
+:root.light-theme .worker-cargo { color: #6b7280 !important; }
+
+/* Monto values */
+:root.light-theme .teal { color: #0d9488 !important; }
+:root.light-theme .muted { color: #9ca3af !important; }
+
+/* ── LIGHT MODE: Contraste mejorado ─────────────────────────────────────── */
+
+/* Avatares — fondo teal fuerte y texto blanco */
+:root.light-theme .avatar,
+:root.light-theme .mini-avatar,
+:root.light-theme .avatar-lg {
+  background: #e5e7eb !important;
+  color: #374151 !important;
+  font-weight: 800 !important;
+}
+
+/* Badges de modalidad de contrato — más sólidos en fondo blanco */
+:root.light-theme .tagContrato.indefinido  { background: rgba(58,199,165,0.20) !important; }
+:root.light-theme .tagContrato.proyecto    { background: rgba(133,140,240,0.22) !important; }
+:root.light-theme .tagContrato.plazo_fijo  { background: rgba(251,191,36,0.22) !important; }
+:root.light-theme .tagContrato.jornada     { background: rgba(139,92,246,0.22) !important; }
+
+/* Badge de estado: Activo */
+:root.light-theme .tagEstado.activo { background: rgba(52,211,153,0.15) !important; color: #059669 !important; }
+:root.light-theme .tagEstado.inactivo { background: rgba(248,113,113,0.15) !important; color: #dc2626 !important; }
+
+/* Badge "Indefinido", "Sin contrato" en la columna contrato */
+:root.light-theme .badge-indef,
+:root.light-theme [class*="badge"] { border: 1px solid rgba(0,0,0,0.1) !important; }
+
+/* Texto muted — más oscuro en fondo blanco */
+:root.light-theme .muted,
+:root.light-theme td.muted { color: #374151 !important; }
+
+/* Celdas del tabla */
+:root.light-theme .data-table td { color: #111827 !important; }
+
+/* Sidebar nav icons — más visibles */
+:root.light-theme .nav-icon { color: #374151 !important; }
+:root.light-theme .nav-item { color: #374151 !important; }
+:root.light-theme .nav-item:hover { color: #111827 !important; }
+:root.light-theme .nav-item.active .nav-icon { color: #0d9488 !important; }
+
+/* Nav section labels */
+:root.light-theme .nav-section-label { color: #9ca3af !important; }
+
+/* Header del tabla más sólido */
+:root.light-theme .data-table th {
+  background: #f1f5f9 !important;
+  color: #111827 !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+/* Separador del sidebar */
+:root.light-theme .nav-section-divider { background: rgba(0,0,0,0.08) !important; }

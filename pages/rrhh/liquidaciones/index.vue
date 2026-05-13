@@ -71,7 +71,7 @@
     </div>
 
     <!-- Table -->
-    <div class="table-container" v-if="!globalStore.loading">
+    <div class="table-container" v-if="!loading">
       <table class="data-table" v-if="liquidacionesFiltradas.length">
         <thead>
           <tr>
@@ -133,6 +133,9 @@
                 >
                   <i class="u u-check"></i>
                 </button>
+                <button class="btn-icon danger" title="Eliminar liquidación" @click="pedirEliminarLiq(liq)">
+                  <i class="u u-delete"></i>
+                </button>
               </div>
             </td>
           </tr>
@@ -147,7 +150,7 @@
     </div>
 
     <!-- Loading -->
-    <div class="loading-state" v-if="globalStore.loading">
+    <div class="loading-state" v-if="loading">
       <div class="spinner"></div>
       <p>Cargando liquidaciones...</p>
     </div>
@@ -435,15 +438,42 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal Confirmar Eliminación de Liquidación -->
+    <div v-if="confirmEliminarLiq.show" class="modal-overlay" @click.self="confirmEliminarLiq.show = false">
+      <div class="modal-box" style="max-width:420px">
+        <div class="modal-header">
+          <h2 class="modal-title" style="color:#f87171">Eliminar liquidación</h2>
+          <button class="modal-close" @click="confirmEliminarLiq.show = false">×</button>
+        </div>
+        <div style="padding:24px 24px 8px; text-align:center">
+          <div style="font-size:36px; margin-bottom:12px">🗑️</div>
+          <p style="font-weight:700; font-size:15px; margin-bottom:6px">
+            ¿Eliminar esta liquidación?
+          </p>
+          <p style="color:#9ca3af; font-size:13px; margin-bottom:0" v-if="confirmEliminarLiq.liq">
+            {{ getNombreTrabajador(confirmEliminarLiq.liq.trabajador_id) }} —
+            período {{ confirmEliminarLiq.liq.mes }}/{{ confirmEliminarLiq.liq.anio }}
+          </p>
+          <p style="color:#f87171; font-size:12px; margin-top:10px">
+            Esta acción es definitiva y no se puede deshacer.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="confirmEliminarLiq.show = false">Cancelar</button>
+          <button class="btn btn-danger" @click="confirmarEliminarLiq">Eliminar definitivamente</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, computed, onMounted, onUnmounted } from "vue"
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
 import { TIPOS_BONOS, TIPOS_DESCUENTOS, calcularSemanaCorrida } from '@/stores/rrhh'
+const loading = ref(false)
 
 definePageMeta({ name: 'rrhh-liquidaciones', layout: 'rrhh', middleware: ['auth'] })
 
@@ -464,9 +494,8 @@ const sectionTabs = computed(() => {
   ]
 })
 
-const { t } = useI18n()
+const t = (key) => key
 const rrhhStore = useRrhhStore()
-const globalStore = useGlobalStore()
 
 const searchQ = ref('')
 const filtroEstado = ref('todos')
@@ -477,6 +506,25 @@ const sortDir = ref(-1)
 const showNewLiqModal = ref(false)
 const showDetailModal = ref(false)
 const selectedLiq = ref(null)
+
+// ── Eliminar liquidación ──────────────────────────────────────────────────────
+const confirmEliminarLiq = ref({ show: false, liq: null })
+
+function pedirEliminarLiq(liq) {
+  confirmEliminarLiq.value = { show: true, liq }
+}
+
+function confirmarEliminarLiq() {
+  const liq = confirmEliminarLiq.value.liq
+  if (!liq) return
+  rrhhStore.deleteLiquidacion(liq._id)
+  confirmEliminarLiq.value = { show: false, liq: null }
+  // Si estaba abierto el detalle de esta liquidación, cerrarlo
+  if (selectedLiq.value?._id === liq._id) {
+    showDetailModal.value = false
+    selectedLiq.value = null
+  }
+}
 
 const now = new Date()
 const meses = [
@@ -713,10 +761,10 @@ async function marcarPagada(liq) {
 async function descargarPDF(liq) {
   if (!liq) return
   try {
-    globalStore.loading = true
+    loading.value = true
 
     const trabajador   = rrhhStore.trabajadores.find(t => t._id === liq.trabajador_id) || {}
-    const logoBase64   = globalStore?.organization?.logoBase64 || null
+    const logoBase64   = null
     const nombresMes   = ['enero','febrero','marzo','abril','mayo','junio',
                           'julio','agosto','septiembre','octubre','noviembre','diciembre']
     const mesNombre    = nombresMes[(liq.mes || 1) - 1]
@@ -786,9 +834,9 @@ async function descargarPDF(liq) {
     const payload = {
       logo_base64: logoBase64,
       organizacion: {
-        nombre:    globalStore?.organization?.name    || 'UNABASE SpA',
-        rut:       globalStore?.organization?.rut     || '',
-        direccion: globalStore?.organization?.address || '',
+        nombre:    localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
+        rut:       localStorage.getItem('rrhh_org_rut') || '',
+        direccion: localStorage.getItem('rrhh_org_address') || '',
       },
       trabajador: {
         nombre:          `${trabajador.nombre || ''} ${trabajador.apellido || ''}`.trim().toUpperCase(),
@@ -797,7 +845,7 @@ async function descargarPDF(liq) {
         fecha_ingreso:   trabajador.fecha_ingreso
           ? new Date(trabajador.fecha_ingreso).toLocaleDateString('es-CL', { day:'numeric', month:'long', year:'numeric' })
           : '',
-        lugar_trabajo:   globalStore?.organization?.name || 'UNABASE SPA',
+        lugar_trabajo:   localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
         centro_costo:    trabajador.centro_costo || '',
         dias_trabajados: liq.dias_trabajados || 30,
       },
@@ -838,7 +886,7 @@ async function descargarPDF(liq) {
   } catch (err) {
     console.error('Error generando PDF:', err)
   } finally {
-    globalStore.loading = false
+    loading.value = false
   }
 }
 
@@ -848,22 +896,16 @@ function exportarExcel() {
 }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Contratos y Liquidaciones')
-  globalStore.updatedBreadcrumb([
-    { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Contratos y Liquidaciones', path: '' },
-  ])
-  globalStore.loading = true
+  loading.value = true
   await Promise.all([
     rrhhStore.getLiquidaciones(),
     rrhhStore.getTrabajadores(),
   ])
-  globalStore.loading = false
+  loading.value = false
 })
 
 onUnmounted(() => {
-  globalStore.updatedTitle('')
-  globalStore.loading = false
+  loading.value = false
 })
 </script>
 
@@ -1348,7 +1390,7 @@ onUnmounted(() => {
 }
 .badge-no-imponible {
   background: rgba(156,163,175,0.12);
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
 }
 
 .btn-add-item {
@@ -1419,6 +1461,10 @@ onUnmounted(() => {
 .btn-icon { background: none; border: none; color: var(--neutral-text-body, #9ca3af); cursor: pointer; padding: 6px; border-radius: 6px; font-size: 14px; transition: all 0.15s; }
 .btn-icon:hover { background: var(--neutral-background-default, #1e272e); color: var(--neutral-text-title, #f3f4f6); }
 .btn-icon.teal { color: #3ac7a5; }
+.btn-icon.danger { color: #f87171; }
+.btn-icon.danger:hover { background: rgba(248,113,113,0.1); color: #ef4444; }
+.btn-danger { background: #dc2626; color: #fff; border: none; }
+.btn-danger:hover { background: #b91c1c; }
 
 /* Badges */
 .badge {
@@ -1428,7 +1474,7 @@ onUnmounted(() => {
 }
 .badge-pagada { background: rgba(34,197,94,0.15); color: #4ade80; }
 .badge-pendiente { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.badge-borrador { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.badge-borrador { background: rgba(156,163,175,0.15); color: var(--neutral-text-caption, #6b7280); }
 
 /* Colors */
 .teal { color: #3ac7a5 !important; }

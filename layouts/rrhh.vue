@@ -1,35 +1,39 @@
 <script setup>
 /**
- * layouts/rrhh.vue
- * Layout dedicado para el módulo RRHH.
- * Completamente aislado del layout principal (default.vue):
- *  - Sin window.location.reload() en visibilitychange
- *  - Sin dependencia de organizationStore ni permissionsStore
- *  - Sin redirección a /incomes
- *  - Sidebar propio solo con navegación RRHH
- *
- * Integración mínima con la plataforma:
- *  - Usa globalStore.coverInfo para los PDFs (si está disponible)
- *  - Auth middleware sigue activo (dev bypass automático)
+ * layouts/rrhh.vue — Módulo RRHH Unabase (standalone)
+ * 100% independiente: sin auth, sin globalStore de la plataforma.
+ * Al integrar con Unabase OS, se conectará vía props/events al sistema central.
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import useGlobalStore from '@/stores/global'
 import useRrhhStore   from '@/stores/rrhh'
 import { useAsistenciaStore } from '@/stores/asistencia'
+import { useIndicadoresStore } from '@/stores/indicadores'
 
-const globalStore = useGlobalStore()
-const rrhhStore   = useRrhhStore()
-const asistencia  = useAsistenciaStore()
+const rrhhStore    = useRrhhStore()
+const asistencia   = useAsistenciaStore()
+const indicadores  = useIndicadoresStore()
 const route   = useRoute()
 const router  = useRouter()
 
 const sidebarExpanded = ref(true)
+const orgName = ref('Mi Empresa')
+const pageTitle  = ref('Recursos Humanos')
+const breadcrumb = ref([])
+const isDark = ref(false)
 
-// Org info
-const orgName = computed(() =>
-  globalStore.organization?.name || globalStore.organization?.razon_social || 'RRHH'
-)
+function toggleTheme() {
+  isDark.value = !isDark.value
+  if (isDark.value) {
+    document.documentElement.classList.add('dark-theme')
+    document.documentElement.classList.remove('light-theme')
+    localStorage.setItem('rrhh_theme', 'dark')
+  } else {
+    document.documentElement.classList.remove('dark-theme')
+    document.documentElement.classList.add('light-theme')
+    localStorage.setItem('rrhh_theme', 'light')
+  }
+}
 
 // ── Badges dinámicos ─────────────────────────────────────────────────────────
 // Contratos que vencen en los próximos 30 días (misma lógica que proximosVencer en contratos/index)
@@ -101,7 +105,7 @@ const navSections = computed(() => [
     items: [
       {
         label:   'Dashboard',
-        icon:    'u u-dashboard',
+        icon:    'u u-home',
         path:    '/rrhh/asistencia',
         matches: (p) => p === '/rrhh/asistencia',
         badge:   null,
@@ -109,7 +113,7 @@ const navSections = computed(() => [
       },
       {
         label:   'Turnos',
-        icon:    'u u-reloj',
+        icon:    'u u-clock',
         path:    '/rrhh/asistencia/turnos',
         matches: (p) => p === '/rrhh/asistencia/turnos',
         badge:   null,
@@ -120,6 +124,14 @@ const navSections = computed(() => [
         icon:    'u u-reportes',
         path:    '/rrhh/reportes',
         matches: (p) => p.startsWith('/rrhh/reportes') || p.startsWith('/rrhh/asistencia/informes'),
+        badge:   null,
+        badgeColor: null,
+      },
+      {
+        label:   'Indicadores',
+        icon:    'u u-info-circle',
+        path:    '/rrhh/indicadores',
+        matches: (p) => p.startsWith('/rrhh/indicadores'),
         badge:   null,
         badgeColor: null,
       },
@@ -138,18 +150,26 @@ function toggleSidebar() {
 }
 
 onMounted(() => {
+  // Todo lo que usa localStorage solo puede ejecutarse en el cliente
+  orgName.value = localStorage.getItem('rrhh_org_name') || 'Mi Empresa'
+  // Leer tema guardado
+  const savedTheme = localStorage.getItem('rrhh_theme') || 'light'
+  isDark.value = savedTheme === 'dark'
+  if (isDark.value) {
+    document.documentElement.classList.add('dark-theme')
+    document.documentElement.classList.remove('light-theme')
+  } else {
+    document.documentElement.classList.remove('dark-theme')
+    document.documentElement.classList.add('light-theme')
+  }
+  indicadores.initIfEmpty()
   // Cargar datos necesarios para badges si no están en memoria
   if (!rrhhStore.contratos?.length)   rrhhStore.getContratos?.()
   if (!rrhhStore.trabajadores?.length) rrhhStore.getTrabajadores?.()
   asistencia.init?.()
 })
 
-// Breadcrumb reactivo desde el store
-// Las páginas pueden usar { name, path } o { label, path }
-const breadcrumb = computed(() => globalStore.breadcrumb || [])
-const pageTitle  = computed(() =>
-  globalStore.title || globalStore.namePage || 'Recursos Humanos'
-)
+// Las páginas setean el título via useHead() o directamente vía provide/inject en futuras versiones
 </script>
 
 <template>
@@ -202,14 +222,14 @@ const pageTitle  = computed(() =>
         </template>
       </nav>
 
-      <!-- Botón volver al VX -->
+      <!-- Footer: versión del módulo -->
       <div class="sidebar-footer">
-        <button class="nav-item back-btn" @click="goTo('/incomes')" title="Volver a Unabase">
-          <i class="u u-arrow-left nav-icon"></i>
+        <div class="module-version">
           <transition name="fade-label">
-            <span v-if="sidebarExpanded" class="nav-label">Volver a Unabase</span>
+            <span v-if="sidebarExpanded" style="font-size:10px;color:#4b5563;font-weight:600;letter-spacing:0.05em">RRHH · v1.1</span>
           </transition>
-        </button>
+          <span v-if="!sidebarExpanded" style="font-size:9px;color:#4b5563">v1.1</span>
+        </div>
       </div>
     </aside>
 
@@ -234,6 +254,11 @@ const pageTitle  = computed(() =>
           </nav>
         </div>
         <div class="header-right">
+          <!-- Toggle Dark/Light -->
+          <button class="theme-toggle" @click="toggleTheme" :title="isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
+            <span v-if="isDark">☀️</span>
+            <span v-else>🌙</span>
+          </button>
           <span class="org-chip">
             <i class="u u-empresa"></i>
             {{ orgName }}
@@ -256,7 +281,7 @@ const pageTitle  = computed(() =>
   display: grid;
   width: 100vw;
   height: 100vh;
-  background: var(--neutral-background-darker, #161f27);
+  background: var(--neutral-background-darker, #111827);
   overflow: hidden;
   transition: grid-template-columns 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
@@ -268,8 +293,8 @@ const pageTitle  = computed(() =>
 .rrhh-sidebar {
   display: flex;
   flex-direction: column;
-  background: var(--neutral-background-default, #1e272e);
-  border-right: 1px solid var(--neutral-border-light, rgba(255,255,255,0.07));
+  background: var(--neutral-background-default, #ffffff);
+  border-right: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
   height: 100vh;
   overflow: hidden;
   position: relative;
@@ -280,7 +305,7 @@ const pageTitle  = computed(() =>
   align-items: center;
   gap: 10px;
   padding: 18px 16px 16px;
-  border-bottom: 1px solid var(--neutral-border-light, rgba(255,255,255,0.07));
+  border-bottom: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
   min-height: 64px;
 }
 
@@ -303,7 +328,7 @@ const pageTitle  = computed(() =>
 .brand-name {
   font-size: 15px;
   font-weight: 800;
-  color: var(--neutral-text-title, #f3f4f6);
+  color: var(--neutral-text-title, #111827);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   flex: 1;
@@ -313,7 +338,7 @@ const pageTitle  = computed(() =>
 .collapse-btn {
   background: none;
   border: none;
-  color: var(--neutral-text-body, #9ca3af);
+  color: var(--neutral-text-body, #4b5563);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
@@ -326,8 +351,8 @@ const pageTitle  = computed(() =>
 }
 
 .collapse-btn:hover {
-  background: var(--neutral-background-strong, #2a3a4a);
-  color: var(--neutral-text-title, #f3f4f6);
+  background: var(--neutral-background-strong, #e5e7eb);
+  color: var(--neutral-text-title, #111827);
 }
 
 /* Nav */
@@ -352,7 +377,7 @@ const pageTitle  = computed(() =>
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: var(--neutral-text-body, #9ca3af);
+  color: var(--neutral-text-body, #4b5563);
   transition: all 0.18s;
   width: 100%;
   text-align: left;
@@ -362,12 +387,12 @@ const pageTitle  = computed(() =>
 }
 
 .nav-item:hover {
-  background: var(--neutral-background-strong, #2a3a4a);
-  color: var(--neutral-text-title, #f3f4f6);
+  background: var(--neutral-background-strong, #e5e7eb);
+  color: var(--neutral-text-title, #111827);
 }
 
 .nav-item.active {
-  background: rgba(58, 199, 165, 0.12);
+  background: rgba(58, 199, 165, 0.15);
   color: var(--primary-text-default, #3ac7a5);
   font-weight: 600;
 }
@@ -423,7 +448,7 @@ const pageTitle  = computed(() =>
 
 .nav-section-divider {
   height: 1px;
-  background: rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.08);
   margin: 8px 10px;
 }
 
@@ -438,7 +463,7 @@ const pageTitle  = computed(() =>
 /* Footer */
 .sidebar-footer {
   padding: 10px;
-  border-top: 1px solid var(--neutral-border-light, rgba(255,255,255,0.07));
+  border-top: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
 }
 
 .back-btn {
@@ -447,8 +472,8 @@ const pageTitle  = computed(() =>
 }
 
 .back-btn:hover {
-  background: var(--neutral-background-strong, #2a3a4a);
-  color: var(--neutral-text-body, #9ca3af);
+  background: var(--neutral-background-strong, #e5e7eb);
+  color: var(--neutral-text-body, #4b5563);
 }
 
 /* ── Main area ────────────────────────────────────────────────────────────── */
@@ -466,9 +491,9 @@ const pageTitle  = computed(() =>
   justify-content: space-between;
   padding: 0 28px;
   height: 64px;
-  border-bottom: 1px solid var(--neutral-border-light, rgba(255,255,255,0.07));
+  border-bottom: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
   flex-shrink: 0;
-  background: var(--neutral-background-default, #1e272e);
+  background: var(--neutral-background-default, #ffffff);
   gap: 16px;
 }
 
@@ -482,7 +507,7 @@ const pageTitle  = computed(() =>
 .header-title {
   font-size: 16px;
   font-weight: 700;
-  color: var(--neutral-text-title, #f3f4f6);
+  color: var(--neutral-text-title, #111827);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -494,7 +519,7 @@ const pageTitle  = computed(() =>
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--neutral-text-body, #9ca3af);
+  color: var(--neutral-text-body, #4b5563);
 }
 
 .crumb-link {
@@ -507,13 +532,30 @@ const pageTitle  = computed(() =>
 
 .crumb-sep { opacity: 0.4; }
 
-.crumb-current { color: var(--neutral-text-body, #9ca3af); }
+.crumb-current { color: var(--neutral-text-body, #4b5563); }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.theme-toggle {
+  background: none;
+  border: 1.5px solid var(--neutral-border-light, rgba(0,0,0,0.1));
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+}
+.theme-toggle:hover {
+  background: var(--neutral-background-light, #f3f4f6);
+  border-color: var(--primary-text-default, #3ac7a5);
 }
 
 .org-chip {
@@ -557,4 +599,172 @@ const pageTitle  = computed(() =>
     display: none;
   }
 }
+</style>
+
+<!-- Estilos globales (sin scoped) para el tema claro — se aplican a todas las páginas hijas -->
+<style>
+:root.light-theme .rrhh-content {
+  background: #f8fafc !important;
+}
+
+/* ── Páginas principales ── */
+:root.light-theme .trabajadores-page,
+:root.light-theme .contratos-page,
+:root.light-theme .liquidaciones-page,
+:root.light-theme .reportes-page,
+:root.light-theme .asistencia-page,
+:root.light-theme .asistencia-dashboard,
+:root.light-theme .turnos-page,
+:root.light-theme .informes-page,
+:root.light-theme .indicadores-page,
+:root.light-theme .ficha-trabajador {
+  background: #f8fafc !important;
+  color: #111827 !important;
+}
+
+/* ── Toolbars / Filtros ── */
+:root.light-theme .page-toolbar,
+:root.light-theme .filter-bar,
+:root.light-theme .page-header,
+:root.light-theme .page-header__left,
+:root.light-theme .page-header__right {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+}
+
+/* ── KPI cards ── */
+:root.light-theme .kpi-row,
+:root.light-theme .kpi-bar {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+:root.light-theme .kpi-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+}
+:root.light-theme .kpi-label { color: #6b7280 !important; }
+:root.light-theme .kpi-value { color: #111827 !important; }
+:root.light-theme .kpi-sub { color: #9ca3af !important; }
+
+/* ── Tabla ── */
+:root.light-theme .table-container,
+:root.light-theme .table-wrap,
+:root.light-theme .centralizacion-table-wrap,
+:root.light-theme .data-table-wrap {
+  background: #ffffff !important;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+:root.light-theme .data-table thead tr,
+:root.light-theme .data-table th {
+  background: #f8fafc !important;
+  color: #374151 !important;
+  border-color: #e2e8f0 !important;
+}
+:root.light-theme .data-table td,
+:root.light-theme .data-table tr {
+  background: #ffffff !important;
+  border-color: #f1f5f9 !important;
+  color: #111827 !important;
+}
+:root.light-theme .data-table tr:hover td { background: #f0fdf9 !important; }
+:root.light-theme .worker-name { color: #111827 !important; }
+:root.light-theme .worker-cargo { color: #6b7280 !important; }
+
+/* ── Contratos cards (ficha trabajador + vista contratos) ── */
+:root.light-theme .contrato-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+}
+:root.light-theme .contrato-card:hover {
+  background: #f0fdf9 !important;
+  border-color: rgba(58,199,165,0.3) !important;
+}
+:root.light-theme .contrato-card-title,
+:root.light-theme .contrato-card-meta,
+:root.light-theme .cv-tipo,
+:root.light-theme .cv-fechas,
+:root.light-theme .cv-proyecto,
+:root.light-theme .contrato-tipo,
+:root.light-theme .contrato-fechas,
+:root.light-theme .contrato-proyecto {
+  color: #374151 !important;
+}
+/* Variables CSS para light mode */
+:root.light-theme {
+  --neutral-background-strong: #f1f5f9;
+  --neutral-background-strong-hover: #e5e7eb;
+}
+:root.light-theme .contrato-card-header,
+:root.light-theme .contrato-card-body,
+:root.light-theme .contrato-card-footer {
+  background: transparent !important;
+  border-color: #f1f5f9 !important;
+  color: #111827 !important;
+}
+
+/* ── Inputs ── */
+:root.light-theme .form-input,
+:root.light-theme input[type="text"],
+:root.light-theme input[type="number"],
+:root.light-theme input[type="date"],
+:root.light-theme input[type="email"],
+:root.light-theme input[type="month"],
+:root.light-theme select,
+:root.light-theme textarea {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #cbd5e1 !important;
+}
+:root.light-theme .search-input,
+:root.light-theme .filterInput input {
+  color: #111827 !important;
+}
+
+/* ── Alertas / banners ── */
+:root.light-theme .alerts-row,
+:root.light-theme .alert-banner {
+  background: #fef9c3 !important;
+  border-color: #fbbf24 !important;
+  color: #78350f !important;
+}
+
+/* ── Tabs ── */
+:root.light-theme .tabs-bar,
+:root.light-theme .report-tabs,
+:root.light-theme .view-toggle {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+:root.light-theme .tab-btn:not(.active) { color: #6b7280 !important; background: transparent !important; }
+
+/* ── Modales ── */
+:root.light-theme .modal-box {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e2e8f0 !important;
+}
+:root.light-theme .modal-header {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #111827 !important;
+}
+:root.light-theme .modal-body { background: #ffffff !important; color: #111827 !important; }
+
+/* ── Labels y textos de form ── */
+:root.light-theme label,
+:root.light-theme .section-label,
+:root.light-theme .form-section h4 {
+  color: #374151 !important;
+}
+
+/* ── Ficha trabajador tabs ── */
+:root.light-theme .tab-content { background: #ffffff !important; color: #111827 !important; }
+:root.light-theme .info-row { border-color: #f1f5f9 !important; }
+:root.light-theme .info-label { color: #6b7280 !important; }
+:root.light-theme .info-value { color: #111827 !important; }
 </style>

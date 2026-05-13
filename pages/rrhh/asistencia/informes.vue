@@ -3,17 +3,16 @@
  * pages/rrhh/asistencia/informes.vue
  * Informes de asistencia: por trabajador, por proyecto, atrasos.
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from "vue"
 import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
 import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
 definePageMeta({ layout: 'rrhh' })
 
 const asistencia = useAsistenciaStore()
 const rrhhStore  = useRrhhStore()
-const global     = useGlobalStore()
+const global     = {}
 
 // ── Herramientas section tabs ─────────────────────────────────────────────
 const herramientasTabs = [
@@ -368,12 +367,12 @@ function exportarCSV() {
   border: 1.5px solid rgba(255,255,255,0.1);
   border-radius: 10px;
   padding: 8px 16px;
-  font-size: 13px; font-weight: 600; color: #9ca3af;
+  font-size: 13px; font-weight: 600; color: var(--neutral-text-caption, #6b7280);
   cursor: pointer; font-family: inherit;
   display: flex; align-items: center; gap: 7px;
   transition: all 0.15s;
 }
-.tab-btn:hover  { background: rgba(255,255,255,0.08); color: #f3f4f6; }
+.tab-btn:hover  { background: rgba(255,255,255,0.08); color: var(--neutral-text-title, #111827); }
 .tab-btn.active {
   background: rgba(58,199,165,0.12);
   border-color: rgba(58,199,165,0.35);
@@ -387,10 +386,10 @@ function exportarCSV() {
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px; padding: 6px 12px;
 }
-.date-range span { color: #6b7280; font-size: 12px; }
+.date-range span { color: var(--neutral-text-subtitle, #6b7280); font-size: 12px; }
 .date-range input {
   background: none; border: none;
-  color: #f3f4f6; font-size: 13px; font-family: inherit; outline: none;
+  color: var(--neutral-text-title, #111827); font-size: 13px; font-family: inherit; outline: none;
 }
 
 .btn-export {
@@ -405,7 +404,7 @@ function exportarCSV() {
 
 /* Table card */
 .table-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px; overflow: auto;
 }
@@ -413,12 +412,12 @@ function exportarCSV() {
 .inf-table th {
   padding: 10px 14px; text-align: left;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: #6b7280; border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: var(--neutral-text-subtitle, #6b7280); border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .inf-table td {
   padding: 11px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  color: #d1d5db; vertical-align: middle;
+  color: var(--neutral-text-body, #374151); vertical-align: middle;
 }
 .inf-table tfoot td {
   padding: 12px 14px;
@@ -428,7 +427,7 @@ function exportarCSV() {
 .inf-table tbody tr:hover td { background: rgba(58,199,165,0.03); }
 
 .num-col { text-align: right; }
-.text-muted { color: #6b7280; font-size: 12px; }
+.text-muted { color: var(--neutral-text-subtitle, #6b7280); font-size: 12px; }
 .text-teal   { color: #3ac7a5; }
 .text-red    { color: #f87171; }
 .text-orange { color: #f4a261; }
@@ -448,16 +447,16 @@ function exportarCSV() {
   display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0;
 }
-.worker-name { font-size: 13px; font-weight: 600; color: #f3f4f6; }
+.worker-name { font-size: 13px; font-weight: 600; color: var(--neutral-text-title, #111827); }
 
-.total-label { font-weight: 700; color: #f3f4f6; }
+.total-label { font-weight: 700; color: var(--neutral-text-title, #111827); }
 .total-val   { font-weight: 700; }
-.empty-row   { text-align: center; color: #6b7280; padding: 40px !important; }
+.empty-row   { text-align: center; color: var(--neutral-text-subtitle, #6b7280); padding: 40px !important; }
 
 /* Proyectos */
 .proyectos-list { display: flex; flex-direction: column; gap: 14px; }
 .proyecto-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px; overflow: hidden;
 }
@@ -467,22 +466,22 @@ function exportarCSV() {
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .proyecto-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-.proyecto-nombre { font-size: 15px; font-weight: 700; color: #f3f4f6; }
-.proyecto-codigo { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.proyecto-nombre { font-size: 15px; font-weight: 700; color: var(--neutral-text-title, #111827); }
+.proyecto-codigo { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); margin-top: 2px; }
 .proyecto-total { margin-left: auto; text-align: right; }
 .total-horas-big   { display: block; font-size: 22px; font-weight: 800; color: #3ac7a5; }
-.total-horas-label { font-size: 11px; color: #6b7280; }
+.total-horas-label { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); }
 
 .lineas-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .lineas-table th {
   padding: 8px 16px; text-align: left;
   font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: #6b7280; background: rgba(255,255,255,0.02);
+  color: var(--neutral-text-subtitle, #6b7280); background: rgba(255,255,255,0.02);
 }
 .lineas-table td {
   padding: 10px 16px;
   border-top: 1px solid rgba(255,255,255,0.04);
-  color: #d1d5db;
+  color: var(--neutral-text-body, #374151);
 }
 
 .code-pill {
@@ -490,12 +489,12 @@ function exportarCSV() {
   padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700;
 }
 .code-pill--gray {
-  background: rgba(107,114,128,0.15); color: #9ca3af;
+  background: rgba(107,114,128,0.15); color: var(--neutral-text-caption, #6b7280);
 }
 
 .empty-state {
   padding: 60px; display: flex; flex-direction: column; align-items: center; gap: 10px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
 }
 .empty-state i { font-size: 36px; color: #374151; }
 .empty-state p { font-size: 14px; margin: 0; }
@@ -511,8 +510,8 @@ function exportarCSV() {
   display: flex; flex-direction: column; gap: 4px;
 }
 .a-stat:last-child { border-right: none; }
-.a-stat-val   { font-size: 24px; font-weight: 800; color: #f3f4f6; }
-.a-stat-label { font-size: 11px; color: #6b7280; }
+.a-stat-val   { font-size: 24px; font-weight: 800; color: var(--neutral-text-title, #111827); }
+.a-stat-label { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); }
 
 .atraso-badge {
   background: rgba(244,162,97,0.15); color: #f4a261;

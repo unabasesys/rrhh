@@ -1,22 +1,8 @@
+// Módulo RRHH independiente — sin autenticación requerida
+// Al integrar con Unabase OS, este middleware se conectará al sistema de auth central
 export default defineNuxtRouteMiddleware((to) => {
-  const tokenCookie = useCookie("access_token");
-
-  // DEV BYPASS
-  if (import.meta.dev) {
-    tokenCookie.value = "local-dev-token"; // siempre forzar en dev
-    if (to.path === "/home" || to.path === "/") return navigateTo("/incomes");
-    return;
+  // Redirigir raíz a la vista principal
+  if (to.path === '/' || to.path === '/home') {
+    return navigateTo('/rrhh/trabajadores')
   }
-
-  // No autenticado -> login
-  if (!tokenCookie.value) {
-    abortNavigation();
-    return navigateTo("/login");
-  }
-
-  // Redirigir /home -> /incomes
-  if (to.path === "/home" || to.path === "/") {
-    abortNavigation();
-    return navigateTo("/incomes");
-  }
-});
+})

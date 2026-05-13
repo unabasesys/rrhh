@@ -3,10 +3,9 @@
  * pages/rrhh/asistencia/index.vue
  * Dashboard de asistencia: vista de hoy + resumen semanal.
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from "vue"
 import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
 import { useRouter } from 'vue-router'
 import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
@@ -14,7 +13,7 @@ definePageMeta({ layout: 'rrhh' })
 
 const asistencia = useAsistenciaStore()
 const rrhhStore  = useRrhhStore()
-const global     = useGlobalStore()
+const global     = {}
 const router     = useRouter()
 
 onMounted(async () => {
@@ -447,7 +446,7 @@ function avatarColor(id) {
 }
 
 .kpi-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   padding: 18px 20px;
@@ -473,8 +472,8 @@ function avatarColor(id) {
 .kpi-red    { background: rgba(239,68,68,0.12);  color: #f87171; }
 .kpi-blue   { background: rgba(133,140,240,0.15);color: #a78bfa; }
 
-.kpi-val   { font-size: 26px; font-weight: 800; color: #f3f4f6; line-height: 1.1; }
-.kpi-label { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.kpi-val   { font-size: 26px; font-weight: 800; color: var(--neutral-text-title, #111827); line-height: 1.1; }
+.kpi-label { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); margin-top: 2px; }
 
 /* ── KPI RRHH row ───────────────────────────────────────────────────────── */
 .kpi-row--rrhh { margin-top: -6px; }
@@ -551,7 +550,7 @@ function avatarColor(id) {
   border-radius: 20px;
   padding: 3px 10px;
   font-size: 12px;
-  color: #d1d5db;
+  color: var(--neutral-text-body, #374151);
 }
 
 .alert-chip__days {
@@ -583,7 +582,7 @@ function avatarColor(id) {
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
 .section-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   overflow: hidden;
@@ -600,12 +599,12 @@ function avatarColor(id) {
 .section-title {
   font-size: 14px;
   font-weight: 700;
-  color: #f3f4f6;
+  color: var(--neutral-text-title, #111827);
 }
 
 .section-date {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   text-transform: capitalize;
 }
 
@@ -626,7 +625,7 @@ function avatarColor(id) {
 
 .day-label {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   text-transform: capitalize;
   white-space: nowrap;
 }
@@ -659,7 +658,7 @@ function avatarColor(id) {
 
 .day-pct {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
 }
 
 /* ── Table ───────────────────────────────────────────────────────────────── */
@@ -676,7 +675,7 @@ function avatarColor(id) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   background: rgba(255,255,255,0.025);
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
@@ -684,7 +683,7 @@ function avatarColor(id) {
 .asist-table td {
   padding: 13px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
-  color: #e5e7eb;
+  color: var(--neutral-text-title, #1f2937);
   vertical-align: middle;
 }
 
@@ -701,24 +700,24 @@ function avatarColor(id) {
   font-size: 12px; font-weight: 700; color: #fff;
   flex-shrink: 0;
 }
-.worker-name { font-size: 13px; font-weight: 600; color: #f3f4f6; }
-.worker-cargo { font-size: 11px; color: #6b7280; }
+.worker-name { font-size: 13px; font-weight: 600; color: var(--neutral-text-title, #111827); }
+.worker-cargo { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); }
 
 /* Hora chips */
 .hora-chip {
   font-size: 13px;
   font-family: 'Roboto Mono', monospace;
-  color: #d1d5db;
+  color: var(--neutral-text-body, #374151);
 }
 .hora-atraso { color: #f4a261; }
 
-.text-num { font-variant-numeric: tabular-nums; color: #d1d5db; }
-.text-muted { color: #6b7280; }
+.text-num { font-variant-numeric: tabular-nums; color: var(--neutral-text-body, #374151); }
+.text-muted { color: var(--neutral-text-subtitle, #6b7280); }
 .text-sm { font-size: 12px; }
 
 /* Badges */
 .badge { padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.badge-sin     { background: rgba(107,114,128,0.15); color: #9ca3af; }
+.badge-sin     { background: rgba(107,114,128,0.15); color: var(--neutral-text-caption, #6b7280); }
 .badge-dentro  { background: rgba(74,222,128,0.12); color: #4ade80; }
 .badge-ok      { background: rgba(58,199,165,0.15); color: #3ac7a5; }
 .badge-ausente { background: rgba(239,68,68,0.12); color: #f87171; }
@@ -736,7 +735,7 @@ function avatarColor(id) {
 .btn-icon-sm {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   border-radius: 8px;
   width: 30px; height: 30px;
   display: flex; align-items: center; justify-content: center;
@@ -755,7 +754,7 @@ function avatarColor(id) {
   backdrop-filter: blur(3px);
 }
 .modal-box {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   width: 500px;
@@ -767,10 +766,10 @@ function avatarColor(id) {
   padding: 16px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
-.modal-header h3 { font-size: 16px; font-weight: 700; color: #f3f4f6; margin: 0; }
-.modal-header button { background: none; border: none; color: #6b7280; cursor: pointer; font-size: 18px; }
+.modal-header h3 { font-size: 16px; font-weight: 700; color: var(--neutral-text-title, #111827); margin: 0; }
+.modal-header button { background: none; border: none; color: var(--neutral-text-subtitle, #6b7280); cursor: pointer; font-size: 18px; }
 .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-.modal-desc { font-size: 13px; color: #9ca3af; line-height: 1.6; margin: 0; }
+.modal-desc { font-size: 13px; color: var(--neutral-text-caption, #6b7280); line-height: 1.6; margin: 0; }
 
 .link-box {
   display: flex;
@@ -805,7 +804,7 @@ function avatarColor(id) {
 
 .link-qr-hint {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   display: flex;
   gap: 8px;
   align-items: flex-start;

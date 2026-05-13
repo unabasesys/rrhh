@@ -4,17 +4,16 @@
  * Registro completo de marcaciones con corrección del supervisor y asignación
  * de proyecto / línea presupuestal.
  */
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from "vue"
 import { useAsistenciaStore } from '@/stores/asistencia'
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
 import { useRoute } from 'vue-router'
 
 definePageMeta({ layout: 'rrhh' })
 
 const asistencia = useAsistenciaStore()
 const rrhhStore  = useRrhhStore()
-const global     = useGlobalStore()
+const global     = {}
 const route      = useRoute()
 
 onMounted(async () => {
@@ -961,7 +960,7 @@ function tipoBadge(m) {
 /* Filtros */
 .filter-bar {
   display: flex; flex-wrap: wrap; gap: 12px;
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 12px;
   padding: 14px 18px;
@@ -970,32 +969,32 @@ function tipoBadge(m) {
   display: flex; flex-direction: column; gap: 4px;
 }
 .filter-group label {
-  font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.07em;
+  font-size: 11px; font-weight: 600; color: var(--neutral-text-subtitle, #6b7280); text-transform: uppercase; letter-spacing: 0.07em;
 }
 .filter-group input, .filter-group select {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
   padding: 6px 10px;
-  color: #f3f4f6;
+  color: var(--neutral-text-title, #111827);
   font-size: 13px; font-family: inherit;
   outline: none;
 }
 .filter-group input:focus, .filter-group select:focus { border-color: rgba(58,199,165,0.5); }
-.filter-group select option { background: #1e2d3a; }
+.filter-group select option { background: var(--neutral-background-default, #ffffff); }
 
 /* KPIs mini */
 .kpi-mini-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .kpi-mini {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 10px;
   padding: 10px 16px;
   display: flex; flex-direction: column; gap: 2px;
   flex: 1; min-width: 90px;
 }
-.kpi-mini-val   { font-size: 22px; font-weight: 800; color: #f3f4f6; }
-.kpi-mini-label { font-size: 11px; color: #6b7280; }
+.kpi-mini-val   { font-size: 22px; font-weight: 800; color: var(--neutral-text-title, #111827); }
+.kpi-mini-label { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); }
 .kpi-mini--orange .kpi-mini-val { color: #f4a261; }
 .kpi-mini--red    .kpi-mini-val { color: #f87171; }
 .kpi-mini--purple .kpi-mini-val { color: #a78bfa; }
@@ -1003,7 +1002,7 @@ function tipoBadge(m) {
 
 /* Table */
 .table-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   overflow: auto;
@@ -1013,13 +1012,13 @@ function tipoBadge(m) {
   padding: 10px 12px;
   text-align: left;
   font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .marc-table td {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  color: #d1d5db; vertical-align: middle;
+  color: var(--neutral-text-body, #374151); vertical-align: middle;
 }
 .marc-table tbody tr:hover td { background: rgba(58,199,165,0.03); }
 .row-modified td { background: rgba(133,140,240,0.05); }
@@ -1032,17 +1031,17 @@ function tipoBadge(m) {
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0;
 }
-.worker-name-sm { font-size: 12.5px; font-weight: 600; color: #f3f4f6; }
-.fecha-col { font-size: 12px; color: #9ca3af; text-transform: capitalize; }
-.text-muted-sm { font-size: 12px; color: #6b7280; }
+.worker-name-sm { font-size: 12.5px; font-weight: 600; color: var(--neutral-text-title, #111827); }
+.fecha-col { font-size: 12px; color: var(--neutral-text-caption, #6b7280); text-transform: capitalize; }
+.text-muted-sm { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); }
 .text-num { font-variant-numeric: tabular-nums; }
 .mono { font-family: 'Roboto Mono', monospace; font-size: 12px; }
 .text-orange { color: #f4a261; }
 
 /* Project cell */
 .proyecto-cell { display: flex; flex-direction: column; gap: 2px; max-width: 180px; }
-.proj-name { font-size: 12px; font-weight: 600; color: #d1d5db; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.linea-code { font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 4px; }
+.proj-name { font-size: 12px; font-weight: 600; color: var(--neutral-text-body, #374151); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.linea-code { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); display: flex; align-items: center; gap: 4px; }
 .code-badge {
   background: rgba(133,140,240,0.15); color: #a78bfa;
   padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 700;
@@ -1054,7 +1053,7 @@ function tipoBadge(m) {
 .badge-ok    { background: rgba(58,199,165,0.12); color: #3ac7a5; }
 .badge-pend  { background: rgba(244,162,97,0.12); color: #f4a261; }
 .badge-red   { background: rgba(239,68,68,0.12);  color: #f87171; }
-.badge-norm  { background: rgba(107,114,128,0.12);color: #9ca3af; }
+.badge-norm  { background: rgba(107,114,128,0.12);color: var(--neutral-text-caption, #6b7280); }
 .badge-extra { background: rgba(133,140,240,0.15);color: #a78bfa; }
 .badge-late  { background: rgba(244,162,97,0.15); color: #f4a261; }
 .badge-aus   { background: rgba(239,68,68,0.12);  color: #f87171; }
@@ -1066,12 +1065,12 @@ function tipoBadge(m) {
 .actions-cell { display: flex; gap: 4px; }
 .btn-act {
   background: none; border: 1px solid rgba(255,255,255,0.1);
-  color: #6b7280; border-radius: 7px;
+  color: var(--neutral-text-subtitle, #6b7280); border-radius: 7px;
   width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 12px; transition: all 0.15s;
 }
-.btn-act:hover { background: rgba(255,255,255,0.07); color: #f3f4f6; }
+.btn-act:hover { background: rgba(255,255,255,0.07); color: var(--neutral-text-title, #111827); }
 .btn-act--green:hover { background: rgba(74,222,128,0.1); color: #4ade80; border-color: rgba(74,222,128,0.3); }
 .btn-act--red:hover   { background: rgba(239,68,68,0.1);  color: #f87171; border-color: rgba(239,68,68,0.3); }
 
@@ -1080,15 +1079,15 @@ function tipoBadge(m) {
 .edit-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .ef { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
 .ef--wide { flex: 2; min-width: 220px; }
-.ef label { font-size: 11px; font-weight: 600; color: #6b7280; }
+.ef label { font-size: 11px; font-weight: 600; color: var(--neutral-text-subtitle, #6b7280); }
 .ef input, .ef select {
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 7px; padding: 6px 10px;
-  color: #f3f4f6; font-size: 12.5px; font-family: inherit; outline: none;
+  color: var(--neutral-text-title, #111827); font-size: 12.5px; font-family: inherit; outline: none;
 }
 .ef input:focus, .ef select:focus { border-color: rgba(58,199,165,0.5); }
-.ef select option { background: #1e2d3a; }
+.ef select option { background: var(--neutral-background-default, #ffffff); }
 
 .edit-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
 
@@ -1100,7 +1099,7 @@ function tipoBadge(m) {
 .btn-primary-sm:disabled { opacity: 0.5; }
 .btn-ghost-sm {
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  color: #9ca3af; border-radius: 8px;
+  color: var(--neutral-text-caption, #6b7280); border-radius: 8px;
   padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
 }
 
@@ -1117,11 +1116,11 @@ function tipoBadge(m) {
   display: flex; align-items: center; gap: 5px;
   padding: 0 14px; height: 32px;
   font-family: Nunito; font-size: 12px; font-weight: 600;
-  color: #6b7280; background: transparent; border: none; cursor: pointer;
+  color: var(--neutral-text-subtitle, #6b7280); background: transparent; border: none; cursor: pointer;
   transition: all .15s;
 }
 .marc-vbtn + .marc-vbtn { border-left: 1px solid rgba(255,255,255,0.08); }
-.marc-vbtn:hover { color: #f3f4f6; background: rgba(255,255,255,0.05); }
+.marc-vbtn:hover { color: var(--neutral-text-title, #111827); background: rgba(255,255,255,0.05); }
 .marc-vbtn.active { color: #3ac7a5; background: rgba(58,199,165,0.1); }
 
 /* ── Grid de proyectos (marcaciones) ─────────────────────────────── */
@@ -1132,12 +1131,12 @@ function tipoBadge(m) {
 }
 .marc-proy-empty {
   grid-column: 1 / -1;
-  text-align: center; padding: 48px; color: #6b7280; font-size: 14px;
+  text-align: center; padding: 48px; color: var(--neutral-text-subtitle, #6b7280); font-size: 14px;
 }
 
 /* Tarjeta */
 .marc-proy-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   overflow: hidden;
@@ -1161,10 +1160,10 @@ function tipoBadge(m) {
 }
 .marc-proy-card__title-col { flex: 1; min-width: 0; }
 .marc-proy-card__title {
-  margin: 0; font-size: 14px; font-weight: 800; color: #f3f4f6;
+  margin: 0; font-size: 14px; font-weight: 800; color: var(--neutral-text-title, #111827);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.marc-proy-card__sub { font-size: 11px; color: #6b7280; }
+.marc-proy-card__sub { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); }
 .marc-proy-card__badges { display: flex; gap: 5px; align-items: flex-start; flex-shrink: 0; }
 .mproy-badge {
   padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700;
@@ -1184,11 +1183,11 @@ function tipoBadge(m) {
 }
 .marc-proy-stat:last-child { border-right: none; }
 .marc-proy-stat__val {
-  font-size: 16px; font-weight: 800; color: #f3f4f6;
+  font-size: 16px; font-weight: 800; color: var(--neutral-text-title, #111827);
 }
 .marc-proy-stat__val.teal   { color: #3ac7a5; }
 .marc-proy-stat__val.purple { color: #a78bfa; }
-.marc-proy-stat__label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.marc-proy-stat__label { font-size: 10px; color: var(--neutral-text-subtitle, #6b7280); text-transform: uppercase; letter-spacing: 0.05em; }
 
 /* Workers list */
 .marc-proy-workers { display: flex; flex-direction: column; }
@@ -1202,14 +1201,14 @@ function tipoBadge(m) {
   display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;
 }
 .marc-proy-worker__name {
-  font-size: 12.5px; font-weight: 700; color: #f3f4f6;
+  font-size: 12.5px; font-weight: 700; color: var(--neutral-text-title, #111827);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .marc-proy-worker__chips {
   display: flex; gap: 5px; flex-wrap: wrap;
 }
 .wchip {
-  font-size: 10px; font-weight: 600; color: #6b7280;
+  font-size: 10px; font-weight: 600; color: var(--neutral-text-subtitle, #6b7280);
   background: rgba(255,255,255,0.06);
   padding: 1px 6px; border-radius: 4px;
 }
@@ -1229,7 +1228,7 @@ function tipoBadge(m) {
 .marc-mini-dot.pendiente { background: #f4a261; }
 .marc-mini-dot.rechazado { background: #f87171; }
 .marc-mini-dot:hover { transform: scale(1.4); }
-.marc-mini-more { font-size: 10px; color: #6b7280; margin-left: 2px; }
+.marc-mini-more { font-size: 10px; color: var(--neutral-text-subtitle, #6b7280); margin-left: 2px; }
 
 /* ── Panel de proyecto (slide-in desde la derecha) ───────────────── */
 .proy-overlay {
@@ -1263,15 +1262,15 @@ function tipoBadge(m) {
 }
 .proy-panel__title-col { flex: 1; min-width: 0; }
 .proy-panel__title {
-  margin: 0; font-size: 15px; font-weight: 800; color: #f3f4f6;
+  margin: 0; font-size: 15px; font-weight: 800; color: var(--neutral-text-title, #111827);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.proy-panel__sub { display: block; margin: 2px 0 0; font-size: 11px; color: #6b7280; }
+.proy-panel__sub { display: block; margin: 2px 0 0; font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); }
 
 .proy-panel__close {
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af; border-radius: 8px;
+  color: var(--neutral-text-caption, #6b7280); border-radius: 8px;
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 16px; flex-shrink: 0;
@@ -1288,22 +1287,22 @@ function tipoBadge(m) {
 .proy-pstat {
   flex: 1;
   background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   border-radius: 10px;
   padding: 10px 12px;
   display: flex; flex-direction: column; gap: 2px;
 }
-.proy-pstat__val { font-size: 18px; font-weight: 800; color: #f3f4f6; }
+.proy-pstat__val { font-size: 18px; font-weight: 800; color: var(--neutral-text-title, #111827); }
 .proy-pstat__val.teal   { color: #3ac7a5; }
 .proy-pstat__val.orange { color: #f4a261; }
 .proy-pstat__val.red    { color: #f87171; }
 .proy-pstat__val.purple { color: #a78bfa; }
-.proy-pstat__label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.proy-pstat__label { font-size: 10px; font-weight: 600; color: var(--neutral-text-subtitle, #6b7280); text-transform: uppercase; letter-spacing: 0.05em; }
 
 .proy-panel__date-label {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 18px;
-  font-size: 12px; color: #6b7280;
+  font-size: 12px; color: var(--neutral-text-subtitle, #6b7280);
   border-bottom: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0; text-transform: capitalize;
 }
@@ -1340,10 +1339,10 @@ function tipoBadge(m) {
 }
 .proy-pw__info { flex: 1; min-width: 0; }
 .proy-pw__name {
-  font-size: 13px; font-weight: 700; color: #f3f4f6;
+  font-size: 13px; font-weight: 700; color: var(--neutral-text-title, #111827);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.proy-pw__sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+.proy-pw__sub { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); margin-top: 1px; }
 
 /* Estado dentro del panel / worker row */
 .proy-pw__estado {
@@ -1363,7 +1362,7 @@ function tipoBadge(m) {
 .estado-pill.sin-marcar {
   background: rgba(107,114,128,0.12);
   border: 1px solid rgba(107,114,128,0.2);
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
 }
 .estado-pill.entrada {
   background: rgba(244,162,97,0.12);
@@ -1410,8 +1409,8 @@ function tipoBadge(m) {
   font-size: 16px; font-weight: 700; color: #3ac7a5;
   flex-shrink: 0; overflow: hidden;
 }
-.marcar-worker-name { font-size: 15px; font-weight: 800; color: #f3f4f6; }
-.marcar-worker-sub  { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.marcar-worker-name { font-size: 15px; font-weight: 800; color: var(--neutral-text-title, #111827); }
+.marcar-worker-sub  { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); margin-top: 2px; }
 
 .marcar-status-row {
   display: flex; align-items: center; gap: 8px;
@@ -1431,7 +1430,7 @@ function tipoBadge(m) {
   padding: 14px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.marcar-hora-label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.marcar-hora-label { font-size: 11px; font-weight: 700; color: var(--neutral-text-subtitle, #6b7280); text-transform: uppercase; letter-spacing: 0.05em; }
 .marcar-hora-inputs {
   display: flex; align-items: center; gap: 10px;
 }
@@ -1441,7 +1440,7 @@ function tipoBadge(m) {
   border: 1.5px solid rgba(255,255,255,0.12);
   border-radius: 10px;
   padding: 10px 14px;
-  color: #f3f4f6; font-size: 16px; font-weight: 700;
+  color: var(--neutral-text-title, #111827); font-size: 16px; font-weight: 700;
   font-family: 'SF Mono', 'Fira Code', monospace;
   outline: none; text-align: center;
 }
@@ -1463,13 +1462,13 @@ function tipoBadge(m) {
   height: 52px; padding: 0 18px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af; border-radius: 13px;
+  color: var(--neutral-text-caption, #6b7280); border-radius: 13px;
   font-size: 14px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: all .15s;
   -webkit-tap-highlight-color: transparent;
 }
-.marcar-btn-cancel:hover { background: rgba(255,255,255,0.1); color: #f3f4f6; }
+.marcar-btn-cancel:hover { background: rgba(255,255,255,0.1); color: var(--neutral-text-title, #111827); }
 
 .marcar-btn-done {
   flex: 1; height: 52px; border-radius: 13px;
@@ -1579,14 +1578,14 @@ function tipoBadge(m) {
 
 .incid-header__label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   margin-right: 4px;
 }
 
 .incid-periodo-btn {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   border-radius: 6px;
   padding: 5px 12px;
   font-size: 12px;
@@ -1612,7 +1611,7 @@ function tipoBadge(m) {
   gap: 6px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   border-radius: 20px;
   padding: 5px 14px;
   font-size: 12px;
@@ -1620,7 +1619,7 @@ function tipoBadge(m) {
   transition: all 0.15s;
 }
 .incid-tipo-btn.active,
-.incid-tipo-btn:hover { background: rgba(255,255,255,0.1); color: #f3f4f6; }
+.incid-tipo-btn:hover { background: rgba(255,255,255,0.1); color: var(--neutral-text-title, #111827); }
 
 .incid-tipo-btn--atraso.active   { background: rgba(244,162,97,0.15); border-color: rgba(244,162,97,0.3); color: #f4a261; }
 .incid-tipo-btn--ausencia.active { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.25); color: #f87171; }
@@ -1642,7 +1641,7 @@ function tipoBadge(m) {
 
 .incid-kpi {
   flex: 1;
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 12px;
   padding: 14px 16px;
@@ -1658,7 +1657,7 @@ function tipoBadge(m) {
 
 .incid-kpi__label {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
 }
 
 .incid-kpi--orange  { border-color: rgba(244,162,97,0.2); }
@@ -1667,11 +1666,11 @@ function tipoBadge(m) {
 .incid-kpi--red     .incid-kpi__val { color: #f87171; }
 .incid-kpi--purple  { border-color: rgba(133,140,240,0.2); }
 .incid-kpi--purple  .incid-kpi__val { color: #858cf0; }
-.incid-kpi--neutral .incid-kpi__val { color: #f3f4f6; }
+.incid-kpi--neutral .incid-kpi__val { color: var(--neutral-text-title, #111827); }
 
 /* Table */
 .incid-table-wrap {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   overflow: hidden;
@@ -1690,7 +1689,7 @@ function tipoBadge(m) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   background: rgba(255,255,255,0.025);
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
@@ -1698,7 +1697,7 @@ function tipoBadge(m) {
 .incid-table td {
   padding: 13px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
-  color: #e5e7eb;
+  color: var(--neutral-text-title, #1f2937);
   vertical-align: middle;
 }
 
@@ -1720,23 +1719,23 @@ function tipoBadge(m) {
 
 .incid-fecha {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   text-transform: capitalize;
   white-space: nowrap;
 }
 
-.incid-nombre { font-weight: 600; color: #f3f4f6; }
-.incid-cargo  { font-size: 12px; color: #6b7280; }
+.incid-nombre { font-weight: 600; color: var(--neutral-text-title, #111827); }
+.incid-cargo  { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); }
 
 .incid-detalle {
   font-size: 13px;
-  color: #d1d5db;
+  color: var(--neutral-text-body, #374151);
 }
 
 .incid-empty {
   text-align: center;
   padding: 40px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   font-size: 14px;
   display: flex;
   flex-direction: column;

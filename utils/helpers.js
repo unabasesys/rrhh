@@ -1,5 +1,3 @@
-import useGlobalStore from "@/stores/global";
-import useOrganizationStore from "@/stores/organization";
 
 // Compara dos strings y devuelve true si son iguales
 export const areStringsEqual = (str1, str2) => {

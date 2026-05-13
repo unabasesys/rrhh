@@ -366,17 +366,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, computed, onMounted, onUnmounted } from "vue"
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
 import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
 definePageMeta({ name: 'rrhh-reportes', layout: 'rrhh', middleware: ['auth'] })
 
-const { t } = useI18n()
+const t = (key) => key
 const rrhhStore = useRrhhStore()
-const globalStore = useGlobalStore()
 
 const now = new Date()
 const filtroAnio = ref(now.getFullYear())
@@ -544,7 +541,8 @@ function formatCLP(v) {
 
 function formatDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const dateStr = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T12:00' : d
+  return new Date(dateStr).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function exportarCentralizacion() { console.log('Exportar centralización') }
@@ -552,23 +550,14 @@ function exportarLibroDT() { console.log('Exportar Libro DT') }
 function exportarTodos() { console.log('Exportar todos los reportes') }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Herramientas')
-  globalStore.updatedBreadcrumb([
-    { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Herramientas' },
-  ])
-  globalStore.loading = true
   await Promise.all([
     rrhhStore.getTrabajadores(),
     rrhhStore.getLiquidaciones(),
     rrhhStore.getContratos(),
   ])
-  globalStore.loading = false
 })
 
 onUnmounted(() => {
-  globalStore.updatedTitle('')
-  globalStore.loading = false
 })
 </script>
 

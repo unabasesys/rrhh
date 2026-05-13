@@ -37,8 +37,14 @@
           <button class="btn btn-outline" @click="openGenContrato">
             <i class="u u-folder-open"></i> Nuevo Contrato
           </button>
-          <button class="btn btn-danger" @click="openFiniquito">
-            <i class="u u-delete"></i> Término Contrato
+          <button
+            class="btn btn-danger"
+            :disabled="finiquitosTrabajador.length > 0"
+            :title="finiquitosTrabajador.length > 0 ? 'Ya existe un finiquito — elimínalo desde Documentos para reabrir' : 'Generar finiquito de término'"
+            @click="openFiniquito"
+          >
+            <i class="u u-delete"></i>
+            {{ finiquitosTrabajador.length > 0 ? 'Finiquitado' : 'Término Contrato' }}
           </button>
           <button class="btn btn-primary" @click="openNewLiquidacion">
             <i class="u u-cobros-y-pagos"></i> Nueva Liquidación
@@ -48,17 +54,28 @@
 
       <!-- KPI Cards -->
       <div class="kpi-row">
+        <!-- Total Haberes desde última liquidación; fallback a sueldo base -->
         <div class="kpi-card">
-          <span class="kpi-label">Sueldo{{ contratosActivos.length > 1 ? ` (${contratosActivos.length} contratos)` : ' Base' }}</span>
-          <span class="kpi-value">{{ sueldoTotalActivos ? formatCLP(sueldoTotalActivos) : '—' }}</span>
+          <span class="kpi-label">
+            {{ ultimaLiquidacion ? `Total Haberes (${ultimaLiquidacion.mes}/${ultimaLiquidacion.anio})` : (contratosActivos.length > 1 ? `Sueldo (${contratosActivos.length} contratos)` : 'Sueldo Base') }}
+          </span>
+          <span class="kpi-value">
+            {{ ultimaLiquidacion ? formatCLP(ultimaLiquidacion.total_haberes) : (sueldoTotalActivos ? formatCLP(sueldoTotalActivos) : '—') }}
+          </span>
         </div>
+        <!-- Líquido desde última liquidación; fallback a costo empresa -->
         <div class="kpi-card">
-          <span class="kpi-label">Costo Empresa{{ contratosActivos.length > 1 ? ' Total' : '' }}</span>
-          <span class="kpi-value teal">{{ contratosActivos.length ? formatCLP(costoEmpresa) : '—' }}</span>
+          <span class="kpi-label">
+            {{ ultimaLiquidacion ? `Líquido a Pagar` : (contratosActivos.length > 1 ? 'Costo Empresa Total' : 'Costo Empresa') }}
+          </span>
+          <span class="kpi-value teal">
+            {{ ultimaLiquidacion ? formatCLP(ultimaLiquidacion.liquido_a_pagar) : (contratosActivos.length ? formatCLP(costoEmpresa) : '—') }}
+          </span>
         </div>
+        <!-- Vacaciones acumuladas calculadas desde antigüedad -->
         <div class="kpi-card">
-          <span class="kpi-label">Días Vacaciones</span>
-          <span class="kpi-value">{{ trabajador.vacaciones_dias || 0 }} días</span>
+          <span class="kpi-label">Vacaciones Pendientes</span>
+          <span class="kpi-value">{{ vacacionesAcumuladas }} días</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">Antigüedad</span>
@@ -194,25 +211,117 @@
                     <option>Vida Tres</option>
                   </select>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Valor Plan (UF)</span>
-                  <div class="money-input-wrap" style="flex:1;max-width:120px">
-                    <span class="money-prefix">UF</span>
-                    <input class="info-input money-input" v-model.number="fichaEdits.isapre_uf"
-                      type="number" step="0.01" min="0" placeholder="2.50" style="padding-left:42px;max-width:80px" />
+                <!-- Tipo de plan + monto -->
+                <div class="info-row" style="align-items:flex-start;gap:6px;flex-wrap:wrap">
+                  <span class="info-label" style="padding-top:6px">Tipo de Plan</span>
+                  <div class="isapre-plan-row">
+                    <!-- Selector de tipo -->
+                    <select class="info-input isapre-tipo-select" v-model="fichaEdits.isapre_tipo">
+                      <option value="UF">UF</option>
+                      <option value="$">$</option>
+                      <option value="7%+GES(UF)">7% + GES(UF)</option>
+                      <option value="7%+GES($)">7% + GES($)</option>
+                      <option value="%">%</option>
+                    </select>
+                    <!-- Input dinámico según tipo -->
+                    <div class="money-input-wrap" style="flex:1;min-width:80px;max-width:110px">
+                      <!-- UF -->
+                      <template v-if="fichaEdits.isapre_tipo === 'UF'">
+                        <span class="money-prefix" style="font-size:11px">UF</span>
+                        <input class="info-input money-input" v-model.number="fichaEdits.isapre_monto"
+                          type="number" step="0.01" min="0" placeholder="2.50" style="padding-left:38px" />
+                      </template>
+                      <!-- $ pesos -->
+                      <template v-else-if="fichaEdits.isapre_tipo === '$'">
+                        <span class="money-prefix">$</span>
+                        <input class="info-input money-input" v-model.number="fichaEdits.isapre_monto"
+                          type="number" step="1000" min="0" placeholder="80000" style="padding-left:28px" />
+                      </template>
+                      <!-- 7%+GES(UF) o 7%+GES($) → monto es el valor del GES -->
+                      <template v-else-if="fichaEdits.isapre_tipo === '7%+GES(UF)'">
+                        <span class="money-prefix" style="font-size:11px">UF</span>
+                        <input class="info-input money-input" v-model.number="fichaEdits.isapre_monto"
+                          type="number" step="0.01" min="0" placeholder="0.50" style="padding-left:38px" />
+                      </template>
+                      <template v-else-if="fichaEdits.isapre_tipo === '7%+GES($)'">
+                        <span class="money-prefix">$</span>
+                        <input class="info-input money-input" v-model.number="fichaEdits.isapre_monto"
+                          type="number" step="1000" min="0" placeholder="20000" style="padding-left:28px" />
+                      </template>
+                      <!-- % personalizado -->
+                      <template v-else-if="fichaEdits.isapre_tipo === '%'">
+                        <input class="info-input money-input" v-model.number="fichaEdits.isapre_monto"
+                          type="number" step="0.1" min="7" max="20" placeholder="7.0" style="padding-right:28px;text-align:right" />
+                        <span class="money-prefix" style="left:auto;right:8px">%</span>
+                      </template>
+                    </div>
                   </div>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Descuento Salud</span>
-                  <span class="info-value muted">
-                    7% s/imponible
-                    <span v-if="sueldoTotalActivos"> ≈ {{ formatCLP(Math.round(sueldoTotalActivos * 0.07)) }}</span>
+                <!-- Descripción del tipo seleccionado -->
+                <div class="info-row" v-if="fichaEdits.isapre_tipo">
+                  <span class="info-label"></span>
+                  <span class="info-value" style="font-size:11px;color:#6b7280;line-height:1.5">
+                    <template v-if="fichaEdits.isapre_tipo === 'UF'">
+                      Plan fijo en UF. Descuento = max(7% s/imponible, valor UF del plan).
+                    </template>
+                    <template v-else-if="fichaEdits.isapre_tipo === '$'">
+                      Plan fijo en pesos. Descuento = max(7% s/imponible, monto $).
+                    </template>
+                    <template v-else-if="fichaEdits.isapre_tipo === '7%+GES(UF)' || fichaEdits.isapre_tipo === '7%+GES($)'">
+                      7% s/imponible + aporte GES adicional.
+                    </template>
+                    <template v-else-if="fichaEdits.isapre_tipo === '%'">
+                      Porcentaje personalizado sobre renta imponible (mínimo 7%).
+                    </template>
                   </span>
                 </div>
               </template>
               <div class="info-row">
                 <span class="info-label">Seguro Cesantía</span>
-                <span class="info-value muted">{{ contratoVigente?.tipo_contrato === 'plazo_fijo' ? '0.6% + 3.0%' : '0.6% + 2.4%' }}</span>
+                <span class="info-value muted">{{ ['plazo_fijo','proyecto','jornada'].includes(contratoVigente?.tipo_contrato) ? '0.6% + 3.0%' : '0.6% + 2.4%' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Datos Bancarios -->
+          <div class="info-section">
+            <h3>Datos Bancarios</h3>
+            <div class="info-rows">
+              <div class="info-row">
+                <span class="info-label">Banco</span>
+                <select class="info-input" v-model="fichaEdits.banco">
+                  <option value="">— Seleccionar —</option>
+                  <option>Banco de Chile</option>
+                  <option>Banco Estado</option>
+                  <option>Banco Santander</option>
+                  <option>BCI</option>
+                  <option>Banco Itaú</option>
+                  <option>Scotiabank</option>
+                  <option>BBVA</option>
+                  <option>Banco Security</option>
+                  <option>Banco BICE</option>
+                  <option>Banco Falabella</option>
+                  <option>Banco Ripley</option>
+                  <option>Coopeuch</option>
+                  <option>Tenpo / MACH</option>
+                </select>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Tipo de Cuenta</span>
+                <select class="info-input" v-model="fichaEdits.tipo_cuenta">
+                  <option value="">— Seleccionar —</option>
+                  <option value="corriente">Cuenta Corriente</option>
+                  <option value="vista">Cuenta Vista / RUT</option>
+                  <option value="ahorro">Cuenta de Ahorro</option>
+                </select>
+              </div>
+              <div class="info-row">
+                <span class="info-label">N° de Cuenta</span>
+                <input class="info-input" v-model="fichaEdits.numero_cuenta" placeholder="00000000000" inputmode="numeric" />
+              </div>
+              <div class="info-row">
+                <span class="info-label">Email de Pago</span>
+                <input class="info-input" v-model="fichaEdits.email_pago" type="email" placeholder="correo para notificación" />
               </div>
             </div>
           </div>
@@ -296,9 +405,81 @@
         <div class="empty-docs" v-else>
           <i class="u u-folder-open empty-icon"></i>
           <p>No hay documentos cargados</p>
-          <button class="btn btn-outline btn-sm" @click="showUploadDoc = true">
+          <button type="button" class="btn btn-outline btn-sm" @click="showUploadDoc = true">
             Subir primer documento
           </button>
+        </div>
+
+        <!-- Finiquitos -->
+        <div v-if="finiquitosTrabajador.length" style="margin-top:28px">
+          <div class="liq-toolbar" style="margin-bottom:12px">
+            <h4 style="margin:0;font-size:14px;font-weight:600;color:#d1d5db">Finiquitos</h4>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha Término</th>
+                <th>Causal</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="fin in finiquitosTrabajador" :key="fin._id">
+                <td>{{ fin.fecha_termino ? formatDate(fin.fecha_termino) : `${fin.mes}/${fin.anio}` }}</td>
+                <td style="font-size:12px;color:#9ca3af">
+                  {{ MOTIVOS_TERMINO.find(m => m.value === fin.motivo_termino)?.label || fin.motivo_termino || '—' }}
+                </td>
+                <td class="teal"><strong>{{ formatCLP(fin.total_finiquito || 0) }}</strong></td>
+                <td>
+                  <span class="badge badge-estado-pagado">Firmado</span>
+                </td>
+                <td>
+                  <template v-if="getEstadoFirmaDoc(fin._id)">
+                    <span class="firma-badge" :class="`firma-${getEstadoFirmaDoc(fin._id).estado}`" style="font-size:10px;padding:2px 7px">
+                      {{ getEstadoFirmaDoc(fin._id).estado === 'firmado' ? '✓ Firmado' : '⏳ Pendiente' }}
+                    </span>
+                  </template>
+                  <button type="button" class="btn-icon" title="Descargar PDF" @click="descargarFiniquitoPDF(fin)">
+                    <i class="u u-download"></i>
+                  </button>
+                  <button type="button" class="btn-icon btn-icon-danger" title="Eliminar finiquito y reactivar contratos" @click="pedirEliminarFiniquito(fin)">
+                    <i class="u u-delete"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Modal confirmar eliminar finiquito -->
+        <div v-if="confirmarEliminarFiniquito" class="modal-overlay" @click.self="confirmarEliminarFiniquito = false">
+          <div class="modal-box" style="max-width:420px">
+            <div class="modal-header">
+              <h2>Eliminar Finiquito</h2>
+              <button type="button" class="modal-close" @click="confirmarEliminarFiniquito = false">×</button>
+            </div>
+            <div class="modal-body">
+              <p style="color:#f3f4f6;margin-bottom:12px">
+                ¿Eliminar este finiquito? Esta acción:
+              </p>
+              <ul style="color:#d1d5db;font-size:13px;line-height:1.8;padding-left:20px;margin-bottom:16px">
+                <li>Eliminará el registro del finiquito</li>
+                <li>Reactivará los contratos asociados (→ <strong style="color:#34d399">vigente</strong>)</li>
+                <li>Reactivará al trabajador (→ <strong style="color:#34d399">activo</strong>)</li>
+              </ul>
+              <p style="font-size:12px;color:#f59e0b">
+                ⚠ Podrás volver a generar el finiquito desde el botón "Término Contrato".
+              </p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-ghost" @click="confirmarEliminarFiniquito = false">Cancelar</button>
+              <button type="button" class="btn btn-danger" @click="ejecutarEliminarFiniquito">
+                <i class="u u-delete"></i> Eliminar y Reactivar
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Checklist documentos tipo contrato -->
@@ -360,6 +541,9 @@
                 <button class="btn-icon" title="Ver detalle"><i class="u u-eye"></i></button>
                 <button class="btn-icon" :class="{ 'spin': liqPdfLoading === liq._id }" title="Descargar PDF" @click="descargarLiqPDF(liq)">
                   <i class="u u-download"></i>
+                </button>
+                <button class="btn-icon btn-icon-danger" title="Eliminar liquidación" @click="pedirEliminarLiq(liq)">
+                  <i class="u u-delete"></i>
                 </button>
               </td>
             </tr>
@@ -501,20 +685,74 @@
           <!-- TIPO DE CONTRATO -->
           <div class="form-section">
             <h4 class="section-label">TIPO DE CONTRATO</h4>
+
+            <!-- Nivel 1: tipo principal -->
             <div class="tipo-selector">
-              <button v-for="opt in [{v:'indefinido',l:'Indefinido',i:'u u-usuarios'},{v:'plazo_fijo',l:'Plazo Fijo',i:'u u-calendario'},{v:'proyecto',l:'Por Proyecto',i:'u u-ventas'},{v:'part_time',l:'Part Time',i:'u u-settings'},{v:'honorarios',l:'Honorarios',i:'u u-cobros-y-pagos'}]"
-                :key="opt.v"
-                :class="['tipo-pill', contratoForm.tipo_contrato === opt.v && 'active']"
-                @click="contratoForm.tipo_contrato = opt.v">
-                <i :class="opt.i"></i>
-                <span>{{ opt.l }}</span>
+              <button type="button"
+                :class="['tipo-pill', contratoForm.tipo_contrato === 'indefinido' && 'active']"
+                @click="contratoForm.tipo_contrato = 'indefinido'">
+                <i class="u u-usuarios"></i>
+                <span>Indefinido</span>
               </button>
+              <button type="button"
+                :class="['tipo-pill', contratoForm.tipo_contrato === 'plazo_fijo' && 'active']"
+                @click="contratoForm.tipo_contrato = 'plazo_fijo'">
+                <i class="u u-calendario"></i>
+                <span>Plazo Fijo</span>
+              </button>
+              <button type="button"
+                :class="['tipo-pill', ['proyecto','jornada'].includes(contratoForm.tipo_contrato) && 'active']"
+                @click="contratoForm.tipo_contrato = ['proyecto','jornada'].includes(contratoForm.tipo_contrato) ? contratoForm.tipo_contrato : 'proyecto'">
+                <i class="u u-ventas"></i>
+                <span>Proyecto</span>
+              </button>
+              <button type="button"
+                :class="['tipo-pill', contratoForm.tipo_contrato === 'part_time' && 'active']"
+                @click="contratoForm.tipo_contrato = 'part_time'">
+                <i class="u u-settings"></i>
+                <span>Part Time</span>
+              </button>
+              <!-- Honorarios: solo descarga plantilla Word -->
+              <a
+                href="/plantillas/contrato-honorarios.docx"
+                download="contrato-honorarios-referencia.docx"
+                class="tipo-pill tipo-pill-honorarios"
+                title="Descarga plantilla Word de referencia para Honorarios">
+                <i class="u u-descargar"></i>
+                <span>Honorarios</span>
+                <small style="font-size:8px;color:#60a5fa;margin-top:1px">↓ Word</small>
+              </a>
             </div>
-            <div class="ley-alert" v-if="contratoForm.tipo_contrato === 'proyecto'">
-              <i class="u u-alerta"></i>
-              <div><strong>Ley N° 19.981 — Contrato por Obra Audiovisual</strong>
-                <p>Debe especificar la obra, el servicio a prestar y la duración estimada del proyecto.</p>
-              </div>
+
+            <!-- Nivel 2: sub-selector Proyecto -->
+            <div v-if="['proyecto','jornada'].includes(contratoForm.tipo_contrato)" class="proyecto-sub-selector">
+              <!-- Por Proyecto / Obra -->
+              <button type="button"
+                :class="['proyecto-sub-card', contratoForm.tipo_contrato === 'proyecto' && 'active']"
+                @click="contratoForm.tipo_contrato = 'proyecto'">
+                <div class="psc-icon">🎬</div>
+                <div class="psc-body">
+                  <div class="psc-title">Por Proyecto / Obra</div>
+                  <div class="psc-law">Ley N° 19.981 · Art. 159 N°5 CT</div>
+                  <div class="psc-examples">Director &middot; Productor Ejecutivo &middot; Director de Fotografía &middot; Jefe de Producción</div>
+                  <span class="psc-badge psc-badge-bruto">💰 Valor día BRUTO (desde OC)</span>
+                </div>
+                <div v-if="contratoForm.tipo_contrato === 'proyecto'" class="psc-check">✓</div>
+              </button>
+
+              <!-- Por Jornada / Funciones -->
+              <button type="button"
+                :class="['proyecto-sub-card psc-jornada', contratoForm.tipo_contrato === 'jornada' && 'active']"
+                @click="contratoForm.tipo_contrato = 'jornada'">
+                <div class="psc-icon">📋</div>
+                <div class="psc-body">
+                  <div class="psc-title">Por Jornada / Funciones</div>
+                  <div class="psc-law">Art. 159 N°5 CT · Corta duración</div>
+                  <div class="psc-examples">Técnico día &middot; Actor reparto &middot; Extra &middot; Figurante &middot; Asistente</div>
+                  <span class="psc-badge psc-badge-liquido">🤝 Sueldo LÍQUIDO pactado</span>
+                </div>
+                <div v-if="contratoForm.tipo_contrato === 'jornada'" class="psc-check" style="color:#a78bfa">✓</div>
+              </button>
             </div>
           </div>
 
@@ -524,11 +762,11 @@
             <div class="form-grid-2">
               <div class="form-group">
                 <label>Fecha de Inicio *</label>
-                <input v-model="contratoForm.fecha_inicio" type="date" class="form-input" />
+                <input v-model="contratoForm.fecha_inicio" type="date" class="form-input" @change="recalcDiasContrato" />
               </div>
               <div class="form-group" v-if="contratoForm.tipo_contrato !== 'indefinido'">
                 <label>Fecha de Término</label>
-                <input v-model="contratoForm.fecha_termino" type="date" class="form-input" />
+                <input v-model="contratoForm.fecha_termino" type="date" class="form-input" @change="recalcDiasContrato" />
               </div>
             </div>
           </div>
@@ -545,13 +783,67 @@
                   class="form-input"
                   placeholder="Buscar por nombre o código..."
                   @focus="showNegocioDropdown = true"
-                  @blur="setTimeout(() => showNegocioDropdown = false, 200)"
+                  @blur="setTimeout(() => { if (!showCrearProyecto) showNegocioDropdown = false }, 200)"
                 />
-                <div v-if="showNegocioDropdown && negociosFiltrados.length" class="negocio-dropdown">
+                <!-- Dropdown de resultados + opción crear -->
+                <div v-if="showNegocioDropdown" class="negocio-dropdown">
                   <div v-for="neg in negociosFiltrados" :key="neg._id"
                     class="negocio-option" @mousedown.prevent="seleccionarNegocio(neg)">
-                    <span class="negocio-nombre">{{ neg.nombre }}</span>
+                    <span class="negocio-nombre">
+                      {{ neg.nombre }}
+                      <span v-if="neg._local" class="negocio-local-badge">Local</span>
+                    </span>
                     <span class="negocio-codigo">{{ neg.codigo }}</span>
+                  </div>
+                  <div v-if="!negociosFiltrados.length" class="negocio-empty">
+                    Sin resultados para "{{ negocioBusqueda }}"
+                  </div>
+                  <div class="negocio-create-btn" @mousedown.prevent="abrirCrearProyecto">
+                    <i class="u u-agregar" style="font-size:13px"></i>
+                    Crear proyecto<template v-if="negocioBusqueda"> "{{ negocioBusqueda }}"</template>
+                  </div>
+                </div>
+
+                <!-- Mini-form inline: crear proyecto -->
+                <div v-if="showCrearProyecto" class="crear-proyecto-form">
+                  <div class="cpf-header">
+                    <span>Nuevo Proyecto</span>
+                    <button type="button" class="cpf-close" @click="cancelarCrearProyecto">×</button>
+                  </div>
+                  <div class="cpf-body">
+                    <div class="form-group" style="margin-bottom:8px">
+                      <label style="font-size:11px">Nombre del proyecto *</label>
+                      <input
+                        v-model="crearProyectoForm.nombre"
+                        type="text"
+                        class="form-input form-input-sm"
+                        placeholder="Ej: Serie Patagonia 2027"
+                        @keyup.enter="confirmarCrearProyecto"
+                        @keyup.esc="cancelarCrearProyecto"
+                      />
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                      <label style="font-size:11px">Código <small style="color:#6b7280">(opcional, se genera automático)</small></label>
+                      <input
+                        v-model="crearProyectoForm.codigo"
+                        type="text"
+                        class="form-input form-input-sm"
+                        placeholder="Ej: PATA-2027"
+                        @keyup.enter="confirmarCrearProyecto"
+                        @keyup.esc="cancelarCrearProyecto"
+                      />
+                    </div>
+                    <p v-if="crearProyectoError" class="cpf-error">{{ crearProyectoError }}</p>
+                    <div class="cpf-hint">
+                      <i class="u u-informacion" style="font-size:12px; opacity:.6"></i>
+                      Se asignan las líneas presupuestales estándar. El sync con Unabase se configura desde el proyecto.
+                    </div>
+                    <div class="cpf-actions">
+                      <button type="button" class="btn btn-ghost btn-sm" @click="cancelarCrearProyecto">Cancelar</button>
+                      <button type="button" class="btn btn-primary btn-sm" @click="confirmarCrearProyecto">
+                        <i class="u u-agregar"></i> Crear y seleccionar
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -623,17 +915,182 @@
               <input v-model.number="contratoForm.horas_semana" type="number" class="form-input" min="1" max="44" />
             </div>
             <div class="form-grid-3" style="margin-top:10px">
-              <div class="form-group">
-                <label>Sueldo Base *</label>
-                <div class="money-input-wrap">
-                  <span class="money-prefix">$</span>
-                  <input
-                    :value="formatCLPInput(contratoForm.sueldo_base)"
-                    @input="e => contratoForm.sueldo_base = parseCLPInput(e.target.value)"
-                    class="form-input money-input" inputmode="numeric" placeholder="0"
-                  />
+
+              <!-- ── Contrato PROYECTO/OBRA (bruto por día desde OC) ── -->
+              <template v-if="contratoForm.tipo_contrato === 'proyecto'">
+                <div class="form-group" style="grid-column: 1 / -1">
+                  <div class="cf-proyecto-banner">
+                    <i class="u u-info-circle" style="color:#0ea5e9"></i>
+                    <span>Contrato por proyecto/obra — el sueldo base se calcula desde el <strong>valor BRUTO por día</strong> definido en la OC/Unabase.</span>
+                  </div>
                 </div>
-              </div>
+                <div class="form-group">
+                  <label>Valor Día (bruto) *</label>
+                  <div class="money-input-wrap">
+                    <span class="money-prefix">$</span>
+                    <input
+                      :value="formatCLPInput(contratoForm.valor_dia)"
+                      @input="e => { contratoForm.valor_dia = parseCLPInput(e.target.value); contratoForm.sueldo_base = contratoForm.valor_dia * (contratoForm.dias_contratados || 0); if (!contratoForm._vheManual) contratoForm.valor_hora_extra = _calcValorHoraExtra(contratoForm.valor_dia) }"
+                      class="form-input money-input" inputmode="numeric" placeholder="0"
+                    />
+                  </div>
+                  <small class="hint-text">Valor bruto diario de la OC</small>
+                </div>
+                <div class="form-group">
+                  <label>Días Contratados *</label>
+                  <input
+                    type="number" min="0" max="365"
+                    v-model.number="contratoForm.dias_contratados"
+                    @input="contratoForm.sueldo_base = (contratoForm.valor_dia || 0) * contratoForm.dias_contratados"
+                    class="form-input" placeholder="0"
+                  />
+                  <small class="hint-text">Días estimados de la obra</small>
+                </div>
+                <div class="form-group">
+                  <label>Sueldo Base (calculado)</label>
+                  <span class="form-display teal">{{ formatCLP((contratoForm.valor_dia||0) * (contratoForm.dias_contratados||0)) }}</span>
+                  <small class="hint-text">{{ contratoForm.dias_contratados||0 }} días × {{ formatCLP(contratoForm.valor_dia||0) }}</small>
+                </div>
+                <div class="form-group">
+                  <label>Valor Hora Extra (líq.)</label>
+                  <div class="money-input-wrap">
+                    <span class="money-prefix">$</span>
+                    <input
+                      :value="formatCLPInput(contratoForm.valor_hora_extra)"
+                      @input="e => { contratoForm.valor_hora_extra = parseCLPInput(e.target.value); contratoForm._vheManual = true }"
+                      class="form-input money-input" inputmode="numeric" placeholder="0"
+                    />
+                  </div>
+                  <small class="hint-text">
+                    Líq. mín. legal: {{ formatCLP(_calcValorHoraExtra(contratoForm.valor_dia)) }}/h
+                    <span v-if="!contratoForm._vheManual && contratoForm.valor_dia > 0" style="color:#0ea5e9"> (calculado)</span>
+                  </small>
+                </div>
+                <div class="form-group">
+                  <label>HH.EE. Contratadas</label>
+                  <input
+                    type="number" min="0"
+                    v-model.number="contratoForm.horas_extras_contratadas"
+                    class="form-input" placeholder="0"
+                  />
+                  <small class="hint-text">Horas extra estimadas de la obra</small>
+                </div>
+              </template>
+
+              <!-- ── Contrato JORNADA (sueldo líquido pactado por días de función) ── -->
+              <template v-else-if="contratoForm.tipo_contrato === 'jornada'">
+                <div class="form-group" style="grid-column: 1 / -1">
+                  <div class="cf-proyecto-banner" style="border-color:#8b5cf6;background:rgba(139,92,246,0.08)">
+                    <i class="u u-info-circle" style="color:#8b5cf6"></i>
+                    <span>Contrato por jornada — ingresa el <strong>sueldo LÍQUIDO pactado</strong> total del período. HH.EE. = (líq÷días)×1.5÷10.</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Sueldo Líquido Pactado *</label>
+                  <div class="money-input-wrap">
+                    <span class="money-prefix">$</span>
+                    <input
+                      :value="formatCLPInput(contratoForm.sueldo_base)"
+                      @input="e => {
+                        contratoForm.sueldo_base = parseCLPInput(e.target.value)
+                        contratoForm.valor_dia   = contratoForm.dias_contratados > 0
+                          ? Math.round(contratoForm.sueldo_base / contratoForm.dias_contratados) : 0
+                        if (!contratoForm._vheManual)
+                          contratoForm.valor_hora_extra = _calcValorHoraExtraJornada(contratoForm.valor_dia)
+                      }"
+                      class="form-input money-input" inputmode="numeric" placeholder="0"
+                    />
+                  </div>
+                  <small class="hint-text">Monto líquido total acordado con el trabajador</small>
+                </div>
+                <div class="form-group">
+                  <label>Días de Jornada *</label>
+                  <input
+                    type="number" min="1" max="365"
+                    v-model.number="contratoForm.dias_contratados"
+                    @input="() => {
+                      contratoForm.valor_dia = contratoForm.dias_contratados > 0
+                        ? Math.round(contratoForm.sueldo_base / contratoForm.dias_contratados) : 0
+                      if (!contratoForm._vheManual)
+                        contratoForm.valor_hora_extra = _calcValorHoraExtraJornada(contratoForm.valor_dia)
+                    }"
+                    class="form-input" placeholder="0"
+                  />
+                  <small class="hint-text">Días de trabajo pactados (ej. 5)</small>
+                </div>
+                <div class="form-group">
+                  <label>Valor Día Jornada (calculado)</label>
+                  <span class="form-display" style="color:#8b5cf6">{{ formatCLP(contratoForm.valor_dia || 0) }}</span>
+                  <small class="hint-text">Líq. ÷ días = {{ formatCLP(contratoForm.valor_dia||0) }}/día</small>
+                </div>
+                <div class="form-group">
+                  <label>Valor Hora Extra (líq.)</label>
+                  <div class="money-input-wrap">
+                    <span class="money-prefix">$</span>
+                    <input
+                      :value="formatCLPInput(contratoForm.valor_hora_extra)"
+                      @input="e => { contratoForm.valor_hora_extra = parseCLPInput(e.target.value); contratoForm._vheManual = true }"
+                      class="form-input money-input" inputmode="numeric" placeholder="0"
+                    />
+                  </div>
+                  <small class="hint-text">
+                    Mín. legal: {{ formatCLP(_calcValorHoraExtraJornada(contratoForm.valor_dia)) }}/h
+                    <span v-if="!contratoForm._vheManual && contratoForm.valor_dia > 0" style="color:#8b5cf6"> (calculado: val_día×1.5÷10)</span>
+                    <span
+                      v-if="contratoForm._vheManual"
+                      class="hint-badge"
+                      style="cursor:pointer;margin-left:4px"
+                      @click="() => { contratoForm.valor_hora_extra = _calcValorHoraExtraJornada(contratoForm.valor_dia); contratoForm._vheManual = false }"
+                    >↻ recalc</span>
+                  </small>
+                </div>
+                <div class="form-group">
+                  <label>HH.EE. Contratadas</label>
+                  <input
+                    type="number" min="0"
+                    v-model.number="contratoForm.horas_extras_contratadas"
+                    class="form-input" placeholder="0"
+                  />
+                  <small class="hint-text">Horas extra estimadas de la jornada</small>
+                </div>
+              </template>
+
+              <!-- ── Contratos normales (indefinido / plazo_fijo / honorarios) ── -->
+              <template v-else>
+                <div class="form-group" style="grid-column: 1 / -1">
+                  <label>Tipo de Sueldo</label>
+                  <div class="tipo-sueldo-toggle">
+                    <button
+                      :class="['tsb', contratoForm.tipo_sueldo === 'bruto' && 'active']"
+                      type="button"
+                      @click="contratoForm.tipo_sueldo = 'bruto'"
+                    >
+                      <strong>Bruto</strong>
+                      <span>El trabajador descuenta AFP + salud del monto ingresado</span>
+                    </button>
+                    <button
+                      :class="['tsb', contratoForm.tipo_sueldo === 'liquido' && 'active']"
+                      type="button"
+                      @click="contratoForm.tipo_sueldo = 'liquido'"
+                    >
+                      <strong>Líquido pactado</strong>
+                      <span>El trabajador recibe exactamente este monto. La empresa asume AFP + salud</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>{{ contratoForm.tipo_sueldo === 'liquido' ? 'Sueldo Líquido *' : 'Sueldo Base *' }}</label>
+                  <div class="money-input-wrap">
+                    <span class="money-prefix">$</span>
+                    <input
+                      :value="formatCLPInput(contratoForm.sueldo_base)"
+                      @input="e => contratoForm.sueldo_base = parseCLPInput(e.target.value)"
+                      class="form-input money-input" inputmode="numeric" placeholder="0"
+                    />
+                  </div>
+                </div>
+              </template>
+
               <div class="form-group">
                 <label>Gratificación</label>
                 <select v-model="contratoForm.gratificacion" class="form-input">
@@ -799,7 +1256,7 @@
               </div>
               <div class="form-group">
                 <label>Fecha de Término</label>
-                <input v-model="finiquitoForm.fecha_termino" type="date" class="form-input" @change="recalcFiniquito" />
+                <input v-model="finiquitoForm.fecha_termino" type="date" class="form-input" @change="onFechaTerminoChange" />
               </div>
               <div class="form-group" v-if="motivoActual?.aplica_mes_aviso">
                 <label>¿Se pagó mes de aviso previo?</label>
@@ -816,18 +1273,67 @@
                 <span class="chip" :class="motivoActual.aplica_indemnizacion ? 'teal' : ''">
                   {{ motivoActual.aplica_indemnizacion ? '✓ Aplica indemnización años servicio' : '✗ Sin indemnización por años de servicio' }}
                 </span>
+                <span v-if="motivoActual.aplica_gratificacion === false" class="chip" style="background:rgba(245,158,11,0.15);color:#f59e0b">
+                  ✗ Sin gratificación (incluida en tarifa)
+                </span>
               </div>
             </div>
+
+            <!-- Contratos que se finiquitan -->
+            <template v-if="finiquitoForm.fecha_termino && getContratosAFiniquitar(finiquitoForm.fecha_termino).length">
+              <div class="liq-resultado" style="margin-top:12px">
+                <div style="font-size:11px;color:#9ca3af;margin-bottom:6px;font-weight:600;letter-spacing:.03em">
+                  CONTRATOS QUE CUBRE ESTE FINIQUITO
+                </div>
+                <div
+                  v-for="c in getContratosAFiniquitar(finiquitoForm.fecha_termino)"
+                  :key="c._id"
+                  class="liq-line"
+                  style="font-size:12px"
+                >
+                  <span style="color:#d1d5db">
+                    <span style="color:#6b7280;text-transform:uppercase;font-size:10px">{{ c.tipo_contrato }}</span>
+                    <span v-if="c.cargo || c.negocio_nombre" style="color:#9ca3af"> · {{ c.cargo || c.negocio_nombre }}</span>
+                    <span v-if="c.fecha_inicio" style="color:#6b7280"> · desde {{ c.fecha_inicio?.slice(0,10) }}</span>
+                  </span>
+                  <span style="color:#9ca3af">{{ formatCLP(c.sueldo_base || c.valor_dia * (c.dias_contratados||1) || 0) }}</span>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- 2. Cálculo automático -->
           <div class="form-section" v-if="finiquitoCalc">
             <h4 class="section-title">2. Haberes a Pagar (cálculo automático)</h4>
             <div class="liq-resultado">
-              <div class="liq-line">
-                <span>Sueldo Proporcional ({{ finiquitoForm.dias_trabajados_mes }}/30 días)</span>
-                <span>{{ formatCLP(finiquitoCalc.sueldo_proporcional) }}</span>
+
+              <!-- Sueldo Proporcional — editable -->
+              <div class="liq-line" style="align-items:center; gap:8px;">
+                <span style="flex:1; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span>Sueldo Proporcional ({{ finiquitoForm.dias_trabajados_mes }}/30 días)</span>
+                  <span v-if="finiquitoForm.sueldo_proporcional_manual !== null"
+                    style="color:#f59e0b;font-size:10px;display:inline-flex;align-items:center;gap:3px">
+                    editado
+                    <button type="button"
+                      style="background:none;border:none;color:#f59e0b;cursor:pointer;font-size:12px;padding:0;line-height:1"
+                      title="Restaurar cálculo automático"
+                      @click="finiquitoForm.sueldo_proporcional_manual = null"
+                    >↻</button>
+                  </span>
+                </span>
+                <div class="money-input-wrap" style="width:140px">
+                  <span class="money-prefix">$</span>
+                  <input
+                    :value="formatCLPInput(finiquitoCalc.sueldo_proporcional)"
+                    @input="e => { const v = parseCLPInput(e.target.value); finiquitoForm.sueldo_proporcional_manual = v }"
+                    @keydown.enter.prevent
+                    class="form-input money-input"
+                    inputmode="numeric"
+                    style="text-align:right"
+                  />
+                </div>
               </div>
+
               <div class="liq-line" v-if="finiquitoCalc.vacaciones_monto > 0">
                 <span>Vacaciones Pendientes ({{ finiquitoCalc.vacaciones_dias }} días)</span>
                 <span>{{ formatCLP(finiquitoCalc.vacaciones_monto) }}</span>
@@ -847,7 +1353,13 @@
 
               <div class="liq-form-grid" style="grid-template-columns: 1fr 1fr; margin-top: 12px;">
                 <div class="form-group">
-                  <label>Días trabajados este mes</label>
+                  <label>
+                    Días trabajados este mes
+                    <span
+                      v-if="finiquitoForm.fecha_termino && getContratosAFiniquitar(finiquitoForm.fecha_termino).length"
+                      style="color:#34d399;font-size:10px;margin-left:4px"
+                    >(desde contratos)</span>
+                  </label>
                   <input v-model.number="finiquitoForm.dias_trabajados_mes" type="number" min="0" max="31" class="form-input form-input-sm" @input="recalcFiniquito" />
                 </div>
                 <div class="form-group">
@@ -931,7 +1443,7 @@
       <div class="modal-box modal-lg">
         <div class="modal-header">
           <h2>Nueva Liquidación — {{ trabajador?.nombre }} {{ trabajador?.apellido }}</h2>
-          <button class="modal-close" @click="showNewLiq = false">×</button>
+          <button type="button" class="modal-close" @click="showNewLiq = false">×</button>
         </div>
         <div class="modal-body">
 
@@ -1005,9 +1517,8 @@
                 :key="c._id"
                 class="liq-contrato-option"
                 :class="{ active: esContratoSeleccionado(c._id) }"
-                @click="toggleContratoLiq(c)"
               >
-                <div class="liq-contrato-check">
+                <div class="liq-contrato-check" style="cursor:pointer" @click="toggleContratoLiq(c)">
                   <span :class="['liq-checkbox', esContratoSeleccionado(c._id) && 'checked']">
                     <i v-if="esContratoSeleccionado(c._id)" class="u u-check" style="font-size:10px"></i>
                   </span>
@@ -1022,31 +1533,103 @@
                     </div>
                   </div>
                 </div>
-                <!-- Sólo horas extra por contrato (días siempre 30) -->
-                <div v-if="esContratoSeleccionado(c._id)" class="liq-contrato-inputs" @click.stop>
-                  <div class="liq-mini-input-group">
-                    <label>
-                      Hs. Extra
-                      <span
-                        v-if="horasExtraDelMesContrato(c) > 0"
-                        class="hint-badge teal"
-                        style="cursor:pointer"
-                        @click.stop="getContratoSel(c._id).horas_extra = horasExtraDelMesContrato(c)"
-                        :title="`${horasExtraDelMesContrato(c)}h desde marcas`"
-                      >↙ {{ horasExtraDelMesContrato(c) }}h</span>
-                    </label>
-                    <input
-                      type="number" min="0"
-                      :value="getContratoSel(c._id)?.horas_extra"
-                      @input="getContratoSel(c._id).horas_extra = +$event.target.value"
-                      class="form-input liq-mini-input"
-                    />
+                <!-- Inputs proyecto/jornada: días × valor día + HH.EE. reales -->
+                <div v-if="esContratoSeleccionado(c._id)" class="liq-contrato-inputs liq-proyecto-inputs" @click.stop>
+                  <div class="liq-proyecto-fila">
+                    <div class="liq-mini-input-group">
+                      <label>Días</label>
+                      <input
+                        type="number" min="0" max="60"
+                        :value="getContratoSel(c._id)?.dias"
+                        @input="getContratoSel(c._id).dias = +$event.target.value"
+                        class="form-input liq-mini-input"
+                        style="width:58px"
+                      />
+                    </div>
+                    <div class="liq-mini-input-group" style="flex:1">
+                      <label>
+                        Valor día
+                        <small :style="c.tipo_contrato === 'jornada' ? 'color:#8b5cf6' : 'color:#6b7280'">
+                          {{ c.tipo_contrato === 'jornada' ? '(líq.)' : '(bruto)' }}
+                        </small>
+                      </label>
+                      <div class="money-input-wrap">
+                        <span class="money-prefix">$</span>
+                        <input
+                          type="text" inputmode="numeric"
+                          :value="formatCLPInput(getContratoSel(c._id)?.valor_dia)"
+                          @input="e => {
+                            const sel = getContratoSel(c._id)
+                            sel.valor_dia = parseCLPInput(e.target.value)
+                            if (!sel._vheManual) sel.valor_hora_extra = c.tipo_contrato === 'jornada'
+                              ? _calcValorHoraExtraJornada(sel.valor_dia)
+                              : _calcValorHoraExtra(sel.valor_dia)
+                          }"
+                          class="form-input money-input"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <!-- preview total del contrato -->
-                  <div class="liq-contrato-preview">
-                    {{ formatCLP(c.sueldo_base) }}
-                    <span v-if="getContratoSel(c._id)?.horas_extra > 0" style="color:#a78bfa">
-                      +{{ formatCLP(Math.round((c.sueldo_base||0)/30/8*1.5*(getContratoSel(c._id)?.horas_extra||0))) }} extra
+                  <div class="liq-proyecto-fila">
+                    <div class="liq-mini-input-group">
+                      <label>
+                        Hs. Extra
+                        <span
+                          v-if="horasExtraDelMesContrato(c) > 0"
+                          class="hint-badge teal"
+                          style="cursor:pointer"
+                          @click.stop="getContratoSel(c._id).horas_extra_cantidad = horasExtraDelMesContrato(c)"
+                          :title="`${horasExtraDelMesContrato(c)}h desde marcas`"
+                        >↙ {{ horasExtraDelMesContrato(c) }}h</span>
+                      </label>
+                      <input
+                        type="number" min="0"
+                        :value="getContratoSel(c._id)?.horas_extra_cantidad"
+                        @input="getContratoSel(c._id).horas_extra_cantidad = +$event.target.value"
+                        @keydown.enter.prevent
+                        class="form-input liq-mini-input"
+                        style="width:58px"
+                      />
+                    </div>
+                    <div class="liq-mini-input-group" style="flex:1">
+                      <label>
+                        Valor/hora <small style="color:#6b7280">(líq.)</small>
+                        <span
+                          v-if="getContratoSel(c._id)?.valor_dia > 0"
+                          class="hint-badge"
+                          style="cursor:pointer;margin-left:4px"
+                          :title="c.tipo_contrato === 'jornada' ? 'val_día×1.5÷10' : 'val_día/8×1.5×(1−AFP−salud)'"
+                          @click.stop="() => {
+                            const sel = getContratoSel(c._id)
+                            sel.valor_hora_extra = c.tipo_contrato === 'jornada'
+                              ? _calcValorHoraExtraJornada(sel.valor_dia)
+                              : _calcValorHoraExtra(sel.valor_dia)
+                            sel._vheManual = false
+                          }"
+                        >↻ calc</span>
+                      </label>
+                      <div class="money-input-wrap">
+                        <span class="money-prefix">$</span>
+                        <input
+                          type="text" inputmode="numeric"
+                          :value="formatCLPInput(getContratoSel(c._id)?.valor_hora_extra)"
+                          @input="e => { const sel = getContratoSel(c._id); sel.valor_hora_extra = parseCLPInput(e.target.value); sel._vheManual = true }"
+                          class="form-input money-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Preview total del contrato -->
+                  <div class="liq-contrato-preview liq-proyecto-preview">
+                    <template v-if="getContratoSel(c._id)?.dias > 0 && getContratoSel(c._id)?.valor_dia > 0">
+                      <span>{{ getContratoSel(c._id).dias }}d × {{ formatCLP(getContratoSel(c._id).valor_dia) }} = <strong class="teal">{{ formatCLP(getContratoSel(c._id).dias * getContratoSel(c._id).valor_dia) }}</strong></span>
+                    </template>
+                    <template v-if="getContratoSel(c._id)?.horas_extra_cantidad > 0 && getContratoSel(c._id)?.valor_hora_extra > 0">
+                      <span style="color:#a78bfa">+ {{ getContratoSel(c._id).horas_extra_cantidad }}h × {{ formatCLP(getContratoSel(c._id).valor_hora_extra) }} = <strong>{{ formatCLP(getContratoSel(c._id).horas_extra_cantidad * getContratoSel(c._id).valor_hora_extra) }}</strong></span>
+                    </template>
+                    <span v-if="!getContratoSel(c._id)?.dias && !getContratoSel(c._id)?.valor_dia" style="color:#6b7280;font-size:11px">Sin datos — verifica el contrato</span>
+                    <span v-else :style="c.tipo_contrato === 'jornada' ? 'color:#8b5cf6;font-size:10px' : 'color:#6b7280;font-size:10px'">
+                      {{ c.tipo_contrato === 'jornada' ? 'días líq. → gross-up · HH.EE.: val_día×1.5÷10' : 'días bruto · HH.EE. líq. → gross-up' }}
                     </span>
                   </div>
                 </div>
@@ -1165,23 +1748,53 @@
             <div v-if="liqCalc._multiContrato && liqCalc._detalle?.length" class="liq-detalle-proyectos">
               <div v-for="(d, i) in liqCalc._detalle" :key="i" class="liq-detalle-row">
                 <span class="liq-detalle-name">{{ d.contrato.nombre_proyecto || d.contrato.negocio_nombre || d.contrato.cargo || '—' }}</span>
-                <span class="liq-detalle-info">{{ d.sel.dias_trabajados }}d × {{ formatCLP(d.contrato.sueldo_base) }}/mes</span>
+                <span class="liq-detalle-info">
+                  <template v-if="(d.esProy || d.esJornada) && d.sel.dias && d.sel.valor_dia">
+                    {{ d.sel.dias }}d × {{ formatCLP(d.sel.valor_dia) }}/día {{ d.esJornada ? '(líq.)' : '(bruto)' }}
+                  </template>
+                  <template v-else-if="d.esProy || d.esJornada">{{ d.esJornada ? 'Líquido pactado' : 'Líquido acordado' }}</template>
+                  <template v-else>{{ d.sel.dias_trabajados }}d × {{ formatCLP(d.contrato.sueldo_base) }}/mes</template>
+                </span>
                 <span class="liq-detalle-monto">{{ formatCLP(d.proporcional) }}</span>
-                <span v-if="d.montoHorasExtra > 0" class="liq-detalle-extra">+{{ formatCLP(d.montoHorasExtra) }} extra</span>
+                <span v-if="d.montoHorasExtra > 0" class="liq-detalle-extra">
+                  <template v-if="(d.esProy || d.esJornada) && d.sel.horas_extra_cantidad && d.sel.valor_hora_extra">
+                    +{{ d.sel.horas_extra_cantidad }}h × {{ formatCLP(d.sel.valor_hora_extra) }} = {{ formatCLP(d.montoHorasExtra) }}
+                  </template>
+                  <template v-else>+{{ formatCLP(d.montoHorasExtra) }} extra</template>
+                </span>
               </div>
             </div>
 
             <div class="liq-cols">
               <div class="liq-col">
                 <div class="liq-section-title">Haberes</div>
-                <!-- Modo multi: mostrar total combinado como "Honorarios proyectos" -->
+                <!-- Modo multi proyecto: desglose base + HH.EE. con gross-up unificado -->
                 <template v-if="liqCalc._multiContrato">
                   <div class="liq-line">
-                    <span>Honorarios ({{ liqForm.contratos_sel.length }} proyectos)</span>
+                    <span>
+                      Sueldo Base
+                      <small style="color:#6b7280;display:block">
+                        {{ _detalleResumen }} · bruto
+                      </small>
+                    </span>
+                    <span>{{ formatCLP(liqCalc.sueldoProporcional) }}</span>
+                  </div>
+                  <div v-if="liqCalc.montoHorasExtra > 0" class="liq-line">
+                    <span>
+                      Horas Extra
+                      <small style="color:#a78bfa;display:block">Líq.: {{ formatCLP(liqCalc._totalHorasExtraLiq) }} → bruto gross-up</small>
+                    </span>
+                    <span style="color:#a78bfa">{{ formatCLP(liqCalc.montoHorasExtra) }}</span>
+                  </div>
+                </template>
+                <!-- Modo single proyecto: bruto calculado por gross-up -->
+                <template v-else-if="liqCalc.esProyecto">
+                  <div class="liq-line">
+                    <span>Sueldo Pactado (bruto) <small style="color:#6b7280">Líq.: {{ formatCLP(liqCalc.liquidoAcordado) }}</small></span>
                     <span>{{ formatCLP(liqCalc.sueldoProporcional) }}</span>
                   </div>
                 </template>
-                <!-- Modo single: desglose normal -->
+                <!-- Modo single normal: desglose habitual -->
                 <template v-else>
                   <div class="liq-line">
                     <span>Sueldo Base ({{ liqForm.dias_trabajados }}/30)</span>
@@ -1228,7 +1841,32 @@
                   </div>
                 </template>
                 <div class="liq-line total red">
-                  <span>Total Descuentos</span><span>-{{ formatCLP(liqCalc.totalDescuentos) }}</span>
+                  <span>Total Descuentos Trabajador</span><span>-{{ formatCLP(liqCalc.totalDescuentos) }}</span>
+                </div>
+                <!-- PREVIRED breakdown -->
+                <div v-if="liqCalc.previredTotal" style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.08)">
+                  <div class="liq-section-title" style="font-size:11px;margin-bottom:4px">
+                    Transferencia PREVIRED
+                    <span style="color:#6b7280;font-weight:400"> (estimado mín.)</span>
+                  </div>
+                  <div class="liq-line muted" style="font-size:11px">
+                    <span>Descuentos trabajador</span><span>{{ formatCLP(liqCalc.totalDescuentos) }}</span>
+                  </div>
+                  <div class="liq-line muted" style="font-size:11px">
+                    <span>
+                      Aportes empleador
+                      <small style="display:block;color:#6b7280">
+                        Cesantía {{ (liqCalc.esProyecto || liqCalc.esJornada) ? '3%' : '2.4%' }} + SIS 1.5% + Mutual ≥0.93%*
+                      </small>
+                    </span>
+                    <span>{{ formatCLP(liqCalc.aportesEmpleador) }}</span>
+                  </div>
+                  <div class="liq-line" style="font-size:12px;font-weight:600;margin-top:2px">
+                    <span>Total PREVIRED</span><span>≥ {{ formatCLP(liqCalc.previredTotal) }}</span>
+                  </div>
+                  <div style="font-size:10px;color:#6b7280;margin-top:3px">
+                    *Mutual varía según riesgo de la empresa (0.93%–3.4%). Real: ver Previred.
+                  </div>
                 </div>
               </div>
             </div>
@@ -1237,14 +1875,23 @@
               <span class="teal">{{ formatCLP(liqCalc.liquidoAPagar) }}</span>
             </div>
             <div class="liq-costo-empresa">
-              <span>Costo Empresa</span>
-              <span>{{ formatCLP(liqCalc.costoEmpresa) }}</span>
+              <div>
+                <div>Costo Empresa</div>
+                <small style="color:#6b7280;font-size:10px">Líquido + PREVIRED completo</small>
+              </div>
+              <div>
+                <div>{{ formatCLP(liqCalc.costoEmpresa) }}</div>
+                <small v-if="liqCalc.costoEmpresa && liqCalc.liquidoAPagar" style="color:#6b7280;font-size:10px">
+                  = {{ formatCLP(liqCalc.liquidoAPagar) }} + {{ formatCLP(liqCalc.previredTotal) }}
+                </small>
+              </div>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-ghost" @click="showNewLiq = false">Cancelar</button>
+          <button type="button" class="btn btn-ghost" @click="showNewLiq = false">Cancelar</button>
           <button
+            type="button"
             class="btn btn-primary"
             :disabled="liqCreando || (liqHayProyectos && liqForm.contratos_sel.length === 0) || !liqCalc"
             @click="crearLiquidacion"
@@ -1280,7 +1927,7 @@
                 </span>
               </div>
               <div class="contrato-card-meta">
-                Desde {{ contratoAEliminar.fecha_inicio ? new Date(contratoAEliminar.fecha_inicio).toLocaleDateString('es-CL') : '—' }}
+                Desde {{ contratoAEliminar.fecha_inicio ? formatDate(contratoAEliminar.fecha_inicio) : '—' }}
                 · {{ formatCLP(contratoAEliminar.sueldo_base || 0) }}
               </div>
             </div>
@@ -1290,6 +1937,38 @@
           <button class="btn btn-ghost" @click="showEliminarContrato = false">Cancelar</button>
           <button class="btn btn-danger" @click="confirmarEliminarContrato">
             <i class="u u-delete"></i> Sí, eliminar definitivamente
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Modal: Confirmar Eliminación de Liquidación ──────────────── -->
+    <div v-if="confirmEliminarLiq.show" class="modal-overlay" @click.self="confirmEliminarLiq.show = false">
+      <div class="modal-box" style="max-width:400px">
+        <div class="modal-header">
+          <h2 class="modal-title" style="color:#f87171">
+            <i class="u u-delete" style="margin-right:6px"></i>
+            Eliminar Liquidación
+          </h2>
+          <button class="modal-close" @click="confirmEliminarLiq.show = false">×</button>
+        </div>
+        <div style="padding:20px 24px">
+          <div class="ley-alert" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.25);color:#fca5a5;margin-bottom:16px">
+            ⚠️ Esta acción es <strong>irreversible</strong>.
+          </div>
+          <div v-if="confirmEliminarLiq.liq" style="background:rgba(255,255,255,0.04);border-radius:10px;padding:14px 16px">
+            <div style="font-size:14px;font-weight:600;color:#f3f4f6;margin-bottom:4px">
+              Liquidación {{ confirmEliminarLiq.liq.mes }}/{{ confirmEliminarLiq.liq.anio }}
+            </div>
+            <div style="font-size:12px;color:#9ca3af">
+              Líquido a pagar: <strong style="color:#3ac7a5">{{ formatCLP(confirmEliminarLiq.liq.liquido_a_pagar) }}</strong>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="confirmEliminarLiq.show = false">Cancelar</button>
+          <button class="btn btn-danger" @click="confirmarEliminarLiq">
+            <i class="u u-delete"></i> Sí, eliminar
           </button>
         </div>
       </div>
@@ -1399,25 +2078,23 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
 import { useAsistenciaStore } from '@/stores/asistencia'
 import { useFirmasStore } from '@/stores/firmas'
 import {
   TIPOS_BONOS, TIPOS_DESCUENTOS, calcularSemanaCorrida,
   MOTIVOS_TERMINO, calcularFiniquito,
+  calcularLiquidacion, getAfpComision, AFP_CHILE,
 } from '@/stores/rrhh'
 
 definePageMeta({ name: 'rrhh-trabajador-ficha', layout: 'rrhh', middleware: ['auth'] })
 
-const { t } = useI18n()
+const t = (key) => key
 const route = useRoute()
 const router = useRouter()
 const rrhhStore = useRrhhStore()
-const globalStore = useGlobalStore()
 const asistenciaStore = useAsistenciaStore()
 const firmasStore = useFirmasStore()
 
@@ -1431,65 +2108,148 @@ const showGenContrato = ref(false)
 const showFiniquito = ref(false)
 
 // ── Mock Negocios / Proyectos Unabase ─────────────────────────────────────────
+// ── Líneas presupuestales estándar (compartidas por todos los proyectos en mock)
+// Cuando se conecte a Unabase, esto vendrá de la API por proyecto
+const MOCK_LINEAS_PRESUPUESTALES = [
+  // Producers
+  { codigo: '1201-0001', nombre: 'Executive Producer',               categoria: 'Producers'  },
+  { codigo: '1202-0001', nombre: 'Producer / Productora Ejecutiva',  categoria: 'Producers'  },
+  { codigo: '1203-0001', nombre: 'Line Producer',                    categoria: 'Producers'  },
+  { codigo: '1204-0001', nombre: 'Production Supervisor',            categoria: 'Producers'  },
+  { codigo: '1205-0001', nombre: 'Producers Assistant',              categoria: 'Producers'  },
+  // Direction
+  { codigo: '1301-0001', nombre: 'Director',                         categoria: 'Direction'  },
+  { codigo: '1302-0001', nombre: 'Assistant Director',               categoria: 'Direction'  },
+  { codigo: '1303-0001', nombre: 'Script Supervisor',                categoria: 'Direction'  },
+  // Camera
+  { codigo: '1401-0001', nombre: 'Director of Photography',          categoria: 'Camera'     },
+  { codigo: '1402-0001', nombre: 'Camera Operator',                  categoria: 'Camera'     },
+  { codigo: '1403-0001', nombre: 'Camarógrafo / Camera Assistant',   categoria: 'Camera'     },
+  { codigo: '1404-0001', nombre: 'Data Manager / DIT',               categoria: 'Camera'     },
+  // Art
+  { codigo: '1501-0001', nombre: 'Art Director',                     categoria: 'Art'        },
+  { codigo: '1502-0001', nombre: 'Asistente de Arte',                categoria: 'Art'        },
+  { codigo: '1503-0001', nombre: 'Vestuario',                        categoria: 'Art'        },
+  { codigo: '1504-0001', nombre: 'Maquillaje / Caracterización',     categoria: 'Art'        },
+  // Sound
+  { codigo: '1601-0001', nombre: 'Sound Mixer / Sonidista',          categoria: 'Sound'      },
+  { codigo: '1602-0001', nombre: 'Boom Operator',                    categoria: 'Sound'      },
+  // Post
+  { codigo: '1701-0001', nombre: 'Editor',                           categoria: 'Post'       },
+  { codigo: '1702-0001', nombre: 'Asistente de Edición',             categoria: 'Post'       },
+  { codigo: '1703-0001', nombre: 'Colorista',                        categoria: 'Post'       },
+  { codigo: '1704-0001', nombre: 'VFX / Motion Graphics',            categoria: 'Post'       },
+  { codigo: '1705-0001', nombre: 'Sound Designer / Musicalización',  categoria: 'Post'       },
+  // Production
+  { codigo: '1801-0001', nombre: 'Jefe de Producción',               categoria: 'Production' },
+  { codigo: '1802-0001', nombre: 'Asistente de Producción',          categoria: 'Production' },
+  { codigo: '1803-0001', nombre: 'Runner',                           categoria: 'Production' },
+  { codigo: '1804-0001', nombre: 'Coordinador de Locaciones',        categoria: 'Production' },
+]
+
 const MOCK_NEGOCIOS = [
   {
     _id: 'neg_01', nombre: 'Serie Patagonia 2026', codigo: 'JUPE-V10-2025',
-    items: [
-      { codigo: '1201-0001', nombre: 'Executive Producer', categoria: 'Producers' },
-      { codigo: '1202-0001', nombre: 'Producer / Productora Ejecutiva', categoria: 'Producers' },
-      { codigo: '1203-0001', nombre: 'Line Producer', categoria: 'Producers' },
-      { codigo: '1204-0001', nombre: 'Production Supervisor', categoria: 'Producers' },
-      { codigo: '1205-0001', nombre: 'Producers Assistant', categoria: 'Producers' },
-      { codigo: '1301-0001', nombre: 'Director', categoria: 'Direction' },
-      { codigo: '1302-0001', nombre: 'Assistant Director', categoria: 'Direction' },
-      { codigo: '1401-0001', nombre: 'Director of Photography', categoria: 'Camera' },
-      { codigo: '1402-0001', nombre: 'Camera Operator', categoria: 'Camera' },
-      { codigo: '1403-0001', nombre: 'Camarógrafo / Camera Assistant', categoria: 'Camera' },
-      { codigo: '1501-0001', nombre: 'Art Director', categoria: 'Art' },
-      { codigo: '1502-0001', nombre: 'Asistente de Arte', categoria: 'Art' },
-      { codigo: '1601-0001', nombre: 'Sound Mixer / Sonidista', categoria: 'Sound' },
-      { codigo: '1701-0001', nombre: 'Editor', categoria: 'Post' },
-      { codigo: '1702-0001', nombre: 'Asistente de Edición', categoria: 'Post' },
-      { codigo: '1801-0001', nombre: 'Jefe de Producción', categoria: 'Production' },
-      { codigo: '1802-0001', nombre: 'Asistente de Producción', categoria: 'Production' },
-    ],
+    items: MOCK_LINEAS_PRESUPUESTALES,
   },
   {
     _id: 'neg_02', nombre: 'Documental Norte Chico', codigo: 'NORTE-2026',
-    items: [
-      { codigo: '1202-0001', nombre: 'Producer / Productora Ejecutiva', categoria: 'Producers' },
-      { codigo: '1203-0001', nombre: 'Line Producer', categoria: 'Producers' },
-      { codigo: '1204-0001', nombre: 'Production Supervisor', categoria: 'Producers' },
-      { codigo: '1301-0001', nombre: 'Director', categoria: 'Direction' },
-      { codigo: '1401-0001', nombre: 'Director of Photography', categoria: 'Camera' },
-      { codigo: '1403-0001', nombre: 'Camarógrafo / Camera Assistant', categoria: 'Camera' },
-      { codigo: '1601-0001', nombre: 'Sound Mixer / Sonidista', categoria: 'Sound' },
-      { codigo: '1701-0001', nombre: 'Editor', categoria: 'Post' },
-      { codigo: '1801-0001', nombre: 'Jefe de Producción', categoria: 'Production' },
-      { codigo: '1802-0001', nombre: 'Asistente de Producción', categoria: 'Production' },
-    ],
+    items: MOCK_LINEAS_PRESUPUESTALES,
   },
 ]
 
-const negocioBusqueda = ref('')
+// ── Proyectos / Negocios ──────────────────────────────────────────────────────
+// Lista reactiva: base (MOCK) + proyectos creados localmente (guardados en LS)
+// Cuando se conecte a Unabase, reemplazar la carga inicial con el fetch de la API
+const _cargarProyectosLocales = () => {
+  try {
+    const guardados = JSON.parse(localStorage.getItem('rrhh_proyectos_locales') || '[]')
+    const idsBase = new Set(MOCK_NEGOCIOS.map(p => p._id))
+    // Proyectos locales: si no tienen items (creados antes del fix), asignar las líneas estándar
+    const locales = guardados
+      .filter(p => !idsBase.has(p._id))
+      .map(p => ({
+        ...p,
+        items: (p.items && p.items.length) ? p.items : MOCK_LINEAS_PRESUPUESTALES,
+      }))
+    return [...MOCK_NEGOCIOS, ...locales]
+  } catch { return [...MOCK_NEGOCIOS] }
+}
+const proyectosLocales = ref(_cargarProyectosLocales())
+
+const negocioBusqueda   = ref('')
 const negocioSeleccionado = ref(null)
+const showNegocioDropdown = ref(false)
+
 const negociosFiltrados = computed(() => {
-  if (!negocioBusqueda.value) return MOCK_NEGOCIOS
+  const lista = proyectosLocales.value
+  if (!negocioBusqueda.value) return lista
   const q = negocioBusqueda.value.toLowerCase()
-  return MOCK_NEGOCIOS.filter(n => n.nombre.toLowerCase().includes(q) || n.codigo.toLowerCase().includes(q))
+  return lista.filter(n =>
+    n.nombre.toLowerCase().includes(q) || (n.codigo || '').toLowerCase().includes(q)
+  )
 })
 const lineasNegocio = computed(() => negocioSeleccionado.value?.items || [])
 
 function seleccionarNegocio(neg) {
   negocioSeleccionado.value = neg
-  negocioBusqueda.value = neg.nombre
-  contratoForm.value.negocio_id   = neg._id
+  negocioBusqueda.value     = neg.nombre
+  contratoForm.value.negocio_id     = neg._id
   contratoForm.value.negocio_nombre = neg.nombre
-  contratoForm.value.linea_codigo = ''
-  contratoForm.value.linea_nombre = ''
+  contratoForm.value.linea_codigo   = ''
+  contratoForm.value.linea_nombre   = ''
+  showNegocioDropdown.value = false
+  showCrearProyecto.value   = false
+}
+
+// ── Crear proyecto inline ─────────────────────────────────────────────────────
+const showCrearProyecto   = ref(false)
+const crearProyectoForm   = ref({ nombre: '', codigo: '' })
+const crearProyectoError  = ref('')
+
+function abrirCrearProyecto() {
+  crearProyectoForm.value  = {
+    nombre: negocioBusqueda.value.trim(),
+    codigo: '',
+  }
+  crearProyectoError.value = ''
+  showCrearProyecto.value  = true
   showNegocioDropdown.value = false
 }
-const showNegocioDropdown = ref(false)
+
+function cancelarCrearProyecto() {
+  showCrearProyecto.value = false
+  crearProyectoError.value = ''
+}
+
+function confirmarCrearProyecto() {
+  const nombre = crearProyectoForm.value.nombre.trim()
+  if (!nombre) { crearProyectoError.value = 'El nombre es requerido'; return }
+
+  const _palabras = nombre.split(/\s+/).filter(Boolean)
+  const _siglas   = _palabras.length === 1
+    ? nombre.slice(0, 4).toUpperCase()                              // "Wendys" → "WEND"
+    : _palabras.map(w => w[0]).join('').toUpperCase().slice(0, 6)   // "Serie Patagonia" → "SP"
+  const codigo = crearProyectoForm.value.codigo.trim() || `${_siglas}-${new Date().getFullYear()}`
+
+  const nuevo = {
+    _id:    `proy_local_${Date.now()}`,
+    nombre,
+    codigo,
+    items:  MOCK_LINEAS_PRESUPUESTALES,  // líneas estándar del mockup
+    _local: true, // flag: creado localmente, pendiente de sync con Unabase
+  }
+
+  proyectosLocales.value = [...proyectosLocales.value, nuevo]
+
+  // Persistir solo los proyectos locales (no los MOCK)
+  try {
+    const soloLocales = proyectosLocales.value.filter(p => p._local)
+    localStorage.setItem('rrhh_proyectos_locales', JSON.stringify(soloLocales))
+  } catch {}
+
+  seleccionarNegocio(nuevo)
+}
 
 // ── Cláusulas opcionales del contrato ─────────────────────────────────────────
 const clausulasOpcionales = [
@@ -1528,6 +2288,7 @@ const contratoForm = ref({
   direccion_trabajo: '',
   horas_semana:     45,
   sueldo_base:      0,
+  tipo_sueldo:      'bruto',   // 'bruto' | 'liquido'
   gratificacion:    'mensual',
   modalidad:        'presencial',
   movilizacion:     0,
@@ -1538,6 +2299,11 @@ const contratoForm = ref({
   linea_codigo:     '',
   linea_nombre:     '',
   clausulas:        [],
+  // Campos extra para contratos por proyecto
+  valor_dia:               0,   // Valor bruto por día (desde OC / Unabase)
+  dias_contratados:        0,   // Días estimados del proyecto (se recalcula en liq por fechas)
+  valor_hora_extra:        0,   // Valor líquido por hora extra acordada
+  horas_extras_contratadas: 0,  // HH.EE. estimadas en el contrato
 })
 // Modo vista de contrato existente (vs. creación)
 const contratoViewMode = ref(false)
@@ -1552,13 +2318,14 @@ const finiquitoForm = ref({
   vacaciones_dias: 0,
   indemnizacion_vol: 0,
   descuentos: [],
+  sueldo_proporcional_manual: null,   // null = calcular automático; número = override manual
 })
 
 const tabs = [
-  { id: 'ficha', label: 'Ficha Personal', icon: 'u u-usuarios' },
-  { id: 'documentos', label: 'Documentos', icon: 'u u-folder-open' },
-  { id: 'liquidaciones', label: 'Liquidaciones', icon: 'u u-cobros-y-pagos' },
-  { id: 'contratos', label: 'Contratos', icon: 'u u-ventas' },
+  { id: 'ficha',        label: 'Ficha Personal', icon: 'u u-usuarios'        },
+  { id: 'contratos',   label: 'Contratos',       icon: 'u u-ventas'          },
+  { id: 'liquidaciones',label: 'Liquidaciones',  icon: 'u u-cobros-y-pagos'  },
+  { id: 'documentos',  label: 'Documentos',      icon: 'u u-folder-open'     },
 ]
 
 const meses = [
@@ -1597,10 +2364,10 @@ const contratosDelPeriodo = computed(() => {
   })
 })
 
-// ¿El trabajador tiene contratos tipo proyecto/honorarios vigentes?
+// ¿El trabajador tiene contratos tipo proyecto/jornada/honorarios vigentes?
 const liqHayProyectos = computed(() =>
   contratosDelPeriodo.value.some(c =>
-    c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'honorarios'
+    c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'jornada' || c.tipo_contrato === 'honorarios'
   )
 )
 
@@ -1613,7 +2380,7 @@ watch([() => liqForm.value.mes, () => liqForm.value.anio], () => {
   // Agregar los que aplican y no están aún
   contratosDelPeriodo.value.forEach(c => {
     if (!esContratoSeleccionado(c._id)) {
-      liqForm.value.contratos_sel.push({ contrato_id: c._id, dias_trabajados: 30, horas_extra: horasExtraDelMesContrato(c) })
+      liqForm.value.contratos_sel.push(_entradaContratoSel(c))
     }
   })
 })
@@ -1651,9 +2418,76 @@ function horasExtraDelMesContrato(c) {
   return marcas.reduce((s, m) => s + (m.horas_extra || 0), 0)
 }
 
-// Días trabajados por defecto: siempre 30 (mes completo) para contratos proyecto/honorarios
+// Días trabajados por defecto: siempre 30 (mes completo) para contratos indefinido/honorarios
 function estimarDiasContrato(_c) {
   return 30
+}
+
+// Recalcula dias_contratados y sueldo_base desde las fechas del contrato (proyecto/jornada)
+function recalcDiasContrato() {
+  const cf = contratoForm.value
+  if (!['proyecto', 'jornada'].includes(cf.tipo_contrato)) return
+  if (!cf.fecha_inicio || !cf.fecha_termino) return
+  const inicio  = new Date(cf.fecha_inicio  + 'T12:00')
+  const termino = new Date(cf.fecha_termino + 'T12:00')
+  if (termino < inicio) return
+  const dias = Math.round((termino - inicio) / (1000 * 60 * 60 * 24)) + 1
+  cf.dias_contratados = dias
+  if (cf.tipo_contrato === 'proyecto') {
+    cf.sueldo_base = (cf.valor_dia || 0) * dias
+  } else {
+    // jornada: sueldo_base es el líquido; recalcular valor_dia
+    cf.valor_dia = dias > 0 ? Math.round((cf.sueldo_base || 0) / dias) : 0
+    if (!cf._vheManual) cf.valor_hora_extra = _calcValorHoraExtraJornada(cf.valor_dia)
+  }
+}
+
+// Cuando cambia tipo_contrato a 'proyecto' o 'jornada': jornada diaria + recalcular días
+watch(() => contratoForm.value.tipo_contrato, (val) => {
+  if (val === 'proyecto' || val === 'jornada') {
+    contratoForm.value.jornada_semanal = 'diaria'
+    recalcDiasContrato()
+  }
+})
+
+// ── Valor hora extra PROYECTO/OBRA (valor_dia es BRUTO desde OC) ────────────
+// Fórmula: (valor_dia / 8h) × 1.5 × (1 - AFP - salud) → líquido
+function _calcValorHoraExtra(valorDia) {
+  if (!valorDia || valorDia <= 0) return 0
+  const afpRate   = 0.10 + getAfpComision(trabajador.value?.afp || 'capital')
+  const saludRate = 0.07
+  const brutoHora = valorDia / 8          // hora normal bruta
+  const brutoOT   = brutoHora * 1.5      // +50% recargo legal mínimo
+  return Math.round(brutoOT * (1 - afpRate - saludRate))
+}
+
+// ── Valor hora extra JORNADA (valor_dia es LÍQUIDO pactado) ──────────────────
+// Fórmula DT: (sueldo_liq / días) × 1.5 ÷ 10 horas legales
+// Ej: $100.000 / 5d = $20.000/d × 1.5 = $30.000 ÷ 10 = $3.000/h líquido
+function _calcValorHoraExtraJornada(valorDiaLiquido) {
+  if (!valorDiaLiquido || valorDiaLiquido <= 0) return 0
+  return Math.round(valorDiaLiquido * 1.5 / 10)
+}
+
+// Calcula cuántos días calendario del contrato proyecto caen dentro del período de liquidación
+function calcularDiasContratoEnPeriodo(c) {
+  const mes  = liqForm.value.mes
+  const anio = liqForm.value.anio
+  const primerDiaMes = new Date(anio, mes - 1, 1)
+  const ultimoDiaMes = new Date(anio, mes, 0)  // último día del mes
+
+  const inicio  = c.fecha_inicio
+    ? new Date(c.fecha_inicio.slice(0, 10) + 'T12:00')
+    : primerDiaMes
+  const termino = c.fecha_termino
+    ? new Date(c.fecha_termino.slice(0, 10) + 'T12:00')
+    : ultimoDiaMes
+
+  const desde = inicio > primerDiaMes ? inicio : primerDiaMes
+  const hasta = termino < ultimoDiaMes ? termino : ultimoDiaMes
+
+  if (desde > hasta) return 0
+  return Math.round((hasta - desde) / (1000 * 60 * 60 * 24)) + 1
 }
 
 // ¿Está un contrato seleccionado en modo multi?
@@ -1666,17 +2500,68 @@ function getContratoSel(id) {
   return liqForm.value.contratos_sel.find(s => s.contrato_id === id)
 }
 
-// Toggle selección multi-contrato
+// Genera la entrada inicial para un contrato en la selección multi-proyecto/jornada
+function _entradaContratoSel(c) {
+  const tipo      = (c.tipo_contrato || '').toLowerCase()
+  const esProy    = tipo === 'proyecto'
+  const esJornada = tipo === 'jornada'
+  const esVariable = esProy || esJornada  // ambos usan el modo días × valor
+
+  // Para proyecto/jornada: días se calculan automáticamente por fechas del contrato en el período
+  const diasPeriodo = esVariable ? calcularDiasContratoEnPeriodo(c) : 0
+
+  // Valor día:
+  // - Proyecto: bruto desde OC (c.valor_dia); fallback = sueldo_base ÷ dias_contratados
+  // - Jornada:  líquido pactado ÷ días (c.valor_dia si guardado; fallback = sueldo_base ÷ dias)
+  let valorDia = c.valor_dia || 0
+  if (esVariable && !valorDia && c.sueldo_base > 0) {
+    const diasRef = c.dias_contratados || diasPeriodo || 1
+    valorDia = Math.round(c.sueldo_base / diasRef)
+  }
+
+  // HH.EE. desde el contrato (estimadas), con fallback a marcas de asistencia
+  const hheeContrato = esVariable
+    ? (c.horas_extras_contratadas || horasExtraDelMesContrato(c))
+    : horasExtraDelMesContrato(c)
+
+  // Valor hora extra:
+  // - Proyecto: (valor_dia_bruto/8)×1.5×(1−AFP−salud) → líquido
+  // - Jornada:  valor_dia_liq×1.5÷10 → líquido (fórmula DT)
+  let valorHoraExtra = c.valor_hora_extra || 0
+  if (!valorHoraExtra && valorDia > 0) {
+    valorHoraExtra = esJornada
+      ? _calcValorHoraExtraJornada(valorDia)
+      : (esProy ? _calcValorHoraExtra(valorDia) : 0)
+  }
+
+  return {
+    contrato_id:          c._id,
+    // ── Campos proyecto/jornada (días reales × valor día + HH.EE.) ──
+    dias:                 esVariable ? diasPeriodo : 0,
+    valor_dia:            esVariable ? valorDia : 0,
+    horas_extra_cantidad: hheeContrato,
+    valor_hora_extra:     valorHoraExtra,
+    _vheManual:           false,
+    // ── Campos indefinido / plazo_fijo (proporcional por días) ──
+    dias_trabajados:      esVariable ? 30 : estimarDiasContrato(c),
+    horas_extra:          horasExtraDelMesContrato(c),
+  }
+}
+
+// Caché de valores ingresados por el usuario por contrato (persiste al desmarcar/remarcar)
+const _liqSelCache = ref({})
+
+// Toggle selección multi-contrato — preserva los valores ingresados al desmarcar
 function toggleContratoLiq(c) {
   const idx = liqForm.value.contratos_sel.findIndex(s => s.contrato_id === c._id)
   if (idx !== -1) {
+    // Guardar en caché antes de quitar
+    _liqSelCache.value[c._id] = { ...liqForm.value.contratos_sel[idx] }
     liqForm.value.contratos_sel.splice(idx, 1)
   } else {
-    liqForm.value.contratos_sel.push({
-      contrato_id: c._id,
-      dias_trabajados: estimarDiasContrato(c),
-      horas_extra: horasExtraDelMesContrato(c),
-    })
+    // Restaurar desde caché si existe, si no crear entrada fresca
+    const cached = _liqSelCache.value[c._id]
+    liqForm.value.contratos_sel.push(cached ? { ...cached } : _entradaContratoSel(c))
   }
 }
 
@@ -1712,16 +2597,24 @@ function syncFichaEdits() {
     fecha_ingreso:   trabajador.value.fecha_ingreso?.slice(0,10) || '',
     afp:             trabajador.value.afp || '',
     sistema_salud:   trabajador.value.sistema_salud || 'FONASA',
-    isapre_uf:       trabajador.value.isapre_uf || 0,
     isapre_nombre:   trabajador.value.isapre_nombre || '',
+    // Tipo de plan Isapre: 'UF' | '$' | '7%+GES(UF)' | '7%+GES($)' | '%'
+    // Backward compat: si tiene isapre_uf guardado y no isapre_tipo, asumir UF
+    isapre_tipo:     trabajador.value.isapre_tipo  || (trabajador.value.isapre_uf ? 'UF' : 'UF'),
+    isapre_monto:    trabajador.value.isapre_monto ?? trabajador.value.isapre_uf ?? 0,
+    // Datos bancarios
+    banco:           trabajador.value.banco            || '',
+    tipo_cuenta:     trabajador.value.tipo_cuenta      || '',
+    numero_cuenta:   trabajador.value.numero_cuenta    || '',
+    email_pago:      trabajador.value.email_pago       || trabajador.value.email || '',
   }
 }
 
 watch(trabajador, (val) => { if (val) syncFichaEdits() }, { immediate: true })
 
-// Movilización y colación en 0 para contratos por proyecto/honorarios
+// Movilización y colación en 0 para contratos por proyecto/jornada/honorarios
 watch(() => contratoForm.value.tipo_contrato, (tipo) => {
-  if (tipo === 'proyecto' || tipo === 'honorarios') {
+  if (tipo === 'proyecto' || tipo === 'jornada' || tipo === 'honorarios') {
     contratoForm.value.movilizacion = 0
     contratoForm.value.colacion = 0
   } else if (tipo === 'indefinido' || tipo === 'plazo_fijo' || tipo === 'part_time') {
@@ -1755,14 +2648,35 @@ const initials = computed(() => {
   return `${trabajador.value.nombre?.[0] || ''}${trabajador.value.apellido?.[0] || ''}`.toUpperCase()
 })
 
-// Costo empresa para UN contrato dado
+// Tasa total imposiciones (AFP trabajador + salud + ces.emp + accidentes + SIS)
+const TASA_IMP = 0.1144 + 0.07 + 0.024 + 0.0093 + 0.015 // 0.2327
+
+// Costo empresa para UN contrato dado, respetando tipo_sueldo
 function calcCostoEmpresaContrato(c) {
   const base  = c.sueldo_base || 0
   const movil = c.movilizacion || 0
   const colac = c.colacion || 0
-  const cesantia = base * (c.tipo_contrato === 'plazo_fijo' ? 0.03 : 0.024)
+  const tipo  = (c.tipo_contrato || '').toLowerCase()
+  const esLiq = tipo === 'proyecto' || tipo === 'jornada' || c.tipo_sueldo === 'liquido'
+
+  if (esLiq) {
+    // Empresa paga todas las cotizaciones encima del neto acordado
+    return Math.round((base + movil + colac) * (1 + TASA_IMP))
+  }
+  const cesantia   = base * (tipo === 'plazo_fijo' ? 0.03 : 0.024)
   const accidentes = base * 0.0093
   return Math.round(base + movil + colac + cesantia + accidentes)
+}
+
+// Líquido estimado al trabajador para un contrato
+function calcLiquidoContrato(c) {
+  const base  = c.sueldo_base || 0
+  const movil = c.movilizacion || 0
+  const colac = c.colacion || 0
+  const tipo  = (c.tipo_contrato || '').toLowerCase()
+  const esLiq = tipo === 'proyecto' || tipo === 'jornada' || c.tipo_sueldo === 'liquido'
+  if (esLiq) return base + movil + colac  // el sueldo_base ya ES el neto
+  return Math.round(base * (1 - 0.1844) + movil + colac)
 }
 
 // Contratos activos (vigentes) del trabajador
@@ -1856,12 +2770,31 @@ const horasContratosMes = computed(() => {
 
 const antiguedad = computed(() => {
   if (!trabajador.value?.fecha_ingreso) return '—'
-  const ingreso = new Date(trabajador.value.fecha_ingreso)
+  const ingreso = new Date(trabajador.value.fecha_ingreso + 'T12:00')
   const diff = now - ingreso
-  const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365))
-  const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30))
+  const years  = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25))
+  const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365.25)) / (1000 * 60 * 60 * 24 * 30.44))
+  if (years === 0 && months === 0) return 'recién ingresado'
   if (years === 0) return `${months} mes${months !== 1 ? 'es' : ''}`
-  return `${years} año${years !== 1 ? 's' : ''} ${months > 0 ? `${months}m` : ''}`
+  return `${years} año${years !== 1 ? 's' : ''}${months > 0 ? ` ${months}m` : ''}`
+})
+
+// Última liquidación real (excluye finiquitos)
+const ultimaLiquidacion = computed(() =>
+  liquidacionesTrabajador.value[0] || null   // ya están ordenadas desc por anio/mes
+)
+
+// Vacaciones acumuladas: 15 días hábiles por año = 1.25 días por mes trabajado
+// Se descuentan los días tomados guardados en el trabajador
+const vacacionesAcumuladas = computed(() => {
+  const t = trabajador.value
+  if (!t?.fecha_ingreso) return t?.vacaciones_dias ?? 0
+  const ingreso = new Date(t.fecha_ingreso + 'T12:00')
+  const diffMs  = now - ingreso
+  const meses   = diffMs / (1000 * 60 * 60 * 24 * 30.44)
+  const acum    = Math.floor(meses * 1.25)          // 15 días/año ÷ 12 meses
+  const tomados = t.vacaciones_tomadas || 0
+  return Math.max(0, acum - tomados)
 })
 
 const motivoActual = computed(() =>
@@ -1872,14 +2805,15 @@ const finiquitoCalc = computed(() => {
   if (!trabajador.value || !finiquitoForm.value.fecha_termino) return null
   const cv = contratoVigente.value
   return calcularFiniquito({
-    sueldo_base:          cv?.sueldo_base || trabajador.value.sueldo_base || 0,
-    fecha_ingreso:        trabajador.value.fecha_ingreso,
-    fecha_termino:        finiquitoForm.value.fecha_termino,
-    motivo_termino:       finiquitoForm.value.motivo_termino,
-    dias_trabajados_mes:  finiquitoForm.value.dias_trabajados_mes,
-    vacaciones_dias:      finiquitoForm.value.vacaciones_dias,
-    mes_aviso:            !finiquitoForm.value.mes_aviso_dado,
-    indemnizacion_vol:    finiquitoForm.value.indemnizacion_vol,
+    sueldo_base:                  cv?.sueldo_base || trabajador.value.sueldo_base || 0,
+    fecha_ingreso:                trabajador.value.fecha_ingreso,
+    fecha_termino:                finiquitoForm.value.fecha_termino,
+    motivo_termino:               finiquitoForm.value.motivo_termino,
+    dias_trabajados_mes:          finiquitoForm.value.dias_trabajados_mes,
+    vacaciones_dias:              finiquitoForm.value.vacaciones_dias,
+    mes_aviso:                    !finiquitoForm.value.mes_aviso_dado,
+    indemnizacion_vol:            finiquitoForm.value.indemnizacion_vol,
+    sueldo_proporcional_override: finiquitoForm.value.sueldo_proporcional_manual,
   })
 })
 
@@ -1891,8 +2825,16 @@ const totalFiniquito = computed(() => {
 
 const liquidacionesTrabajador = computed(() => {
   const id = route.params.id
-  return rrhhStore.liquidaciones.filter(l => l.trabajador_id === id)
+  return rrhhStore.liquidaciones
+    .filter(l => l.trabajador_id === id && l.tipo !== 'finiquito')
     .sort((a, b) => b.anio - a.anio || b.mes - a.mes)
+})
+
+const finiquitosTrabajador = computed(() => {
+  const id = route.params.id
+  return rrhhStore.liquidaciones
+    .filter(l => l.trabajador_id === id && l.tipo === 'finiquito')
+    .sort((a, b) => new Date(b.fecha_termino) - new Date(a.fecha_termino))
 })
 
 const contratosTrabajador = computed(() => {
@@ -1927,64 +2869,130 @@ const checklistDocs = computed(() => {
     { id: 'salud', label: 'Certificado Sistema Salud', done: false },
     { id: 'curriculum', label: 'Currículum Vitae', done: false },
   ]
-  if (tipo === 'proyecto') {
+  if (tipo === 'proyecto' || tipo === 'jornada') {
     docs.push({ id: 'registro_audiovisual', label: 'Registro Audiovisual (Ley 19.981)', done: false })
   }
   return docs
 })
+
+// Gross-up simple para HH.EE. líquidas (Ley 19.981 proyecto):
+// Halla el bruto tal que bruto − AFP − Salud ≈ liquidoOT (sin impuesto en rangos bajos)
+function _grossUpOT(liquidoOT, afpComision = 0.1144, saludRate = 0.07) {
+  if (!liquidoOT || liquidoOT <= 0) return 0
+  let bruto = Math.round(liquidoOT / (1 - afpComision - saludRate))
+  for (let i = 0; i < 10; i++) {
+    const afpD = Math.round(bruto * afpComision)
+    const salD = Math.round(bruto * saludRate)
+    const liq  = bruto - afpD - salD
+    const diff = liquidoOT - liq
+    if (Math.abs(diff) <= 1) break
+    bruto += diff
+  }
+  return bruto
+}
 
 const liqCalc = computed(() => {
   if (!trabajador.value) return null
 
   // ── Modo multi-proyecto ───────────────────────────────────────────────────
   if (liqHayProyectos.value && liqForm.value.contratos_sel.length > 0) {
-    let totalProporcional  = 0
-    let totalHorasExtraMonto = 0
-    let totalMovil = 0
-    let totalColac = 0
-    const detalle = []
+    let totalBruto   = 0   // acumulado bruto total (base_bruto + OT_bruto)
+    let totalMovil   = 0
+    let totalColac   = 0
+    const detalle    = []
+
+    // Tasa AFP total (10% base + comisión AFP) para el gross-up de OT
+    const afpCom = 0.10 + getAfpComision(trabajador.value.afp) // e.g. 0.1144 para AFP Capital
 
     for (const sel of liqForm.value.contratos_sel) {
       const c = contratosTrabajador.value.find(x => x._id === sel.contrato_id)
       if (!c) continue
-      const base            = c.sueldo_base || 0
-      const dias            = sel.dias_trabajados || 0
-      const proporcional    = Math.round(base / 30 * dias)
-      const valorHora       = Math.round(base / 30 / 8 * 1.5)
-      const montoHorasExtra = valorHora * (sel.horas_extra || 0)
-      totalProporcional    += proporcional
-      totalHorasExtraMonto += montoHorasExtra
+      const base      = c.sueldo_base || 0
+      const tipo      = (c.tipo_contrato || '').toLowerCase()
+      const esProy    = tipo === 'proyecto'
+      const esJornada = tipo === 'jornada'
+
+      let proporcional = 0, montoHorasExtraBruto = 0, montoHorasExtraLiq = 0
+      if (esProy) {
+        // Proyecto/Obra: valor_dia es BRUTO (desde OC/Unabase)
+        // Base = días reales × valor/día bruto (ya es bruto, sin gross-up)
+        proporcional = (sel.dias || 0) * (sel.valor_dia || 0)
+        // HH.EE. = horas × valor/hora en LÍQUIDO → gross-up a bruto
+        const hhLiq = (sel.horas_extra_cantidad || 0) * (sel.valor_hora_extra || 0)
+        montoHorasExtraLiq   = hhLiq
+        montoHorasExtraBruto = _grossUpOT(hhLiq, afpCom)
+      } else if (esJornada) {
+        // Jornada: valor_dia es LÍQUIDO pactado → gross-up base
+        const liquidoBase = (sel.dias || 0) * (sel.valor_dia || 0)
+        proporcional = _grossUpOT(liquidoBase, afpCom)  // gross-up el líquido base
+        // HH.EE. usando fórmula DT: valor_hora_extra ya es líquido → gross-up
+        const hhLiq = (sel.horas_extra_cantidad || 0) * (sel.valor_hora_extra || 0)
+        montoHorasExtraLiq   = hhLiq
+        montoHorasExtraBruto = _grossUpOT(hhLiq, afpCom)
+      } else {
+        // Indefinido / plazo fijo: proporcional + HH.EE. en bruto
+        proporcional         = Math.round(base / 30 * (sel.dias_trabajados || 0))
+        const valorHora      = Math.round(base / 30 / 8 * 1.5)
+        montoHorasExtraBruto = valorHora * (sel.horas_extra || 0)
+      }
+
+      totalBruto += proporcional + montoHorasExtraBruto
       totalMovil += c.movilizacion || 0
       totalColac += c.colacion  || 0
-      detalle.push({ contrato: c, proporcional, montoHorasExtra, sel })
+      detalle.push({
+        contrato: c, proporcional,
+        montoHorasExtra: montoHorasExtraBruto, montoHorasExtraLiq, sel,
+        esProy, esJornada,
+      })
     }
 
-    // Sueldo ya calculado proporcionalmente; pasamos dias=30 para que la función no re-prorratee
-    const resultado = rrhhStore.calcularLiquidacion({
-      sueldo_base:     totalProporcional + totalHorasExtraMonto,
+    // Totales separados para display
+    const totalBaseVariable  = detalle.filter(d => d.esProy || d.esJornada).reduce((s, d) => s + d.proporcional, 0)
+    const totalOTBruto       = detalle.reduce((s, d) => s + (d.montoHorasExtra || 0), 0)
+    const totalHorasExtraLiq = detalle.reduce((s, d) => s + (d.montoHorasExtraLiq || 0), 0)
+    // Determinar si hay jornada entre los contratos seleccionados
+    const hayJornada = detalle.some(d => d.esJornada)
+
+    // Pasar el bruto ya calculado (sin gross-up adicional)
+    const resultado = calcularLiquidacion({
+      sueldo_base:     totalBruto,
+      _yaEsBruto:      true,            // flag: no hacer gross-up
       afp:             trabajador.value.afp,
       sistema_salud:   trabajador.value.sistema_salud,
       isapre_uf:       trabajador.value.isapre_uf || 0,
-      tipo_contrato:   'proyecto',
-      gratificacion:   'anual',   // sin gratificación mensual en proyectos
+      tipo_contrato:   'proyecto',      // para cesantía 3% / 0% (plazo fijo)
+      tipo_sueldo:     'bruto',
+      gratificacion:   'anual',
       movilizacion:    totalMovil,
       colacion:        totalColac,
-      dias_trabajados: 30,        // ya incorporado en la base
-      horas_extra:     0,         // ya incorporado
+      dias_trabajados: 30,
+      horas_extra:     0,
       bonos:           liqForm.value.bonos,
       descuentos:      liqForm.value.descuentos,
     })
-    return { ...resultado, _detalle: detalle, _multiContrato: true }
+    return {
+      ...resultado,
+      _detalle:            detalle,
+      _multiContrato:      true,
+      _totalBaseProyecto:  totalBaseVariable,
+      _totalHorasExtraLiq: totalHorasExtraLiq,
+      // Overrides: separar sueldo base de HH.EE. en el display
+      sueldoProporcional:  totalBaseVariable,   // solo la base (días × valor/día)
+      montoHorasExtra:     totalOTBruto,        // OT bruto (gross-up de líquido)
+      esProyecto:          !hayJornada,
+      esJornada:           hayJornada,
+    }
   }
 
   // ── Modo single contract ──────────────────────────────────────────────────
   const cv = liqContratoActivo.value || contratoVigente.value
-  return rrhhStore.calcularLiquidacion({
+  return calcularLiquidacion({
     sueldo_base:    cv?.sueldo_base || trabajador.value.sueldo_base || 0,
     afp:            trabajador.value.afp,
     sistema_salud:  trabajador.value.sistema_salud,
     isapre_uf:      trabajador.value.isapre_uf || 0,
     tipo_contrato:  cv?.tipo_contrato || 'indefinido',
+    tipo_sueldo:    cv?.tipo_sueldo || 'bruto',
     gratificacion:  cv?.gratificacion || trabajador.value.gratificacion || 'mensual',
     movilizacion:   cv?.movilizacion || 0,
     colacion:       cv?.colacion || 0,
@@ -1995,13 +3003,23 @@ const liqCalc = computed(() => {
   })
 })
 
+// Texto resumen del sueldo base para contratos proyecto/jornada (ej. "3d × $159.667")
+const _detalleResumen = computed(() => {
+  if (!liqCalc.value?._detalle?.length) return ''
+  return liqCalc.value._detalle
+    .filter(d => (d.esProy || d.esJornada) && d.sel.dias && d.sel.valor_dia)
+    .map(d => `${d.sel.dias}d × ${formatCLP(d.sel.valor_dia)}${d.esJornada ? ' líq.' : ''}`)
+    .join(' + ')
+})
+
 function labelContrato(tipo) {
   const map = {
     indefinido: 'Indefinido',
     plazo_fijo: 'Plazo Fijo',
-    proyecto: 'Por Proyecto',
+    proyecto:   'Por Proyecto/Obra',
+    jornada:    'Por Jornada',
     honorarios: 'Honorarios',
-    part_time: 'Part Time',
+    part_time:  'Part Time',
   }
   return map[tipo] || tipo
 }
@@ -2013,7 +3031,9 @@ function formatCLP(v) {
 
 function formatDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  // Agregar T12:00 para evitar desfase de timezone al parsear solo fecha (YYYY-MM-DD)
+  const dateStr = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T12:00' : d
+  return new Date(dateStr).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function openEditModal() {
@@ -2085,14 +3105,14 @@ function openNewLiquidacion() {
     contrato_id: null,
     contratos_sel: [],
   }
+  // Limpiar caché de valores al abrir liquidación nueva
+  _liqSelCache.value = {}
+
   // Para trabajadores con proyectos, pre-seleccionar contratos del período automáticamente
+  // _entradaContratoSel calcula días por fechas del contrato y trae valor_dia/horas del contrato
   if (liqHayProyectos.value) {
     contratosDelPeriodo.value.forEach(c => {
-      liqForm.value.contratos_sel.push({
-        contrato_id: c._id,
-        dias_trabajados: 30,
-        horas_extra: horasExtraDelMesContrato(c),
-      })
+      liqForm.value.contratos_sel.push(_entradaContratoSel(c))
     })
   }
   activeTab.value = 'liquidaciones'
@@ -2128,8 +3148,7 @@ async function _descargarLiqDesdeCalc() {
   const t   = trabajador.value
   const lc  = liqCalc.value
   if (!t || !lc) return
-  const globalStore2 = useGlobalStore()
-  const orgInfo = globalStore2.organization || {}
+  const orgInfo = {}
 
   const mesesNombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const mesNombre = mesesNombres[(liqForm.value.mes || 1) - 1]
@@ -2159,9 +3178,9 @@ async function _descargarLiqDesdeCalc() {
 
   const payload = {
     organizacion: {
-      nombre:    orgInfo.name || orgInfo.razon_social || 'Empresa',
-      rut:       orgInfo.rut  || '',
-      direccion: orgInfo.address || orgInfo.domicilio || '',
+      nombre:    localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
+      rut:       localStorage.getItem('rrhh_org_rut') || '',
+      direccion: localStorage.getItem('rrhh_org_address') || '',
     },
     trabajador: {
       nombre:        `${t.nombre || ''} ${t.apellido || ''}`.trim(),
@@ -2197,7 +3216,7 @@ async function _descargarLiqDesdeCalc() {
       renta_imponible:     lc.rentaImponible,
       costo_empresa:       lc.costoEmpresa,
     },
-    logo_base64: orgInfo.logoBase64 || null,
+    logo_base64: null,
   }
 
   const res = await $fetch('/api/rrhh/liquidacion-pdf', { method: 'POST', body: payload, responseType: 'blob' })
@@ -2261,27 +3280,32 @@ async function saveLiq(estado) {
 async function descargarContratoPDFDesdeTab(c) {
   // Carga todos los datos del contrato en el form y genera el PDF directamente
   contratoForm.value = {
-    tipo_contrato:   c.tipo_contrato || 'indefinido',
-    fecha_inicio:    c.fecha_inicio?.slice(0,10) || '',
-    fecha_termino:   c.fecha_termino?.slice(0,10) || '',
-    nombre_proyecto: c.nombre_proyecto || '',
-    descripcion_rol: c.descripcion_rol || '',
-    cargo:           c.cargo || trabajador.value?.cargo || '',
-    jornada_semanal: c.jornada_semanal || '45',
+    tipo_contrato:    c.tipo_contrato || 'indefinido',
+    fecha_inicio:     c.fecha_inicio?.slice(0,10) || '',
+    fecha_termino:    c.fecha_termino?.slice(0,10) || '',
+    nombre_proyecto:  c.nombre_proyecto || '',
+    descripcion_rol:  c.descripcion_rol || '',
+    cargo:            c.cargo || trabajador.value?.cargo || '',
+    jornada_semanal:  c.jornada_semanal || '45',
     lugar_trabajo:    c.lugar_trabajo || 'Santiago, Región Metropolitana',
     direccion_trabajo: c.direccion_trabajo || '',
-    horas_semana:    c.horas_semana || 45,
-    sueldo_base:     c.sueldo_base || 0,
-    gratificacion:   c.gratificacion || 'mensual',
-    modalidad:       c.modalidad || 'presencial',
-    movilizacion:    c.movilizacion || 0,
-    colacion:        c.colacion || 0,
-    turno_id:        c.turno_id || '',
-    negocio_id:      c.negocio_id || '',
-    negocio_nombre:  c.negocio_nombre || '',
-    linea_codigo:    c.linea_codigo || '',
-    linea_nombre:    c.linea_nombre || '',
-    clausulas:       c.clausulas || [],
+    horas_semana:     c.horas_semana || 45,
+    sueldo_base:      c.sueldo_base || 0,
+    tipo_sueldo:      c.tipo_sueldo || 'bruto',
+    gratificacion:    c.gratificacion || 'mensual',
+    modalidad:        c.modalidad || 'presencial',
+    movilizacion:     c.movilizacion || 0,
+    colacion:         c.colacion || 0,
+    turno_id:         c.turno_id || '',
+    negocio_id:       c.negocio_id || '',
+    negocio_nombre:   c.negocio_nombre || '',
+    linea_codigo:     c.linea_codigo || '',
+    linea_nombre:     c.linea_nombre || '',
+    clausulas:        c.clausulas || [],
+    valor_dia:               c.valor_dia || 0,
+    dias_contratados:        c.dias_contratados || 0,
+    valor_hora_extra:        c.valor_hora_extra || 0,
+    horas_extras_contratadas: c.horas_extras_contratadas || 0,
   }
   contratoViewMode.value = true
   contratoEditId.value = c._id
@@ -2294,8 +3318,7 @@ async function descargarLiqPDF(liq) {
   liqPdfLoading.value = liq._id
   try {
     const t = trabajador.value
-    const globalStore2 = useGlobalStore()
-    const orgInfo = globalStore2.organization || {}
+    const orgInfo = {}
 
     // Reconstruir bonos/descuentos desde la liq guardada (si no tiene, array vacío)
     const bonos     = liq.bonos     || []
@@ -2303,9 +3326,9 @@ async function descargarLiqPDF(liq) {
 
     const payload = {
       organizacion: {
-        nombre:    orgInfo.name || orgInfo.razon_social || 'Empresa',
-        rut:       orgInfo.rut  || '',
-        direccion: orgInfo.address || orgInfo.domicilio || '',
+        nombre:    localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
+        rut:       localStorage.getItem('rrhh_org_rut') || '',
+        direccion: localStorage.getItem('rrhh_org_address') || '',
       },
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido}`,
@@ -2342,7 +3365,7 @@ async function descargarLiqPDF(liq) {
         { nombre: 'Imp. Único 2ª Cat.', monto: liq.impuesto },
       ].filter(d => d.monto > 0),
       otros_descuentos: descuentos.filter(d => d.monto > 0),
-      logo_base64: orgInfo.logoBase64 || null,
+      logo_base64: null,
     }
 
     const res = await $fetch('/api/rrhh/liquidacion-pdf', {
@@ -2384,6 +3407,7 @@ function openGenContrato() {
     direccion_trabajo: '',
     horas_semana:     45,
     sueldo_base:      0,
+    tipo_sueldo:      'bruto',
     gratificacion:    'mensual',
     modalidad:        'presencial',
     movilizacion:     50000,
@@ -2394,13 +3418,17 @@ function openGenContrato() {
     linea_codigo:     '',
     linea_nombre:     '',
     clausulas:        [],
+    valor_dia:               0,
+    dias_contratados:        0,
+    valor_hora_extra:        0,
+    horas_extras_contratadas: 0,
   }
   showGenContrato.value = true
 }
 
 function abrirContratoExistente(c) {
   // Abrir el modal en modo vista/edición de un contrato ya creado
-  negocioSeleccionado.value = MOCK_NEGOCIOS.find(n => n._id === c.negocio_id) || null
+  negocioSeleccionado.value = proyectosLocales.value.find(n => n._id === c.negocio_id) || null
   negocioBusqueda.value = c.negocio_nombre || ''
   contratoViewMode.value = true
   contratoEditId.value = c._id
@@ -2416,6 +3444,7 @@ function abrirContratoExistente(c) {
     direccion_trabajo: c.direccion_trabajo || '',
     horas_semana:     c.horas_semana || 45,
     sueldo_base:      c.sueldo_base || 0,
+    tipo_sueldo:      c.tipo_sueldo || 'bruto',
     gratificacion:    c.gratificacion || 'mensual',
     modalidad:        c.modalidad || 'presencial',
     movilizacion:     c.movilizacion || 0,
@@ -2426,31 +3455,118 @@ function abrirContratoExistente(c) {
     linea_codigo:     c.linea_codigo || '',
     linea_nombre:     c.linea_nombre || '',
     clausulas:        c.clausulas || [],
+    valor_dia:               c.valor_dia || 0,
+    dias_contratados:        c.dias_contratados || 0,
+    valor_hora_extra:        c.valor_hora_extra || 0,
+    horas_extras_contratadas: c.horas_extras_contratadas || 0,
   }
   showGenContrato.value = true
 }
 
 // ── Término de Contrato / Finiquito ───────────────────────────────────────────
+
+/**
+ * Contratos vigentes del trabajador que se finiquitarán.
+ * Para proyecto: los que se solapan con el mes de la fecha de término.
+ */
+function getContratosAFiniquitar(fechaTerminoStr) {
+  if (!fechaTerminoStr) return contratosTrabajador.value.filter(c =>
+    ['vigente', 'activo', 'borrador'].includes(c.estado)
+  )
+  const dt = new Date(fechaTerminoStr + 'T12:00')
+  const mes  = dt.getMonth() + 1
+  const anio = dt.getFullYear()
+  const primerDia = new Date(anio, mes - 1, 1)
+  const ultimoDia = new Date(anio, mes, 0, 23, 59, 59)
+
+  return contratosTrabajador.value.filter(c => {
+    if (!['vigente', 'activo', 'borrador'].includes(c.estado)) return false
+    const inicio  = c.fecha_inicio  ? new Date(c.fecha_inicio.slice(0,10)  + 'T12:00') : null
+    const termino = c.fecha_termino ? new Date(c.fecha_termino.slice(0,10) + 'T12:00') : null
+    if (inicio  && inicio  > ultimoDia) return false
+    if (termino && termino < primerDia) return false
+    return true
+  })
+}
+
+/**
+ * Calcula días totales desde los contratos activos para la fecha de término.
+ * Para proyecto: usa las fechas del contrato vs el mes de término.
+ * Para otros: días del contrato o 30 (mes completo).
+ */
+function diasDeContratos(fechaTerminoStr) {
+  const contratos = getContratosAFiniquitar(fechaTerminoStr)
+  if (!contratos.length) return 30
+
+  const dt = new Date((fechaTerminoStr || new Date().toISOString().slice(0,10)) + 'T12:00')
+  const mes  = dt.getMonth() + 1
+  const anio = dt.getFullYear()
+  const primerDiaMes = new Date(anio, mes - 1, 1)
+  const ultimoDiaMes = new Date(anio, mes, 0)
+
+  let total = 0
+  contratos.forEach(c => {
+    if (c.tipo_contrato === 'proyecto' || c.tipo_contrato === 'jornada') {
+      const inicio  = c.fecha_inicio  ? new Date(c.fecha_inicio.slice(0,10)  + 'T12:00') : primerDiaMes
+      const termino = c.fecha_termino ? new Date(c.fecha_termino.slice(0,10) + 'T12:00') : ultimoDiaMes
+      const desde = inicio  > primerDiaMes ? inicio  : primerDiaMes
+      const hasta = termino < ultimoDiaMes ? termino : ultimoDiaMes
+      if (desde <= hasta) total += Math.round((hasta - desde) / (1000*60*60*24)) + 1
+    } else {
+      total = Math.max(total, c.dias_contratados || 30)
+    }
+  })
+  return total || 30
+}
+
 function openFiniquito() {
   const t = trabajador.value
+  const fechaTermino = new Date().toISOString().slice(0, 10)
+
+  // Detectar si el contrato vigente es tipo proyecto/jornada → sugerir conclusión
+  const cv = contratoVigente.value
+  const esProyecto = cv?.tipo_contrato === 'proyecto' || cv?.tipo_contrato === 'jornada'
+  const motivoDefecto = esProyecto ? 'conclusion_trabajo' : 'mutuo_acuerdo'
+  const esConclusionDefecto = motivoDefecto === 'conclusion_trabajo'
+
   finiquitoForm.value = {
-    motivo_termino: 'mutuo_acuerdo',
-    fecha_termino: new Date().toISOString().slice(0, 10),
-    mes_aviso_dado: true,
-    dias_trabajados_mes: 30,
-    vacaciones_dias: t?.vacaciones_dias || 0,
-    indemnizacion_vol: 0,
-    descuentos: [],
+    motivo_termino:             motivoDefecto,
+    fecha_termino:              fechaTermino,
+    mes_aviso_dado:             true,
+    dias_trabajados_mes:        diasDeContratos(fechaTermino),
+    vacaciones_dias:            esConclusionDefecto ? 0 : (vacacionesAcumuladas.value || t?.vacaciones_dias || 0),
+    indemnizacion_vol:          0,
+    descuentos:                 [],
+    sueldo_proporcional_manual: esConclusionDefecto ? 0 : null,
   }
   showFiniquito.value = true
 }
 
 function onMotivoChange() {
-  // reactive — motivoActual computed handles the rest
+  const ff = finiquitoForm.value
+  const esConclusionTrabajo = ff.motivo_termino === 'conclusion_trabajo'
+
+  if (esConclusionTrabajo) {
+    // Todo en $0 — el pago ya fue hecho en la(s) liquidaciones del proyecto
+    ff.sueldo_proporcional_manual = 0
+    ff.vacaciones_dias = 0
+  } else {
+    // Restablecer a cálculo automático
+    ff.sueldo_proporcional_manual = null
+    ff.vacaciones_dias = vacacionesAcumuladas.value || trabajador.value?.vacaciones_dias || 0
+  }
+  // Recalcular días desde contratos
+  if (ff.fecha_termino) ff.dias_trabajados_mes = diasDeContratos(ff.fecha_termino)
 }
 
 function recalcFiniquito() {
   // computed finiquitoCalc is reactive, no manual recalc needed
+}
+
+function onFechaTerminoChange() {
+  const ff = finiquitoForm.value
+  if (!ff.fecha_termino) return
+  ff.dias_trabajados_mes = diasDeContratos(ff.fecha_termino)
 }
 
 // ── Contrato PDF ──────────────────────────────────────────────────────────────
@@ -2480,7 +3596,16 @@ async function generarContratoPDF() {
       lugar_trabajo:     cf.lugar_trabajo,
       direccion_trabajo: cf.direccion_trabajo || '',
       modalidad:         cf.modalidad,
-      sueldo_base:       cf.sueldo_base,
+      sueldo_base:       cf.tipo_contrato === 'proyecto'
+                           ? (cf.valor_dia || 0) * (cf.dias_contratados || 0)
+                           : cf.sueldo_base,   // jornada: sueldo_base ES el líquido pactado
+      tipo_sueldo:       cf.tipo_contrato === 'proyecto' ? 'bruto'
+                       : cf.tipo_contrato === 'jornada'  ? 'liquido'
+                       : (cf.tipo_sueldo || 'bruto'),
+      valor_dia:               ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.valor_dia || 0) : null,
+      dias_contratados:        ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.dias_contratados || 0) : null,
+      valor_hora_extra:        ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.valor_hora_extra || 0) : null,
+      horas_extras_contratadas: ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.horas_extras_contratadas || 0) : null,
       gratificacion:     cf.gratificacion,
       movilizacion:      cf.movilizacion,
       colacion:          cf.colacion,
@@ -2505,8 +3630,7 @@ async function generarContratoPDF() {
 
   // 2. Intentar generar PDF (opcional — puede fallar si el servidor no está activo)
   try {
-    const globalStore2 = useGlobalStore()
-    const orgInfo = globalStore2.coverInfo || {}
+    const orgInfo = {}
 
     const horasSemana = contratoForm.value.jornada_semanal === 'custom'
       ? contratoForm.value.horas_semana
@@ -2553,15 +3677,15 @@ async function generarContratoPDF() {
       fecha_documento:  new Date().toISOString().slice(0, 10),
       // Organización (lo que Python lee con org.get(...))
       organizacion: {
-        nombre:   orgInfo.name || orgInfo.razon_social || 'Empresa',
-        rut:      orgInfo.rut  || '',
-        direccion: orgInfo.address || orgInfo.domicilio || '',
+        nombre:   localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
+        rut:      localStorage.getItem('rrhh_org_rut') || '',
+        direccion: localStorage.getItem('rrhh_org_address') || '',
         ciudad:   'Santiago',
       },
       // Empleador — representante legal (emp.get("representante") en Python)
       empleador: {
-        representante:     orgInfo.representative || orgInfo.representante || '',
-        rut_representante: orgInfo.representativeRut || orgInfo.rut_representante || '',
+        representante:     '',
+        rut_representante: '',
       },
       // Trabajador — Python usa trab.get("nombre"), NO "nombre_completo"
       trabajador: {
@@ -2576,7 +3700,7 @@ async function generarContratoPDF() {
         afp:              t.afp || '',
         sistema_salud:    t.sistema_salud || 'FONASA',
       },
-      logo_base64: orgInfo.logoBase64 || null,
+      logo_base64: null,
     }
 
     const res = await $fetch('/api/rrhh/contrato-pdf', {
@@ -2594,7 +3718,8 @@ async function generarContratoPDF() {
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) {
-    console.warn('No se pudo generar PDF (servidor no disponible):', e.message)
+    console.error('PDF ERROR:', e.message, e.data)
+    alert('Error PDF: ' + (e.data?.message || e.message || 'Error desconocido'))
     // No alertar — el contrato ya fue guardado; el PDF se puede generar luego
   } finally {
     loadingPDF.value = false
@@ -2611,9 +3736,13 @@ async function generarFiniquitoPDF() {
   const calc = finiquitoCalc.value
   const ff = finiquitoForm.value
 
-  // 1. Guardar finiquito en localStorage SIEMPRE y marcar trabajador como inactivo
+  // 1. Guardar finiquito, cerrar contratos y marcar trabajador como inactivo
   try {
-    // Guardar como liquidación de finiquito
+    // IDs de contratos vigentes que se finiquitan
+    const contratosAFin = getContratosAFiniquitar(ff.fecha_termino)
+    const contratos_ids = contratosAFin.map(c => c._id)
+
+    // Guardar como liquidación de finiquito (incluye los contratos cerrados)
     await rrhhStore.createLiquidacion({
       trabajador_id:    t._id || t.id,
       trabajador_rut:   t.rut || '',
@@ -2621,8 +3750,8 @@ async function generarFiniquitoPDF() {
       tipo:             'finiquito',
       motivo_termino:   ff.motivo_termino,
       fecha_termino:    ff.fecha_termino,
-      mes:              new Date(ff.fecha_termino).getMonth() + 1,
-      anio:             new Date(ff.fecha_termino).getFullYear(),
+      mes:              new Date(ff.fecha_termino + 'T12:00').getMonth() + 1,
+      anio:             new Date(ff.fecha_termino + 'T12:00').getFullYear(),
       dias_trabajados:  ff.dias_trabajados_mes,
       sueldo_base:      contratoVigente.value?.sueldo_base || t.sueldo_base || 0,
       sueldo_proporcional:         calc.sueldo_proporcional,
@@ -2631,12 +3760,22 @@ async function generarFiniquitoPDF() {
       indemnizacion_anos_servicio: calc.indemnizacion_anos_servicio,
       sustitutiva_mes_aviso:       calc.sustitutiva_mes_aviso,
       indemnizacion_voluntaria:    ff.indemnizacion_vol || 0,
-      total_finiquito:             calc.total,
+      total_finiquito:             calc.total_haberes || 0,
       estado:           'pagado',
+      contratos_ids,              // para poder reactivar si se elimina el finiquito
     })
+
+    // Cerrar cada contrato → estado 'terminado'
+    contratos_ids.forEach(cid => {
+      rrhhStore.updateContrato(cid, {
+        estado:         'terminado',
+        fecha_termino:  ff.fecha_termino,
+      })
+    })
+
     // Marcar trabajador como inactivo
     await rrhhStore.updateTrabajador(t._id || t.id, {
-      estado: 'inactivo',
+      estado:        'inactivo',
       fecha_termino: ff.fecha_termino,
     })
   } catch (saveErr) {
@@ -2645,8 +3784,7 @@ async function generarFiniquitoPDF() {
 
   // 2. Intentar generar PDF (opcional)
   try {
-    const globalStore2 = useGlobalStore()
-    const orgInfo = globalStore2.coverInfo || {}
+    const orgInfo = {}
 
     const payload = {
       motivo_termino: ff.motivo_termino,
@@ -2654,11 +3792,11 @@ async function generarFiniquitoPDF() {
       fecha_aviso:    ff.mes_aviso_dado ? null : ff.fecha_termino,
       fecha_emision:  new Date().toISOString().slice(0, 10),
       organizacion: {
-        nombre:        orgInfo.name || 'Empresa',
-        rut:           orgInfo.rut  || '',
-        representante: orgInfo.representative || '',
-        giro:          orgInfo.businessType || '',
-        domicilio:     orgInfo.address || '',
+        nombre:        localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
+        rut:           localStorage.getItem('rrhh_org_rut') || '',
+        representante: '',
+        giro:          '',
+        domicilio:     localStorage.getItem('rrhh_org_address') || '',
       },
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido || ''}`,
@@ -2680,7 +3818,7 @@ async function generarFiniquitoPDF() {
         anos_servicio:                calc.anos_tope,
       },
       descuentos_finiquito: ff.descuentos.filter(d => d.monto > 0),
-      logo_base64: orgInfo.logoBase64 || null,
+      logo_base64: null,
     }
 
     const res = await $fetch('/api/rrhh/finiquito-pdf', {
@@ -2704,6 +3842,108 @@ async function generarFiniquitoPDF() {
   }
 
   showFiniquito.value = false
+}
+
+// ── Eliminar Contrato ─────────────────────────────────────────────────────────
+// ── Eliminar Liquidación ──────────────────────────────────────────────────────
+const confirmEliminarLiq = ref({ show: false, liq: null })
+
+function pedirEliminarLiq(liq) {
+  confirmEliminarLiq.value = { show: true, liq }
+}
+
+function confirmarEliminarLiq() {
+  const liq = confirmEliminarLiq.value.liq
+  if (!liq) return
+  rrhhStore.deleteLiquidacion(liq._id)
+  confirmEliminarLiq.value = { show: false, liq: null }
+}
+
+// ── Eliminar finiquito → reactivar contratos y trabajador ────────────────────
+const confirmarEliminarFiniquito = ref(false)
+const finiquitoAEliminar = ref(null)
+
+function pedirEliminarFiniquito(fin) {
+  finiquitoAEliminar.value = fin
+  confirmarEliminarFiniquito.value = true
+}
+
+function ejecutarEliminarFiniquito() {
+  const fin = finiquitoAEliminar.value
+  const t   = trabajador.value
+  if (!fin || !t) return
+
+  // Reactivar contratos que estaban en este finiquito
+  const cids = fin.contratos_ids || []
+  cids.forEach(cid => {
+    rrhhStore.updateContrato(cid, {
+      estado:        'vigente',
+      fecha_termino: null,
+    })
+  })
+
+  // Reactivar al trabajador
+  rrhhStore.updateTrabajador(t._id || t.id, {
+    estado:        'activo',
+    fecha_termino: null,
+  })
+
+  // Eliminar el registro de finiquito
+  rrhhStore.deleteLiquidacion(fin._id)
+
+  confirmarEliminarFiniquito.value = false
+  finiquitoAEliminar.value = null
+}
+
+// ── Descargar PDF de un finiquito ya guardado ─────────────────────────────────
+async function descargarFiniquitoPDF(fin) {
+  const t = trabajador.value
+  if (!t) return
+  try {
+    const orgInfo = {}
+    const payload = {
+      motivo_termino: fin.motivo_termino,
+      fecha_termino:  fin.fecha_termino || `${fin.anio}-${String(fin.mes).padStart(2,'0')}-30`,
+      fecha_emision:  new Date().toISOString().slice(0,10),
+      organizacion: {
+        nombre:        localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
+        rut:           localStorage.getItem('rrhh_org_rut') || '',
+        representante: '',
+        domicilio:     localStorage.getItem('rrhh_org_address') || '',
+      },
+      trabajador: {
+        nombre_completo: `${t.nombre} ${t.apellido || ''}`,
+        rut:             t.rut || '',
+        cargo:           t.cargo || '',
+        fecha_ingreso:   t.fecha_ingreso || '',
+        domicilio:       t.direccion || '',
+      },
+      liquidacion: {
+        sueldo_base:                 fin.sueldo_base || 0,
+        dias_trabajados:             fin.dias_trabajados || 0,
+        sueldo_proporcional:         fin.sueldo_proporcional || 0,
+        vacaciones_pendientes_dias:  fin.vacaciones_dias || 0,
+        vacaciones_pendientes_monto: fin.vacaciones_monto || 0,
+        gratificacion_proporcional:  fin.gratificacion_proporcional || 0,
+        indemnizacion_anos_servicio: fin.indemnizacion_anos_servicio || 0,
+        sustitutiva_mes_aviso:       fin.sustitutiva_mes_aviso || 0,
+        indemnizacion_voluntaria:    fin.indemnizacion_voluntaria || 0,
+        anos_servicio:               fin.anos_servicio || 0,
+      },
+      descuentos_finiquito: [],
+      logo_base64: null,
+    }
+    const res = await $fetch('/api/rrhh/finiquito-pdf', { method: 'POST', body: payload, responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    const rut = (t.rut || 'doc').replace(/\./g,'').replace(/-/g,'')
+    a.download = `finiquito-${rut}-${(fin.fecha_termino||'').slice(0,10).replace(/-/g,'')}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.warn('Error descargando finiquito PDF:', e.message)
+  }
 }
 
 // ── Eliminar Contrato ─────────────────────────────────────────────────────────
@@ -2782,12 +4022,6 @@ function getEstadoFirmaDoc(documento_id) {
 }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Ficha Trabajador')
-  globalStore.updatedBreadcrumb([
-    { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Trabajadores', path: '/rrhh/trabajadores' },
-    { label: 'Ficha', path: '' },
-  ])
   if (!rrhhStore.trabajadores.length) {
     await rrhhStore.getTrabajadores()
   }
@@ -2815,9 +4049,6 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(() => {
-  globalStore.updatedTitle('')
-})
 </script>
 
 <style scoped>
@@ -3010,7 +4241,7 @@ onUnmounted(() => {
   font-weight: 500;
   color: var(--neutral-text-title, #f3f4f6);
 }
-.info-value.muted { color: #9ca3af; }
+.info-value.muted { color: var(--neutral-text-caption, #6b7280); }
 
 /* Inline editable ficha */
 .info-input {
@@ -3019,7 +4250,7 @@ onUnmounted(() => {
   border-radius: 6px;
   padding: 5px 8px;
   font-family: Nunito; font-size: 13px; font-weight: 500;
-  color: #f3f4f6;
+  color: var(--neutral-text-title, #111827);
   outline: none;
   width: 100%;
   transition: border-color .15s, background .15s;
@@ -3027,7 +4258,20 @@ onUnmounted(() => {
 .info-input:hover { border-color: rgba(58,199,165,0.25); background: rgba(255,255,255,0.07); }
 .info-input:focus { border-color: #3ac7a5; background: rgba(58,199,165,0.06); }
 .info-input-money { font-weight: 700; color: #3ac7a5; }
-.info-input option { background: #1a2535; }
+.info-input option { background: var(--neutral-background-default, #ffffff); }
+
+/* Isapre plan type row */
+.isapre-plan-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+}
+.isapre-tipo-select {
+  width: auto;
+  min-width: 120px;
+  flex-shrink: 0;
+}
 
 /* Ficha save banner */
 .ficha-save-banner {
@@ -3057,20 +4301,20 @@ onUnmounted(() => {
   font-family: Nunito; font-size: 12px; font-weight: 700;
   background: rgba(255,255,255,0.06);
   border: 1.5px solid rgba(255,255,255,0.1);
-  color: #9ca3af; cursor: pointer; transition: all .15s;
+  color: var(--neutral-text-caption, #6b7280); cursor: pointer; transition: all .15s;
 }
-.tipo-btn:hover { border-color: rgba(58,199,165,0.4); color: #f3f4f6; }
+.tipo-btn:hover { border-color: rgba(58,199,165,0.4); color: var(--neutral-text-title, #111827); }
 .tipo-btn.active { background: rgba(58,199,165,0.15); border-color: #3ac7a5; color: #3ac7a5; }
 .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 .form-textarea { resize: vertical; min-height: 70px; }
 .teal-title { color: #3ac7a5 !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: .06em; }
-.hint-text { font-size: 11px; color: #6b7280; margin-top: 6px; }
+.hint-text { font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); margin-top: 6px; }
 .hint-text a { color: #3ac7a5; cursor: pointer; text-decoration: underline; }
 
 /* Negocio dropdown */
 .negocio-dropdown {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 100;
-  background: #1a2535;
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(58,199,165,0.35);
   border-radius: 8px; overflow: hidden;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
@@ -3082,8 +4326,65 @@ onUnmounted(() => {
 }
 .negocio-option:last-child { border-bottom: none; }
 .negocio-option:hover { background: rgba(58,199,165,0.1); }
-.negocio-nombre { font-size: 13px; font-weight: 600; color: #f3f4f6; }
-.negocio-codigo { font-size: 11px; color: #9ca3af; }
+.negocio-nombre { font-size: 13px; font-weight: 600; color: var(--neutral-text-title, #111827); display: flex; align-items: center; gap: 6px; }
+.negocio-codigo { font-size: 11px; color: var(--neutral-text-caption, #6b7280); }
+.negocio-option:last-child { border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+.negocio-local-badge {
+  font-size: 10px; font-weight: 500; padding: 1px 6px;
+  background: rgba(251,191,36,0.15); color: #fbbf24;
+  border-radius: 4px; border: 1px solid rgba(251,191,36,0.3);
+}
+
+.negocio-empty {
+  padding: 12px 14px; font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); font-style: italic;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.negocio-create-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 14px; cursor: pointer;
+  font-size: 13px; font-weight: 500;
+  color: var(--color-primary, #3ac7a5);
+  transition: background .12s;
+}
+.negocio-create-btn:hover { background: rgba(58,199,165,0.08); }
+
+/* Mini-form crear proyecto */
+.crear-proyecto-form {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 210;
+  background: var(--neutral-background-default, #ffffff);
+  border: 1px solid rgba(58,199,165,0.35);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.cpf-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-size: 12px; font-weight: 600; color: var(--color-primary, #3ac7a5);
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.cpf-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--neutral-text-caption, #6b7280); font-size: 18px; line-height: 1; padding: 0 2px;
+  transition: color .12s;
+}
+.cpf-close:hover { color: #f87171; }
+.cpf-body { padding: 12px 14px 14px; }
+.cpf-hint {
+  display: flex; gap: 6px; align-items: flex-start;
+  font-size: 11px; color: var(--neutral-text-subtitle, #6b7280); line-height: 1.5;
+  margin-bottom: 12px;
+}
+.cpf-error {
+  font-size: 11px; color: #f87171; margin-bottom: 8px;
+}
+.cpf-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
 .presupuesto-selected { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 
 /* Docs */
@@ -3242,7 +4543,7 @@ onUnmounted(() => {
   padding: 8px 12px;
   background: rgba(255,255,255,0.03);
   border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   min-width: 120px;
   flex-shrink: 0;
 }
@@ -3254,7 +4555,7 @@ onUnmounted(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   margin-bottom: 3px;
 }
 .ch-row {
@@ -3262,11 +4563,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  color: #d1d5db;
+  color: var(--neutral-text-body, #374151);
 }
 .ch-row.extra { color: #fbbf24; }
 .ch-row.atraso { color: #f87171; }
-.ch-row.muted { color: #6b7280; }
+.ch-row.muted { color: var(--neutral-text-subtitle, #6b7280); }
 .ch-icon { font-size: 11px; opacity: 0.7; }
 .ch-val { font-weight: 600; }
 .ch-fuente {
@@ -3283,7 +4584,7 @@ onUnmounted(() => {
   padding: 8px 14px;
   background: rgba(255,255,255,0.03);
   border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   min-width: 130px;
   flex-shrink: 0;
 }
@@ -3295,7 +4596,7 @@ onUnmounted(() => {
 }
 .cc-label {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -3303,7 +4604,7 @@ onUnmounted(() => {
 .cc-value {
   font-size: 13px;
   font-weight: 700;
-  color: #f3f4f6;
+  color: var(--neutral-text-title, #111827);
 }
 .cc-value.teal { color: #3ac7a5; }
 
@@ -3380,6 +4681,20 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--neutral-border-light, rgba(255,255,255,0.07));
 }
 
+.liq-empresa-absorbe {
+  font-size: 12px;
+  color: var(--neutral-text-subtitle, #6b7280);
+  line-height: 1.6;
+  background: rgba(58,199,165,0.07);
+  border: 1px solid rgba(58,199,165,0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
 .liq-line {
   display: flex;
   justify-content: space-between;
@@ -3418,10 +4733,13 @@ onUnmounted(() => {
 .liq-costo-empresa {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   font-size: 12px;
   color: var(--neutral-text-body, #9ca3af);
   padding: 6px 4px;
 }
+.liq-costo-empresa > div { line-height: 1.4; }
+.liq-costo-empresa > div:last-child { text-align: right; }
 
 /* Item list (bonos / descuentos) */
 .item-list { display: flex; flex-direction: column; gap: 8px; }
@@ -3435,7 +4753,7 @@ onUnmounted(() => {
   padding: 2px 8px; border-radius: 12px; white-space: nowrap;
 }
 .badge-imponible { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.badge-no-imponible { background: rgba(156,163,175,0.12); color: #9ca3af; }
+.badge-no-imponible { background: rgba(156,163,175,0.12); color: var(--neutral-text-caption, #6b7280); }
 
 .money-input-wrap {
   display: flex; align-items: center;
@@ -3511,7 +4829,7 @@ onUnmounted(() => {
 /* Modal contrato — tipo pills */
 .section-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: #6b7280; margin: 0 0 10px;
+  text-transform: uppercase; color: var(--neutral-text-subtitle, #6b7280); margin: 0 0 10px;
 }
 .tipo-selector {
   display: flex; gap: 8px; flex-wrap: wrap;
@@ -3522,14 +4840,105 @@ onUnmounted(() => {
   font-size: 11px; font-weight: 700;
   background: rgba(255,255,255,0.04);
   border: 1.5px solid rgba(255,255,255,0.08);
-  color: #9ca3af; cursor: pointer; font-family: inherit;
+  color: var(--neutral-text-caption, #6b7280); cursor: pointer; font-family: inherit;
   transition: all 0.15s; min-width: 80px;
 }
 .tipo-pill i { font-size: 16px; }
-.tipo-pill:hover { border-color: rgba(58,199,165,0.3); color: #d1d5db; }
+.tipo-pill:hover { border-color: rgba(58,199,165,0.3); color: var(--neutral-text-body, #374151); }
 .tipo-pill.active {
   background: rgba(58,199,165,0.12);
   border-color: #3ac7a5; color: #3ac7a5;
+}
+
+/* ── Proyecto sub-selector (nivel 2) ─────────────────────────────────────── */
+.proyecto-sub-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.proyecto-sub-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.18s;
+  position: relative;
+}
+.proyecto-sub-card:hover {
+  border-color: rgba(58,199,165,0.3);
+  background: rgba(58,199,165,0.05);
+}
+.proyecto-sub-card.active {
+  border-color: #3ac7a5;
+  background: rgba(58,199,165,0.09);
+}
+.proyecto-sub-card.psc-jornada:hover {
+  border-color: rgba(139,92,246,0.35);
+  background: rgba(139,92,246,0.06);
+}
+.proyecto-sub-card.psc-jornada.active {
+  border-color: #8b5cf6;
+  background: rgba(139,92,246,0.09);
+}
+.psc-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.psc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+.psc-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--neutral-text-title, #111827);
+  line-height: 1.3;
+}
+.psc-law {
+  font-size: 10px;
+  color: var(--neutral-text-subtitle, #6b7280);
+  margin-top: 1px;
+}
+.psc-examples {
+  font-size: 10.5px;
+  color: var(--neutral-text-caption, #6b7280);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.psc-badge {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+}
+.psc-badge-bruto {
+  background: rgba(14,165,233,0.15);
+  color: #38bdf8;
+}
+.psc-badge-liquido {
+  background: rgba(139,92,246,0.15);
+  color: #a78bfa;
+}
+.psc-check {
+  font-size: 14px;
+  font-weight: 700;
+  color: #3ac7a5;
+  flex-shrink: 0;
+  align-self: center;
 }
 
 /* Ley alert */
@@ -3561,36 +4970,36 @@ onUnmounted(() => {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 10px 14px;
   background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   border-radius: 8px; cursor: pointer;
   transition: border-color 0.15s;
 }
 .check-item:hover { border-color: rgba(58,199,165,0.3); }
 .check-item .checkbox-input { margin-top: 2px; flex-shrink: 0; }
-.check-label { font-size: 13px; font-weight: 600; color: #f3f4f6; margin-bottom: 2px; }
-.check-desc { font-size: 11px; color: #9ca3af; }
+.check-label { font-size: 13px; font-weight: 600; color: var(--neutral-text-title, #111827); margin-bottom: 2px; }
+.check-desc { font-size: 11px; color: var(--neutral-text-caption, #6b7280); }
 
 /* Contrato vigente card en la ficha */
 .contrato-vigente-card {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px; margin-top: 12px;
   background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   border-radius: 8px; cursor: pointer; transition: all 0.15s;
 }
 .contrato-vigente-card:hover { background: rgba(58,199,165,0.08); border-color: rgba(58,199,165,0.3); }
 .contrato-vigente-card.empty-cv {
   justify-content: center; gap: 8px;
-  border-style: dashed; color: #6b7280; font-size: 13px;
+  border-style: dashed; color: var(--neutral-text-subtitle, #6b7280); font-size: 13px;
 }
 .contrato-vigente-card.empty-cv:hover { color: #3ac7a5; border-color: rgba(58,199,165,0.4); }
 .cv-icon i { font-size: 20px; color: #3ac7a5; }
 .cv-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.cv-tipo { font-size: 13px; font-weight: 600; color: #f3f4f6; }
-.cv-fechas { font-size: 11px; color: #9ca3af; }
+.cv-tipo { font-size: 13px; font-weight: 600; color: var(--neutral-text-title, #111827); }
+.cv-fechas { font-size: 11px; color: var(--neutral-text-caption, #6b7280); }
 .cv-proyecto { font-size: 11px; color: #60a5fa; }
 .cv-badge { margin-left: auto; }
-.cv-arrow { color: #6b7280; font-size: 14px; }
+.cv-arrow { color: var(--neutral-text-subtitle, #6b7280); font-size: 14px; }
 
 /* Contrato detalle grid (modal de detalle) */
 .contrato-detalle-grid { display: flex; flex-direction: column; gap: 0; }
@@ -3601,8 +5010,8 @@ onUnmounted(() => {
   font-size: 13px;
 }
 .cd-row:last-child { border-bottom: none; }
-.cd-label { min-width: 120px; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 2px; }
-.cd-descripcion { color: #d1d5db; white-space: pre-wrap; }
+.cd-label { min-width: 120px; font-size: 11px; color: var(--neutral-text-caption, #6b7280); text-transform: uppercase; letter-spacing: 0.04em; padding-top: 2px; }
+.cd-descripcion { color: var(--neutral-text-body, #374151); white-space: pre-wrap; }
 
 /* Modal overlay */
 .modal-overlay {
@@ -3655,7 +5064,7 @@ onUnmounted(() => {
 }
 
 .modal-close:hover { color: var(--neutral-text-title, #f3f4f6); }
-.modal-subtitle { font-size: 13px; color: #9ca3af; margin: 2px 0 0; }
+.modal-subtitle { font-size: 13px; color: var(--neutral-text-caption, #6b7280); margin: 2px 0 0; }
 
 .modal-body {
   padding: 24px;
@@ -3780,7 +5189,7 @@ onUnmounted(() => {
 .badge-estado-inactivo { background: rgba(239,68,68,0.15); color: #f87171; }
 .badge-estado-pendiente { background: rgba(251,191,36,0.15); color: #fbbf24; }
 .badge-estado-pagada { background: rgba(34,197,94,0.15); color: #4ade80; }
-.badge-estado-borrador { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.badge-estado-borrador { background: rgba(156,163,175,0.15); color: var(--neutral-text-caption, #6b7280); }
 .badge-estado-vigente { background: rgba(34,197,94,0.15); color: #4ade80; }
 .badge-estado-vencido { background: rgba(239,68,68,0.15); color: #f87171; }
 .badge-estado-firmado { background: rgba(58,199,165,0.15); color: #3ac7a5; }
@@ -3841,26 +5250,26 @@ onUnmounted(() => {
 .contrato-vigente-card:hover { background: rgba(58,199,165,0.12); border-color: rgba(58,199,165,0.4); }
 .contrato-vigente-card.empty-cv {
   background: rgba(156,163,175,0.05); border-color: rgba(156,163,175,0.15);
-  color: #9ca3af; font-size: 13px; gap: 8px; justify-content: center;
+  color: var(--neutral-text-caption, #6b7280); font-size: 13px; gap: 8px; justify-content: center;
 }
 .cv-icon { font-size: 18px; color: #3ac7a5; flex-shrink: 0; }
 .cv-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.cv-tipo { font-weight: 600; font-size: 13px; color: #f3f4f6; }
-.cv-fechas { font-size: 12px; color: #9ca3af; }
+.cv-tipo { font-weight: 600; font-size: 13px; color: var(--neutral-text-title, #111827); }
+.cv-fechas { font-size: 12px; color: var(--neutral-text-caption, #6b7280); }
 .cv-proyecto { font-size: 12px; color: #60a5fa; }
 .cv-badge { font-size: 11px; }
-.cv-arrow { font-size: 14px; color: #9ca3af; flex-shrink: 0; }
+.cv-arrow { font-size: 14px; color: var(--neutral-text-caption, #6b7280); flex-shrink: 0; }
 
 /* Modal detalle contrato */
 .contrato-detalle-grid { display: flex; flex-direction: column; gap: 12px; }
 .cd-row { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .cd-row:last-child { border-bottom: none; }
-.cd-label { font-size: 12px; color: #9ca3af; font-weight: 600; min-width: 120px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.03em; }
-.cd-descripcion { font-size: 13px; color: #d1d5db; line-height: 1.6; }
+.cd-label { font-size: 12px; color: var(--neutral-text-caption, #6b7280); font-weight: 600; min-width: 120px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.03em; }
+.cd-descripcion { font-size: 13px; color: var(--neutral-text-body, #374151); line-height: 1.6; }
 
 /* Profesión en ficha */
 .info-row .hint-text {
-  font-size: 11px; color: #9ca3af; margin: 4px 0 0 0;
+  font-size: 11px; color: var(--neutral-text-caption, #6b7280); margin: 4px 0 0 0;
 }
 
 /* Responsive */
@@ -3914,7 +5323,7 @@ onUnmounted(() => {
   display: flex; flex-direction: column; gap: 3px;
 }
 .liq-mini-input-group label {
-  font-size: 10px; font-weight: 600; color: #6b7280;
+  font-size: 10px; font-weight: 600; color: var(--neutral-text-subtitle, #6b7280);
   text-transform: uppercase; letter-spacing: 0.05em;
   display: flex; align-items: center; gap: 4px;
 }
@@ -3929,10 +5338,26 @@ onUnmounted(() => {
   border-radius: 6px; padding: 4px 8px;
 }
 
+/* Inputs proyecto: layout en 2 filas (días/valor + HH.EE./valor hora) */
+.liq-proyecto-inputs {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-left: auto; min-width: 280px;
+}
+.liq-proyecto-fila {
+  display: flex; align-items: flex-end; gap: 8px;
+}
+.liq-proyecto-preview {
+  display: flex; flex-direction: column; gap: 2px;
+  white-space: normal; font-size: 11px;
+  background: rgba(58,199,165,0.07);
+  border-radius: 6px; padding: 5px 8px;
+  color: #3ac7a5;
+}
+
 /* Desglose por proyecto en el resumen */
 .liq-detalle-proyectos {
   background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 14px;
@@ -3942,8 +5367,8 @@ onUnmounted(() => {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   font-size: 11.5px;
 }
-.liq-detalle-name { font-weight: 700; color: #f3f4f6; flex: 1; }
-.liq-detalle-info { color: #6b7280; font-size: 11px; }
+.liq-detalle-name { font-weight: 700; color: var(--neutral-text-title, #111827); flex: 1; }
+.liq-detalle-info { color: var(--neutral-text-subtitle, #6b7280); font-size: 11px; }
 .liq-detalle-monto { color: #3ac7a5; font-weight: 700; font-size: 12px; }
 .liq-detalle-extra { color: #a78bfa; font-size: 11px; font-weight: 600; }
 
@@ -4106,5 +5531,71 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ── Banner informativo contrato proyecto ───────────────────────────────────── */
+.cf-proyecto-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  color: var(--neutral-text-body, #9ca3af);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.cf-proyecto-banner i { flex-shrink: 0; margin-top: 2px; }
+.cf-proyecto-banner strong { color: var(--neutral-text-title, #f3f4f6); }
+
+/* ── Tipo de Sueldo toggle ──────────────────────────────────────────────────── */
+.tipo-sueldo-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.tsb {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--neutral-border-light, rgba(255,255,255,0.09));
+  background: var(--neutral-bg-card, rgba(255,255,255,0.04));
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+  color: var(--neutral-text-body, #9ca3af);
+}
+
+.tsb strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--neutral-text-title, #f3f4f6);
+  line-height: 1.2;
+}
+
+.tsb span {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--neutral-text-body, #9ca3af);
+}
+
+.tsb:hover {
+  border-color: rgba(58, 199, 165, 0.35);
+  background: rgba(58, 199, 165, 0.05);
+}
+
+.tsb.active {
+  border-color: var(--color-primary, #3ac7a5);
+  background: rgba(58, 199, 165, 0.10);
+}
+
+.tsb.active strong {
+  color: var(--color-primary, #3ac7a5);
 }
 </style>

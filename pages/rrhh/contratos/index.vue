@@ -67,7 +67,7 @@
     </div>
 
     <!-- Lista de contratos - Cards view -->
-    <div class="contratos-grid" v-if="!globalStore.loading && contratosFiltrados.length">
+    <div class="contratos-grid" v-if="!loading && contratosFiltrados.length">
       <div
         class="contrato-card"
         v-for="c in contratosFiltrados"
@@ -138,14 +138,14 @@
     </div>
 
     <!-- Empty State -->
-    <div class="empty-state" v-else-if="!globalStore.loading">
+    <div class="empty-state" v-else-if="!loading">
       <i class="u u-folder-open empty-icon"></i>
       <p>No hay contratos que coincidan con los filtros</p>
       <button class="btn btn-primary" @click="openNewContrato">Crear primer contrato</button>
     </div>
 
     <!-- Loading -->
-    <div class="loading-state" v-if="globalStore.loading">
+    <div class="loading-state" v-if="loading">
       <div class="spinner"></div>
       <p>Cargando contratos...</p>
     </div>
@@ -366,11 +366,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 import { useRouter, useRoute } from 'vue-router'
 import useRrhhStore from '@/stores/rrhh'
-import useGlobalStore from '@/stores/global'
+const loading = ref(false)
 
 definePageMeta({ name: 'rrhh-contratos', layout: 'rrhh', middleware: ['auth'] })
 
@@ -392,9 +391,8 @@ const sectionTabs = computed(() => {
   ]
 })
 
-const { t } = useI18n()
+const t = (key) => key
 const rrhhStore   = useRrhhStore()
-const globalStore = useGlobalStore()
 const router = useRouter()
 const route  = useRoute()
 
@@ -588,7 +586,9 @@ function labelEstado(e) {
 
 function formatDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  // Agregar T12:00 para evitar desfase de timezone al parsear solo fecha (YYYY-MM-DD)
+  const dateStr = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T12:00' : d
+  return new Date(dateStr).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function formatCLP(v) {
@@ -652,7 +652,7 @@ async function descargarContratoPDF(c) {
   if (pdfLoading.value) return
   pdfLoading.value = c._id
   try {
-    const orgInfo = globalStore.organization || {}
+    const orgInfo = {}
     const trab = rrhhStore.trabajadores.find(t => t._id === c.trabajador_id) || {}
 
     const payload = {
@@ -717,22 +717,16 @@ function exportarContratos() {
 }
 
 onMounted(async () => {
-  globalStore.updatedTitle('Contratos y Liquidaciones')
-  globalStore.updatedBreadcrumb([
-    { label: 'RRHH', path: '/rrhh/trabajadores' },
-    { label: 'Contratos y Liquidaciones', path: '' },
-  ])
-  globalStore.loading = true
+  loading.value = true
   await Promise.all([
     rrhhStore.getContratos(),
     rrhhStore.getTrabajadores(),
   ])
-  globalStore.loading = false
+  loading.value = false
 })
 
 onUnmounted(() => {
-  globalStore.updatedTitle('')
-  globalStore.loading = false
+  loading.value = false
 })
 </script>
 
@@ -748,9 +742,9 @@ onUnmounted(() => {
 }
 .page-header__left { display: flex; flex-direction: column; gap: 2px; }
 .page-header__title {
-  font-size: 20px; font-weight: 800; color: #f3f4f6; margin: 0;
+  font-size: 20px; font-weight: 800; color: var(--neutral-text-title, #111827); margin: 0;
 }
-.page-header__sub { font-size: 12px; color: #6b7280; }
+.page-header__sub { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); }
 .page-header__right { display: flex; gap: 10px; align-items: center; }
 
 /* ── Filter bar (buscador + chips) ──────────────────────────────────────── */
@@ -765,7 +759,7 @@ onUnmounted(() => {
 /* ── Search input — idéntico a Personas ────────────────────────────────── */
 .filterInput {
   display: flex; align-items: center; gap: 6px;
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.1);
   border-radius: 8px; padding: 0 12px; height: 34px;
   transition: border-color .15s;
@@ -774,14 +768,14 @@ onUnmounted(() => {
 .filterInput input {
   background: transparent; border: none; outline: none;
   font-family: Nunito, sans-serif; font-size: 13px;
-  color: #f3f4f6; width: 210px;
+  color: var(--neutral-text-title, #111827); width: 210px;
 }
-.filterInput span { color: #9ca3af; font-size: 14px; }
+.filterInput span { color: var(--neutral-text-caption, #6b7280); font-size: 14px; }
 
 .filterInput--mes { min-width: 130px; }
 .filterInput--mes input[type="month"] {
   background: transparent; border: none; outline: none;
-  font-family: Nunito, sans-serif; font-size: 13px; color: #f3f4f6;
+  font-family: Nunito, sans-serif; font-size: 13px; color: var(--neutral-text-title, #111827);
   width: 120px; cursor: pointer; color-scheme: dark;
 }
 
@@ -792,13 +786,13 @@ onUnmounted(() => {
 .chip {
   height: 32px; padding: 0 14px; border-radius: 20px;
   font-family: Nunito, sans-serif; font-size: 12px; font-weight: 600;
-  color: #9ca3af;
+  color: var(--neutral-text-caption, #6b7280);
   background: transparent;
   border: 1.5px solid rgba(255,255,255,0.1);
   cursor: pointer; transition: all .15s;
 }
 .chip.active { background: rgba(58,199,165,0.15); color: #3ac7a5; border-color: rgba(58,199,165,0.5); }
-.chip:not(.active):hover { background: rgba(255,255,255,0.05); color: #f3f4f6; border-color: rgba(255,255,255,0.18); }
+.chip:not(.active):hover { background: rgba(255,255,255,0.05); color: var(--neutral-text-title, #111827); border-color: rgba(255,255,255,0.18); }
 
 /* ── Toggle groups (idéntico a Personas) ───────────────────────────────── */
 .view-toggle {
@@ -813,14 +807,14 @@ onUnmounted(() => {
   display: flex; align-items: center; gap: 5px;
   padding: 0 13px; height: 32px;
   font-family: Nunito, sans-serif; font-size: 12px; font-weight: 600;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   background: transparent;
   border: none; cursor: pointer;
   white-space: nowrap;
   transition: all .15s;
 }
 .view-btn + .view-btn { border-left: 1px solid rgba(255,255,255,0.08); }
-.view-btn:hover { color: #f3f4f6; background: rgba(255,255,255,0.05); }
+.view-btn:hover { color: var(--neutral-text-title, #111827); background: rgba(255,255,255,0.05); }
 .view-btn.active { color: #3ac7a5; background: rgba(58,199,165,0.1); }
 
 /* Alert banner */
@@ -893,8 +887,8 @@ onUnmounted(() => {
 .dias-vence.urgent { color: #f87171; font-weight: 600; }
 
 /* Sprint 2: sueldo contextual + pills estado contrato */
-.sueldo-var { font-size: 12px; color: #9ca3af; font-style: italic; }
-.sueldo-nd  { font-size: 12px; color: #6b7280; font-style: italic; }
+.sueldo-var { font-size: 12px; color: var(--neutral-text-caption, #6b7280); font-style: italic; }
+.sueldo-nd  { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); font-style: italic; }
 
 .contrato-status-pills {
   display: flex; gap: 5px; flex-wrap: wrap;
@@ -910,7 +904,7 @@ onUnmounted(() => {
 .pill-contrato-v.indefinido-c { background: rgba(58,199,165,0.1);  color: #3ac7a5; border-color: rgba(58,199,165,0.25); }
 .pill-contrato-v.por-vencer-c { background: rgba(244,162,97,0.12); color: #f4a261; border-color: rgba(244,162,97,0.3); }
 .pill-contrato-v.vencido-c    { background: rgba(239,68,68,0.1);   color: #f87171; border-color: rgba(239,68,68,0.25); }
-.pill-contrato-v.sin-contrato { background: rgba(107,114,128,0.1); color: #6b7280; border-color: rgba(107,114,128,0.2); }
+.pill-contrato-v.sin-contrato { background: rgba(107,114,128,0.1); color: var(--neutral-text-subtitle, #6b7280); border-color: rgba(107,114,128,0.2); }
 
 /* Highlight de fila cuando está "por vencer" */
 .contrato-card:has(.por-vencer-c) {
@@ -971,7 +965,7 @@ onUnmounted(() => {
 .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .badge-estado-vigente { background: rgba(34,197,94,0.15); color: #4ade80; }
 .badge-estado-vencido { background: rgba(239,68,68,0.15); color: #f87171; }
-.badge-estado-borrador { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.badge-estado-borrador { background: rgba(156,163,175,0.15); color: var(--neutral-text-caption, #6b7280); }
 .badge-estado-firmado { background: rgba(58,199,165,0.15); color: #3ac7a5; }
 
 /* Buttons */

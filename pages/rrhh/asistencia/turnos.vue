@@ -3,14 +3,13 @@
  * pages/rrhh/asistencia/turnos.vue
  * Gestión de turnos y jornadas de trabajo.
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from "vue"
 import { useAsistenciaStore, DIAS_SEMANA, TIPOS_TURNO } from '@/stores/asistencia'
-import useGlobalStore from '@/stores/global'
 
 definePageMeta({ layout: 'rrhh' })
 
 const asistencia = useAsistenciaStore()
-const global     = useGlobalStore()
+const global     = {}
 
 onMounted(() => {
   asistencia.init()
@@ -303,8 +302,8 @@ function tipoStyle(t) {
 .page-header {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
 }
-.page-title { font-size: 20px; font-weight: 800; color: #f3f4f6; margin: 0; }
-.page-sub   { font-size: 13px; color: #6b7280; margin: 4px 0 0; }
+.page-title { font-size: 20px; font-weight: 800; color: var(--neutral-text-title, #111827); margin: 0; }
+.page-sub   { font-size: 13px; color: var(--neutral-text-subtitle, #6b7280); margin: 4px 0 0; }
 
 /* Grid de tarjetas */
 .turnos-grid {
@@ -314,7 +313,7 @@ function tipoStyle(t) {
 }
 
 .turno-card {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   padding: 18px;
@@ -338,26 +337,26 @@ function tipoStyle(t) {
 
 .btn-icon-xs {
   background: none; border: 1px solid rgba(255,255,255,0.1);
-  color: #6b7280; border-radius: 7px;
+  color: var(--neutral-text-subtitle, #6b7280); border-radius: 7px;
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 13px; transition: all 0.15s;
 }
-.btn-icon-xs:hover { background: rgba(255,255,255,0.07); color: #f3f4f6; }
+.btn-icon-xs:hover { background: rgba(255,255,255,0.07); color: var(--neutral-text-title, #111827); }
 .btn-icon-red:hover { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.3); }
 
-.turno-nombre { font-size: 16px; font-weight: 700; color: #f3f4f6; margin: 0; }
-.turno-desc   { font-size: 12px; color: #6b7280; margin: 0; }
+.turno-nombre { font-size: 16px; font-weight: 700; color: var(--neutral-text-title, #111827); margin: 0; }
+.turno-desc   { font-size: 12px; color: var(--neutral-text-subtitle, #6b7280); margin: 0; }
 
 .turno-horario { display: flex; flex-wrap: wrap; gap: 8px; }
 .horario-chip {
   display: flex; align-items: center; gap: 5px;
   background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--neutral-border-light, #e2e8f0);
   border-radius: 20px;
   padding: 4px 10px;
   font-size: 12px;
-  color: #d1d5db;
+  color: var(--neutral-text-body, #374151);
 }
 .horario-chip i { color: #3ac7a5; font-size: 11px; }
 
@@ -384,7 +383,7 @@ function tipoStyle(t) {
 }
 .turno-meta {
   display: flex; align-items: center; gap: 4px;
-  font-size: 11px; color: #6b7280;
+  font-size: 11px; color: var(--neutral-text-subtitle, #6b7280);
 }
 .turno-meta i { font-size: 10px; }
 
@@ -393,7 +392,7 @@ function tipoStyle(t) {
   grid-column: 1/-1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 60px 20px; gap: 12px;
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
 }
 .empty-state i { font-size: 40px; color: #374151; }
 .empty-state p { font-size: 14px; margin: 0; }
@@ -406,7 +405,7 @@ function tipoStyle(t) {
   z-index: 1000; backdrop-filter: blur(3px);
 }
 .modal-box {
-  background: #1e2d3a;
+  background: var(--neutral-background-default, #ffffff);
   border: 1.5px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   width: 580px; max-width: 96vw; max-height: 90vh;
@@ -418,8 +417,8 @@ function tipoStyle(t) {
   padding: 16px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
-.modal-header h3 { font-size: 16px; font-weight: 700; color: #f3f4f6; margin: 0; }
-.modal-header button { background: none; border: none; color: #6b7280; cursor: pointer; font-size: 18px; }
+.modal-header h3 { font-size: 16px; font-weight: 700; color: var(--neutral-text-title, #111827); margin: 0; }
+.modal-header button { background: none; border: none; color: var(--neutral-text-subtitle, #6b7280); cursor: pointer; font-size: 18px; }
 
 .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .modal-footer {
@@ -433,13 +432,13 @@ function tipoStyle(t) {
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-toggle { flex-direction: row; align-items: center; justify-content: space-between; }
-.field label { font-size: 12px; font-weight: 600; color: #9ca3af; }
+.field label { font-size: 12px; font-weight: 600; color: var(--neutral-text-caption, #6b7280); }
 .field input, .field select {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
   padding: 8px 12px;
-  color: #f3f4f6;
+  color: var(--neutral-text-title, #111827);
   font-size: 13px;
   font-family: inherit;
   outline: none;
@@ -447,7 +446,7 @@ function tipoStyle(t) {
 }
 .field input:focus, .field select:focus { border-color: rgba(58,199,165,0.5); }
 .field input[readonly] { opacity: 0.6; cursor: default; }
-.field select option { background: #1e2d3a; }
+.field select option { background: var(--neutral-background-default, #ffffff); }
 
 .dias-selector { display: flex; gap: 8px; flex-wrap: wrap; }
 .dia-btn {
@@ -456,7 +455,7 @@ function tipoStyle(t) {
   border-radius: 8px;
   border: 1.5px solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.04);
-  color: #6b7280;
+  color: var(--neutral-text-subtitle, #6b7280);
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
@@ -480,11 +479,11 @@ function tipoStyle(t) {
 .btn-ghost {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.12);
-  color: #9ca3af; border-radius: 10px;
+  color: var(--neutral-text-caption, #6b7280); border-radius: 10px;
   padding: 9px 18px; font-size: 13px; font-weight: 600;
   cursor: pointer; font-family: inherit; transition: all 0.15s;
 }
-.btn-ghost:hover { background: rgba(255,255,255,0.1); color: #f3f4f6; }
+.btn-ghost:hover { background: rgba(255,255,255,0.1); color: var(--neutral-text-title, #111827); }
 
 .btn-danger {
   background: rgba(239,68,68,0.15);

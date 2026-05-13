@@ -1,25 +1,40 @@
 import { defineStore } from "pinia";
 import api from "@/composables/api";
+import { INDICADORES_DEFAULTS } from "@/stores/indicadores";
 
-// ─── Constantes previsionales Chile ───────────────────────────────────────────
-// Tasas vigentes 2026 (fuente: Previred / SII)
-// Actualizar 2x/mes con tarea programada
+// ─── Helpers para leer del store de indicadores (con fallback a DEFAULTS) ─────
+// Se usan funciones lazy que intentan usar el store Pinia si está disponible,
+// y caen de vuelta a los DEFAULTS si se llaman fuera de un componente Vue.
+function _getIndicadores() {
+  try {
+    // Intenta obtener el store si Pinia está activo
+    const { useIndicadoresStore } = require("@/stores/indicadores");
+    return useIndicadoresStore().$state;
+  } catch (_) {
+    return INDICADORES_DEFAULTS;
+  }
+}
 
+// ─── Constantes previsionales (mantenidas para retrocompatibilidad) ───────────
 export const INDICADORES_PREVISIONALES = {
-  utm: 68306,           // UTM Abril 2026
-  uf: 38567,            // UF Abril 2026 (valor referencial)
-  smm: 500000,          // Sueldo Mínimo Mensual 2026
-  actualizado: "2026-04-01",
+  get utm() { try { return _getIndicadores().utm } catch(_) { return INDICADORES_DEFAULTS.utm } },
+  get uf()  { try { return _getIndicadores().uf_actual } catch(_) { return INDICADORES_DEFAULTS.uf_actual } },
+  get smm() { try { return _getIndicadores().smm } catch(_) { return INDICADORES_DEFAULTS.smm } },
 };
 
+// Tasas de comisión AFP — vigentes Abril 2026 (último período publicado por Previred)
+// Fuente: https://www.previred.com/indicadores-previsionales/ — verificado 2026-05-01
+// Cargo del trabajador = 10% (jubilación) + comisión AFP. SIS (1,62%) es cargo del empleador.
 export const AFP_CHILE = [
-  { nombre: "AFP Capital",    comision: 0.0144 },
-  { nombre: "AFP Cuprum",     comision: 0.0148 },
-  { nombre: "AFP Habitat",    comision: 0.0127 },
-  { nombre: "AFP Modelo",     comision: 0.0077 },
-  { nombre: "AFP PlanVital",  comision: 0.0116 },
-  { nombre: "AFP ProVida",    comision: 0.0145 },
-  { nombre: "AFP Uno",        comision: 0.0049 },
+  { nombre: "AFP Capital",      comision: 0.0144 },
+  { nombre: "AFP Cuprum",       comision: 0.0144 },
+  { nombre: "AFP Habitat",      comision: 0.0127 },
+  { nombre: "AFP Modelo",       comision: 0.0058 },
+  { nombre: "AFP PlanVital",    comision: 0.0116 },
+  { nombre: "AFP ProVida",      comision: 0.0145 },
+  { nombre: "AFP Uno",          comision: 0.0046 },
+  // AFP VidaSecurity: no aparece en la tabla oficial de Previred a Abril 2026.
+  // Se mantiene el valor previo por compatibilidad con datos históricos.
   { nombre: "AFP VidaSecurity", comision: 0.0145 },
 ];
 
@@ -30,7 +45,8 @@ export const SISTEMAS_SALUD = [
 
 export const TIPOS_CONTRATO = [
   { value: "indefinido",  label: "Contrato Indefinido" },
-  { value: "proyecto",    label: "Contrato por Proyecto (Ley 19.981)" },
+  { value: "proyecto",    label: "Contrato por Proyecto/Obra (Ley 19.981)" },
+  { value: "jornada",     label: "Contrato por Jornada o Funciones" },
   { value: "plazo_fijo",  label: "Contrato a Plazo Fijo" },
   { value: "honorarios",  label: "Honorarios" },
   { value: "part_time",   label: "Part Time" },
@@ -84,6 +100,20 @@ export const TIPOS_DESCUENTOS = [
 // ─── Funciones de cálculo ─────────────────────────────────────────────────────
 
 export const getAfpComision = (nombreAfp) => {
+  // Leer primero del store de indicadores (actualizado con datos de PREVIRED)
+  try {
+    const ind = _getIndicadores();
+    if (ind?.afp?.length) {
+      const norm = (nombreAfp || "").toLowerCase().replace("afp ", "").trim();
+      const found = ind.afp.find(a =>
+        a.key === norm ||
+        a.nombre.toLowerCase().replace("afp ", "").trim() === norm ||
+        a.nombre.toLowerCase() === (nombreAfp || "").toLowerCase()
+      );
+      if (found) return found.comision;
+    }
+  } catch (_) {}
+  // Fallback a AFP_CHILE local
   const afp = AFP_CHILE.find(a => a.nombre.toLowerCase() === (nombreAfp || "").toLowerCase());
   return afp ? afp.comision : 0.0144;
 };
@@ -95,18 +125,26 @@ export const calcularSalud = (imponible, porcentaje = 0.07) =>
   Math.round(imponible * porcentaje);
 
 export const calcularCesantia = (imponible, tipo_contrato = "indefinido") => {
-  // Plazo fijo: solo empleador paga (3%), trabajador NO descuenta
+  // Leer tasas del store de indicadores
+  let c = INDICADORES_DEFAULTS.cesantia;
+  try { const ind = _getIndicadores(); if (ind?.cesantia) c = ind.cesantia; } catch (_) {}
+
   if (tipo_contrato === "plazo_fijo") {
-    return { trabajador: 0, empleador: Math.round(imponible * 0.03) };
+    return { trabajador: Math.round(imponible * (c.plazo_fijo_trabajador || 0)),
+             empleador:  Math.round(imponible * (c.plazo_fijo_empleador  || 0.03)) };
   }
-  // Honorarios: no aplica
+  if (tipo_contrato === "proyecto" || tipo_contrato === "jornada") {
+    // Ley 19.981 / contratos corta duración: sin aporte trabajador, solo empleador 3%
+    return { trabajador: 0,
+             empleador:  Math.round(imponible * (c.proyecto_empleador || 0.03)) };
+  }
   if (tipo_contrato === "honorarios") {
     return { trabajador: 0, empleador: 0 };
   }
-  // Indefinido, proyecto, part_time: trabajador 0.6%, empleador 2.4%
+  // Indefinido, part_time
   return {
-    trabajador: Math.round(imponible * 0.006),
-    empleador:  Math.round(imponible * 0.024),
+    trabajador: Math.round(imponible * (c.indefinido_trabajador || 0.006)),
+    empleador:  Math.round(imponible * (c.indefinido_empleador  || 0.024)),
   };
 };
 
@@ -145,6 +183,94 @@ export const calcularLiquidacion = (datos) => {
     descuentos = [],
   } = datos;
 
+  const tipo          = (tipo_contrato || "indefinido").toLowerCase();
+  const tipo_sueldo   = datos.tipo_sueldo || "bruto";
+  // _yaEsBruto: el bruto ya fue calculado externamente (gross-up por OT separado)
+  // En ese caso se salta el gross-up y se calcula directamente sobre el bruto recibido
+  // "jornada" también usa sueldo líquido pactado (igual que "proyecto")
+  const esLiquidoPactado = !datos._yaEsBruto && (tipo === "proyecto" || tipo === "jornada" || tipo_sueldo === "liquido");
+
+  // ── SUELDO LÍQUIDO PACTADO (gross-up) ────────────────────────────────────
+  // Aplica a contratos "proyecto" (Ley 19.981) y a cualquier contrato marcado
+  // como tipo_sueldo = 'liquido'.
+  // sueldo_base = monto líquido ACORDADO con el trabajador.
+  // Se halla el bruto imponible tal que: bruto − AFP − salud − impuesto ≈ líquido.
+  if (esLiquidoPactado) {
+    const afpComision      = getAfpComision(afp);
+    const saludRate        = 0.07;
+    const bonosImponibles  = bonos.filter(b => b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
+    const bonosNoImponibles= bonos.filter(b => !b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
+    const totalOtrosDesc   = descuentos.reduce((s, d) => s + (d.monto || 0), 0);
+
+    // Objetivo: el neto que debe recibir (acordado + bonos imponibles)
+    const liquidoObjetivo = sueldo_base + bonosImponibles;
+
+    // Gross-up iterativo (converge en ≤10 pasos)
+    let rentaImponible = Math.round(liquidoObjetivo / (1 - (0.10 + afpComision) - saludRate));
+    for (let i = 0; i < 10; i++) {
+      const afpD      = calcularAFP(rentaImponible, afpComision);
+      const saludD    = calcularSalud(rentaImponible, saludRate);
+      const trib      = Math.max(0, rentaImponible - afpD - saludD);
+      const imp       = calcularImpuesto(trib);
+      const liqCalc   = rentaImponible - afpD - saludD - imp;
+      const diff      = liquidoObjetivo - liqCalc;
+      if (Math.abs(diff) <= 1) break;
+      rentaImponible += diff;
+    }
+
+    const afpDesc    = calcularAFP(rentaImponible, afpComision);
+    const saludDesc  = calcularSalud(rentaImponible, saludRate);
+    const rentaTrib  = Math.max(0, rentaImponible - afpDesc - saludDesc);
+    const impuesto   = calcularImpuesto(rentaTrib);
+
+    const totalHaberes    = rentaImponible + bonosNoImponibles;
+    const totalDescuentos = afpDesc + saludDesc + impuesto + totalOtrosDesc;
+    const liquidoAPagar   = Math.max(0, totalHaberes - totalDescuentos);
+
+    // ── Aportes patronales (cargo empresa, no se descuentan del trabajador) ────
+    // Proyecto Ley 19.241 AFC: cesantía empleador 3% (trabajador no aporta cesantía)
+    const cesEmp           = Math.round(rentaImponible * 0.03);   // 3% proyecto
+    const sisTasa          = (() => { try { return _getIndicadores().sis_tasa ?? 0.0162; } catch(_) { return 0.0162; } })();
+    const sis              = Math.round(rentaImponible * sisTasa); // SIS AFP (cargo empleador)
+    const mutualTasa       = (() => { try { return _getIndicadores().mutual_base ?? 0.0093; } catch(_) { return 0.0093; } })();
+    const mutual           = Math.round(rentaImponible * mutualTasa); // Mutual de Seguridad base
+    const aportesEmpleador = cesEmp + sis + mutual;
+    // Costo empresa real = bruto (total haberes) + aportes patronales
+    // Equivale a: lo que paga la empresa = líquido al trabajador + PREVIRED completo
+    const costoEmpresa     = Math.round(totalHaberes + aportesEmpleador);
+    // PREVIRED total = descuentos del trabajador + aportes del empleador
+    const previredTotal    = afpDesc + saludDesc + aportesEmpleador;
+
+    return {
+      sueldoProporcional:  rentaImponible, // bruto calculado (lo que aparece como "Sueldo Pactado")
+      montoHorasExtra:     datos._montoHorasExtraLiq || 0, // monto líquido HH.EE. (para display)
+      valorHoraExtra:      0,
+      gratificacion:       0,
+      rentaImponible,
+      bonosImponibles,
+      bonosNoImponibles,
+      totalHaberes,
+      afp_descuento:       afpDesc,
+      salud_descuento:     saludDesc,
+      cesantia_trabajador: 0,        // Ley 19.981: sin cesantía trabajador
+      cesantia_empleador:  cesEmp,
+      rentaTributable:     rentaTrib,
+      impuesto,
+      totalOtrosDesc,
+      totalDescuentos,
+      liquidoAPagar,
+      costoEmpresa,
+      mutual,
+      sis,
+      aportesEmpleador,
+      previredTotal,
+      totalImponible:      rentaImponible,
+      // Metadata para el resumen del modal y PDF
+      esProyecto:      true,
+      liquidoAcordado: sueldo_base,  // el neto acordado original (para etiqueta)
+    };
+  }
+
   const SMM = INDICADORES_PREVISIONALES.smm;
 
   // Proporcional si no trabajó mes completo
@@ -172,10 +298,10 @@ export const calcularLiquidacion = (datos) => {
 
   // Descuentos legales
   const afpComision = getAfpComision(afp);
-  const saludPct    = sistema_salud === "ISAPRE" ? 0.07 : 0.07; // mínimo legal
+  const saludPct    = 0.07; // mínimo legal (FONASA o Isapre)
   const afpDesc     = calcularAFP(rentaImponible, afpComision);
   const saludDesc   = calcularSalud(rentaImponible, saludPct);
-  const ces         = calcularCesantia(rentaImponible, tipo_contrato);
+  const ces         = calcularCesantia(rentaImponible, tipo);
 
   // Renta tributable = base para impuesto segunda categoría
   const rentaTributable = Math.max(0, rentaImponible - afpDesc - saludDesc - ces.trabajador);
@@ -187,9 +313,13 @@ export const calcularLiquidacion = (datos) => {
   const totalDescuentos = afpDesc + saludDesc + ces.trabajador + impuesto + totalOtrosDesc;
   const liquidoAPagar   = Math.max(0, totalHaberes - totalDescuentos);
 
-  // Costo empresa = totalHaberes + aportes patronales
-  const mutual = Math.round(rentaImponible * 0.0093); // Mutual de Seguridad ~0.93%
-  const costoEmpresa = totalHaberes + ces.empleador + mutual;
+  // ── Aportes patronales (cargo empresa, no se descuentan del trabajador) ────
+  const sis              = Math.round(rentaImponible * 0.015);  // SIS AFP
+  const mutual           = Math.round(rentaImponible * 0.0093); // Mutual de Seguridad ~0.93%
+  const aportesEmpleador = ces.empleador + sis + mutual;
+  const costoEmpresa     = totalHaberes + aportesEmpleador;
+  // PREVIRED total = descuentos trabajador + aportes empleador
+  const previredTotal    = afpDesc + saludDesc + ces.trabajador + aportesEmpleador;
 
   return {
     sueldoProporcional,
@@ -211,6 +341,9 @@ export const calcularLiquidacion = (datos) => {
     liquidoAPagar,
     costoEmpresa,
     mutual,
+    sis,
+    aportesEmpleador,
+    previredTotal,
     // para compatibilidad PDF
     totalImponible: rentaImponible,
   };
@@ -246,6 +379,7 @@ export const MOTIVOS_TERMINO = [
     articulo: "Art. 159 N°5 CT",
     aplica_mes_aviso: false,
     aplica_indemnizacion: false,
+    aplica_gratificacion: false,  // contrato proyecto: gratif ya incluida en tarifa negociada
   },
   {
     value: "muerte_trabajador",
@@ -298,15 +432,18 @@ export const calcularFiniquito = (datos) => {
     motivo_termino = "mutuo_acuerdo",
     dias_trabajados_mes = 0,
     vacaciones_dias = 0,
-    mes_aviso = false,       // true = debe pagar sustitutiva mes de aviso
+    mes_aviso = false,               // true = debe pagar sustitutiva mes de aviso
     indemnizacion_vol = 0,
+    sueldo_proporcional_override = null,  // null = calcular; number = usar este valor
   } = datos;
 
   const motivo = MOTIVOS_TERMINO.find(m => m.value === motivo_termino) || MOTIVOS_TERMINO[0];
 
   // ── Sueldo proporcional del mes de término ─────────────────────────────────
   const diasProp = dias_trabajados_mes > 0 ? dias_trabajados_mes : 30;
-  const sueldo_proporcional = Math.round((sueldo_base / 30) * diasProp);
+  const sueldo_proporcional = sueldo_proporcional_override !== null
+    ? sueldo_proporcional_override
+    : Math.round((sueldo_base / 30) * diasProp);
 
   // ── Años de servicio (para indemnización) ──────────────────────────────────
   let anos_servicio = 0;
@@ -340,11 +477,15 @@ export const calcularFiniquito = (datos) => {
   const meses_anio_curso = fecha_termino
     ? new Date(fecha_termino).getMonth() + 1   // 1–12
     : 12;
+  // aplica_gratificacion: false en contratos proyecto/conclusión (tarifa ya la incorpora)
+  const aplica_gratificacion = motivo.aplica_gratificacion !== false;
   const SMM = INDICADORES_PREVISIONALES.smm;
   const tope_grat_anual = Math.round(SMM * 4.75);
   const grat_anual_25   = Math.round(sueldo_base * 12 * 0.25);
   const grat_anual      = Math.min(grat_anual_25, tope_grat_anual);
-  const gratificacion_proporcional = Math.round((grat_anual / 12) * meses_anio_curso);
+  const gratificacion_proporcional = aplica_gratificacion
+    ? Math.round((grat_anual / 12) * meses_anio_curso)
+    : 0;
 
   // ── Totales ────────────────────────────────────────────────────────────────
   const total_haberes = (
@@ -451,23 +592,7 @@ const useRrhhStore = defineStore("rrhh", {
     // ── Trabajadores ──────────────────────────────────────────────────────────
     async getTrabajadores() {
       this.loading = true;
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const res = await $fetch(`${config.public.API_URL}/rrhh/trabajadores`, {
-          headers: { Authorization: `Bearer ${token}`, organization: org },
-        });
-        const apiData = res.data || res || [];
-        // Mergear con registros locales (creados offline o en modo demo)
-        const localData = this._lsGet("rrhh_trabajadores");
-        const apiIds = new Set(apiData.map(t => t._id || t.id));
-        const soloLocales = localData.filter(t => !apiIds.has(t._id || t.id));
-        this.trabajadores = [...apiData, ...soloLocales];
-        // Actualizar LS con la data más reciente de la API
-        const merged = [...apiData, ...soloLocales];
-        this._lsSet("rrhh_trabajadores", merged);
-      } catch (e) {
+      
         // Sin API: usar solo localStorage (con seed si está vacío)
         let data = this._lsGet("rrhh_trabajadores");
         if (!data.length) {
@@ -475,60 +600,29 @@ const useRrhhStore = defineStore("rrhh", {
           this._lsSet("rrhh_trabajadores", data);
         }
         this.trabajadores = data;
-      } finally {
-        this.loading = false;
-      }
+      
     },
 
     async createTrabajador(datos) {
       this.loading = true;
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const res = await $fetch(`${config.public.API_URL}/rrhh/trabajadores`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, organization: org },
-          body: datos,
-        });
-        const nuevo = res.data || res;
-        this.trabajadores.push(nuevo);
-        return nuevo;
-      } catch (e) {
+      
         const nuevo = { ...datos, _id: this._lsId("w"), creado: new Date().toISOString() };
         this._lsSave("rrhh_trabajadores", nuevo);
         this.trabajadores.push(nuevo);
         return nuevo;
-      } finally {
-        this.loading = false;
-      }
+      
     },
 
     async updateTrabajador(id, datos) {
       this.loading = true;
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const res = await $fetch(`${config.public.API_URL}/rrhh/trabajadores/${id}`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}`, organization: org },
-          body: datos,
-        });
-        const updated = res.data || res;
-        const idx = this.trabajadores.findIndex((t) => t._id === id);
-        if (idx !== -1) this.trabajadores[idx] = updated;
-        return updated;
-      } catch (e) {
+      
         const partial = { ...datos, _id: id };
         this._lsSave("rrhh_trabajadores", partial);   // _lsSave ya hace merge en LS
         const idx = this.trabajadores.findIndex((t) => t._id === id);
         const updated = idx !== -1 ? { ...this.trabajadores[idx], ...partial } : partial;
         if (idx !== -1) this.trabajadores[idx] = updated;
         return updated;
-      } finally {
-        this.loading = false;
-      }
+      
     },
 
     deleteTrabajador(id) {
@@ -539,44 +633,19 @@ const useRrhhStore = defineStore("rrhh", {
     // ── Liquidaciones ─────────────────────────────────────────────────────────
     async getLiquidaciones(params = {}) {
       this.loading = true;
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const query  = new URLSearchParams(params).toString();
-        const res = await $fetch(
-          `${config.public.API_URL}/rrhh/liquidaciones?${query}`,
-          { headers: { Authorization: `Bearer ${token}`, organization: org } }
-        );
-        this.liquidaciones = res.data || res || [];
-      } catch (e) {
+      
         let data = this._lsGet("rrhh_liquidaciones");
         if (!data.length) {
           data = this._mockLiquidaciones();
           this._lsSet("rrhh_liquidaciones", data);
         }
         this.liquidaciones = data;
-      } finally {
-        this.loading = false;
-      }
+      
     },
 
     async createLiquidacion(datos) {
       this.loading = true;
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const res = await $fetch(`${config.public.API_URL}/rrhh/liquidaciones`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, organization: org },
-          body: { ...datos, calculos: calcularLiquidacion(datos) },
-        });
-        const nueva = res.data || res;
-        this._lsSave("rrhh_liquidaciones", nueva);
-        this.liquidaciones.unshift(nueva);
-        return nueva;
-      } catch (e) {
+      
         const calculos = calcularLiquidacion(datos);
         const nueva = {
           ...datos,
@@ -588,9 +657,7 @@ const useRrhhStore = defineStore("rrhh", {
         this._lsSave("rrhh_liquidaciones", nueva);
         this.liquidaciones.unshift(nueva);
         return nueva;
-      } finally {
-        this.loading = false;
-      }
+      
     },
 
     updateLiquidacion(id, cambios) {
@@ -608,52 +675,23 @@ const useRrhhStore = defineStore("rrhh", {
     // ── Contratos ─────────────────────────────────────────────────────────────
     async getContratos() {
       this.loading = true;
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const res = await $fetch(`${config.public.API_URL}/rrhh/contratos`, {
-          headers: { Authorization: `Bearer ${token}`, organization: org },
-        });
-        const apiData = res.data || res || [];
-        const localData = this._lsGet("rrhh_contratos");
-        const apiIds = new Set(apiData.map(c => c._id || c.id));
-        const soloLocales = localData.filter(c => !apiIds.has(c._id || c.id));
-        const merged = [...apiData, ...soloLocales];
-        this.contratos = merged;
-        this._lsSet("rrhh_contratos", merged);
-      } catch (e) {
+      
         let data = this._lsGet("rrhh_contratos");
         if (!data.length) {
           data = this._mockContratos();
           this._lsSet("rrhh_contratos", data);
         }
         this.contratos = data;
-      } finally {
-        this.loading = false;
-      }
+      
     },
 
     async createContrato(datos) {
-      try {
-        const config = useRuntimeConfig();
-        const token  = useCookie("access_token").value;
-        const org    = useCookie("organization").value;
-        const res = await $fetch(`${config.public.API_URL}/rrhh/contratos`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, organization: org },
-          body: datos,
-        });
-        const nuevo = res.data || res;
-        this._lsSave("rrhh_contratos", nuevo);
-        this.contratos.push(nuevo);
-        return nuevo;
-      } catch (e) {
+      
         const nuevo = { ...datos, _id: this._lsId("c"), estado: datos.estado || "vigente", creado: new Date().toISOString() };
         this._lsSave("rrhh_contratos", nuevo);
         this.contratos.push(nuevo);
         return nuevo;
-      }
+      
     },
 
     updateContrato(id, cambios) {
