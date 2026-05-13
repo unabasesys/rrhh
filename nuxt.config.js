@@ -3,7 +3,13 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
 
   runtimeConfig: {
-    public: {},
+    // Variables privadas (solo servidor)
+    mongodbUri: process.env.MONGODB_URI || '',
+    mongodbDb:  process.env.MONGODB_DB  || 'rrhh',
+    jwtSecret:  process.env.NUXT_JWT_SECRET || 'dev-secret',
+    public: {
+      appVersion: '1.1',
+    },
   },
 
   app: {
@@ -24,7 +30,12 @@ export default defineNuxtConfig({
 
   devServer: {
     host: '0.0.0.0',
-    port: 3005,
+    port: Number(process.env.PORT) || 3005,
+  },
+
+  nitro: {
+    // Para producción en Railway (Node standalone)
+    preset: 'node-server',
   },
 
   modules: ['@pinia/nuxt'],

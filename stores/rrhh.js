@@ -589,43 +589,79 @@ const useRrhhStore = defineStore("rrhh", {
       return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     },
 
+    // ── API helpers (modo dual: API si disponible, localStorage como fallback) ─
+    async _apiGet(path, params = {}) {
+      try {
+        const qs = new URLSearchParams(params).toString();
+        return await $fetch(`/api/rrhh/${path}${qs ? "?" + qs : ""}`);
+      } catch (e) {
+        if (e?.statusCode === 503) return null;  // sin DB → fallback
+        throw e;
+      }
+    },
+    async _apiPost(path, body) {
+      try { return await $fetch(`/api/rrhh/${path}`, { method: "POST", body }); }
+      catch (e) { if (e?.statusCode === 503) return null; throw e; }
+    },
+    async _apiPut(path, body) {
+      try { return await $fetch(`/api/rrhh/${path}`, { method: "PUT", body }); }
+      catch (e) { if (e?.statusCode === 503) return null; throw e; }
+    },
+    async _apiDel(path) {
+      try { return await $fetch(`/api/rrhh/${path}`, { method: "DELETE" }); }
+      catch (e) { if (e?.statusCode === 503) return null; throw e; }
+    },
+
     // ── Trabajadores ──────────────────────────────────────────────────────────
     async getTrabajadores() {
       this.loading = true;
-      
-        // Sin API: usar solo localStorage (con seed si está vacío)
-        let data = this._lsGet("rrhh_trabajadores");
-        if (!data.length) {
-          data = this._mockTrabajadores();
-          this._lsSet("rrhh_trabajadores", data);
-        }
-        this.trabajadores = data;
-      
+      const apiData = await this._apiGet("trabajadores");
+      if (apiData) {
+        this.trabajadores = apiData;
+        return;
+      }
+      // Fallback localStorage
+      let data = this._lsGet("rrhh_trabajadores");
+      if (!data.length) {
+        data = this._mockTrabajadores();
+        this._lsSet("rrhh_trabajadores", data);
+      }
+      this.trabajadores = data;
     },
 
     async createTrabajador(datos) {
       this.loading = true;
-      
-        const nuevo = { ...datos, _id: this._lsId("w"), creado: new Date().toISOString() };
-        this._lsSave("rrhh_trabajadores", nuevo);
-        this.trabajadores.push(nuevo);
-        return nuevo;
-      
+      const nuevo = { ...datos, _id: datos._id || this._lsId("w"), creado: new Date().toISOString() };
+      const apiRes = await this._apiPost("trabajadores", nuevo);
+      if (apiRes) {
+        this.trabajadores.push(apiRes);
+        return apiRes;
+      }
+      // Fallback localStorage
+      this._lsSave("rrhh_trabajadores", nuevo);
+      this.trabajadores.push(nuevo);
+      return nuevo;
     },
 
     async updateTrabajador(id, datos) {
       this.loading = true;
-      
-        const partial = { ...datos, _id: id };
-        this._lsSave("rrhh_trabajadores", partial);   // _lsSave ya hace merge en LS
+      const partial = { ...datos, _id: id };
+      const apiRes = await this._apiPut(`trabajadores/${id}`, partial);
+      if (apiRes) {
         const idx = this.trabajadores.findIndex((t) => t._id === id);
-        const updated = idx !== -1 ? { ...this.trabajadores[idx], ...partial } : partial;
-        if (idx !== -1) this.trabajadores[idx] = updated;
-        return updated;
-      
+        if (idx !== -1) this.trabajadores[idx] = apiRes;
+        return apiRes;
+      }
+      // Fallback localStorage
+      this._lsSave("rrhh_trabajadores", partial);
+      const idx = this.trabajadores.findIndex((t) => t._id === id);
+      const updated = idx !== -1 ? { ...this.trabajadores[idx], ...partial } : partial;
+      if (idx !== -1) this.trabajadores[idx] = updated;
+      return updated;
     },
 
-    deleteTrabajador(id) {
+    async deleteTrabajador(id) {
+      await this._apiDel(`trabajadores/${id}`);
       this._lsDel("rrhh_trabajadores", id);
       this.trabajadores = this.trabajadores.filter((t) => t._id !== id);
     },
@@ -633,41 +669,51 @@ const useRrhhStore = defineStore("rrhh", {
     // ── Liquidaciones ─────────────────────────────────────────────────────────
     async getLiquidaciones(params = {}) {
       this.loading = true;
-      
-        let data = this._lsGet("rrhh_liquidaciones");
-        if (!data.length) {
-          data = this._mockLiquidaciones();
-          this._lsSet("rrhh_liquidaciones", data);
-        }
-        this.liquidaciones = data;
-      
+      const apiData = await this._apiGet("liquidaciones", params);
+      if (apiData) {
+        this.liquidaciones = apiData;
+        return;
+      }
+      // Fallback localStorage
+      let data = this._lsGet("rrhh_liquidaciones");
+      if (!data.length) {
+        data = this._mockLiquidaciones();
+        this._lsSet("rrhh_liquidaciones", data);
+      }
+      this.liquidaciones = data;
     },
 
     async createLiquidacion(datos) {
       this.loading = true;
-      
-        const calculos = calcularLiquidacion(datos);
-        const nueva = {
-          ...datos,
-          ...calculos,
-          _id: this._lsId("liq"),
-          estado: datos.estado || "pendiente",
-          creado: new Date().toISOString(),
-        };
-        this._lsSave("rrhh_liquidaciones", nueva);
-        this.liquidaciones.unshift(nueva);
-        return nueva;
-      
+      const calculos = calcularLiquidacion(datos);
+      const nueva = {
+        ...datos,
+        ...calculos,
+        _id: datos._id || this._lsId("liq"),
+        estado: datos.estado || "pendiente",
+        creado: new Date().toISOString(),
+      };
+      const apiRes = await this._apiPost("liquidaciones", nueva);
+      if (apiRes) {
+        this.liquidaciones.unshift(apiRes);
+        return apiRes;
+      }
+      // Fallback localStorage
+      this._lsSave("rrhh_liquidaciones", nueva);
+      this.liquidaciones.unshift(nueva);
+      return nueva;
     },
 
-    updateLiquidacion(id, cambios) {
+    async updateLiquidacion(id, cambios) {
       const updated = { ...cambios, _id: id };
+      await this._apiPut(`liquidaciones/${id}`, cambios);
       this._lsSave("rrhh_liquidaciones", updated);
       const idx = this.liquidaciones.findIndex((l) => l._id === id);
       if (idx !== -1) this.liquidaciones[idx] = { ...this.liquidaciones[idx], ...cambios };
     },
 
-    deleteLiquidacion(id) {
+    async deleteLiquidacion(id) {
+      await this._apiDel(`liquidaciones/${id}`);
       this._lsDel("rrhh_liquidaciones", id);
       this.liquidaciones = this.liquidaciones.filter((l) => l._id !== id);
     },
@@ -675,33 +721,43 @@ const useRrhhStore = defineStore("rrhh", {
     // ── Contratos ─────────────────────────────────────────────────────────────
     async getContratos() {
       this.loading = true;
-      
-        let data = this._lsGet("rrhh_contratos");
-        if (!data.length) {
-          data = this._mockContratos();
-          this._lsSet("rrhh_contratos", data);
-        }
-        this.contratos = data;
-      
+      const apiData = await this._apiGet("contratos");
+      if (apiData) {
+        this.contratos = apiData;
+        return;
+      }
+      // Fallback localStorage
+      let data = this._lsGet("rrhh_contratos");
+      if (!data.length) {
+        data = this._mockContratos();
+        this._lsSet("rrhh_contratos", data);
+      }
+      this.contratos = data;
     },
 
     async createContrato(datos) {
-      
-        const nuevo = { ...datos, _id: this._lsId("c"), estado: datos.estado || "vigente", creado: new Date().toISOString() };
-        this._lsSave("rrhh_contratos", nuevo);
-        this.contratos.push(nuevo);
-        return nuevo;
-      
+      const nuevo = { ...datos, _id: datos._id || this._lsId("c"), estado: datos.estado || "vigente", creado: new Date().toISOString() };
+      const apiRes = await this._apiPost("contratos", nuevo);
+      if (apiRes) {
+        this.contratos.push(apiRes);
+        return apiRes;
+      }
+      // Fallback localStorage
+      this._lsSave("rrhh_contratos", nuevo);
+      this.contratos.push(nuevo);
+      return nuevo;
     },
 
-    updateContrato(id, cambios) {
+    async updateContrato(id, cambios) {
       const updated = { ...cambios, _id: id };
+      await this._apiPut(`contratos/${id}`, cambios);
       this._lsSave("rrhh_contratos", updated);
       const idx = this.contratos.findIndex((c) => c._id === id);
       if (idx !== -1) this.contratos[idx] = { ...this.contratos[idx], ...cambios };
     },
 
-    deleteContrato(id) {
+    async deleteContrato(id) {
+      await this._apiDel(`contratos/${id}`);
       this._lsDel("rrhh_contratos", id);
       this.contratos = this.contratos.filter((c) => c._id !== id);
     },
