@@ -22,8 +22,8 @@ export const INDICADORES_PREVISIONALES = {
   get smm() { try { return _getIndicadores().smm } catch(_) { return INDICADORES_DEFAULTS.smm } },
 };
 
-// Tasas de comisión AFP — vigentes Abril 2026 (último período publicado por Previred)
-// Fuente: https://www.previred.com/indicadores-previsionales/ — verificado 2026-05-01
+// Tasas de comisión AFP — vigentes Mayo 2026 (cotizaciones a pagar Junio 2026)
+// Fuente: https://www.previred.com/indicadores-previsionales/ — verificado 2026-05-20
 // Cargo del trabajador = 10% (jubilación) + comisión AFP. SIS (1,62%) es cargo del empleador.
 export const AFP_CHILE = [
   { nombre: "AFP Capital",      comision: 0.0144 },
@@ -576,7 +576,7 @@ const useRrhhStore = defineStore("rrhh", {
 
     // ── LocalStorage helpers ──────────────────────────────────────────────────
     _lsGet(key) {
-      if (typeof window === "undefined") return [];
+      if (!import.meta.client) return [];
       try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
     },
     // Leer registros de una colección filtrando por org activa
@@ -586,7 +586,7 @@ const useRrhhStore = defineStore("rrhh", {
       return all.filter(r => r.orgId === this.currentOrgId || !r.orgId);
     },
     _lsSet(key, data) {
-      if (typeof window === "undefined") return;
+      if (!import.meta.client) return;
       localStorage.setItem(key, JSON.stringify(data));
     },
     _lsSave(key, record) {

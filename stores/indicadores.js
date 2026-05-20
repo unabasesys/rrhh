@@ -6,32 +6,29 @@
  */
 import { defineStore } from 'pinia'
 
-// ── Indicadores por defecto: Remuneraciones Abril 2026 ────────────────────────
+// ── Indicadores por defecto: Remuneraciones Mayo 2026 ─────────────────────────
 // Fuente: https://www.previred.com/indicadores-previsionales/
-// Vigencia: cotizaciones a pagar en Mayo 2026
-// NOTA: Verificado el 2026-05-01. Al ejecutarse el script, Previred aún no
-// publicaba los indicadores de Mayo 2026 (típicamente disponibles a mediados
-// de mes). Los valores corresponden al último período publicado (Abril 2026)
-// y coinciden 1:1 con el PDF oficial de Previred del 14-04-2026.
+// Vigencia: cotizaciones a pagar en Junio 2026
+// Verificado el 2026-05-20 con el PDF oficial de Previred Mayo 2026.
 const DEFAULTS = {
-  periodo:        'Abril 2026',
-  pago:           'Mayo 2026',
+  periodo:        'Mayo 2026',
+  pago:           'Junio 2026',
   fuente:         'https://www.previred.com/indicadores-previsionales/',
-  actualizado:    '2026-05-01',
+  actualizado:    '2026-05-20',
 
   // ── Unidades de valor ──────────────────────────────────────────────────────
-  uf_actual:      40120.20,    // UF al 30 de Abril 2026
-  uf_fecha:       '30 de Abril 2026',
-  uf_anterior:    39841.72,    // UF al 31 de Marzo 2026
-  uf_fecha_ant:   '31 de Marzo 2026',
-  utm:            69889,       // UTM Abril 2026
-  uta:            838668,      // UTA Abril 2026
-  smm:            500000,      // Sueldo Mínimo Mensual (a confirmar con decreto)
+  uf_actual:      40610.69,    // UF al 31 de Mayo 2026
+  uf_fecha:       '31 de Mayo 2026',
+  uf_anterior:    40120.20,    // UF al 30 de Abril 2026
+  uf_fecha_ant:   '30 de Abril 2026',
+  utm:            70588,       // UTM Mayo 2026
+  uta:            847056,      // UTA Mayo 2026
+  smm:            539000,      // Sueldo Mínimo Mensual (renta mínima imponible)
 
   // ── Rentas topes imponibles ────────────────────────────────────────────────
-  tope_afp:       3610818,     // 90 UF
-  tope_ips:       2390503,     // 60 UF (ex INP)
-  tope_cesantia:  5424251,     // 135,2 UF
+  tope_afp:       3654962,     // 90 UF
+  tope_ips:       2407212,     // 60 UF (ex INP)
+  tope_cesantia:  5490565,     // 135,2 UF
 
   // ── Rentas mínimas imponibles ──────────────────────────────────────────────
   renta_min_dependiente: 539000,
@@ -77,9 +74,9 @@ const DEFAULTS = {
   },
 
   // ── APV ───────────────────────────────────────────────────────────────────
-  apv_tope_mensual:      2006010,  // 50 UF
-  apv_tope_anual:       24072120,  // 600 UF
-  deposito_convenido:   36108180,  // 900 UF
+  apv_tope_mensual:      2030535,  // 50 UF
+  apv_tope_anual:       24366414,  // 600 UF
+  deposito_convenido:   36549621,  // 900 UF
 
   // ── Asignación familiar ────────────────────────────────────────────────────
   asignacion_familiar: [
