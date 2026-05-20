@@ -24,6 +24,8 @@ const TrabajadorSchema = new mongoose.Schema({
   // Estado
   estado:       { type: String, default: 'activo', enum: ['activo', 'inactivo'] },
   fecha_ingreso:{ type: String },
+  // Org (multi-empresa)
+  orgId:        { type: String, default: null, ref: 'Organization' },
   // Metadatos
   creado:       { type: Date, default: Date.now },
   actualizado:  { type: Date, default: Date.now },

@@ -52,27 +52,31 @@ const LS_SESSION = 'rrhh_session'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user:        null,   // { id, nombre, email, rol, activo }
-    token:       null,
-    initialized: false,
+    user:           null,   // { id, nombre, email, rol, activo, orgId, esSuperAdmin }
+    token:          null,
+    currentOrgId:   null,   // org activa en sesión
+    initialized:    false,
   }),
 
   getters: {
     isAuthenticated: (s) => !!s.user && !!s.token,
     isAdmin:         (s) => s.user?.rol === ROLES.ADMIN,
-    can:             (s) => (permission) =>
+
+    // Super-admin: admin sin orgId asignado (accede a todas las orgs)
+    isSuperAdmin: (s) => s.user?.esSuperAdmin === true || (s.user?.rol === ROLES.ADMIN && !s.user?.orgId),
+
+    can: (s) => (permission) =>
       (PERMISSIONS[s.user?.rol] || []).includes(permission),
   },
 
   actions: {
-    /* ── Inicializar (llamar en app.vue / layouts) ─────────────── */
+    /* ── Inicializar ───────────────────────────────────────────── */
     async init() {
       if (this.initialized) return
       this.initialized = true
 
       await this._seedAdminIfEmpty()
 
-      // Restaurar sesión activa
       if (typeof localStorage === 'undefined') return
       const raw = localStorage.getItem(LS_SESSION)
       if (!raw) return
@@ -85,8 +89,9 @@ export const useAuthStore = defineStore('auth', {
         const users = this._getUsers()
         const user  = users.find(u => u.id === session.userId)
         if (user && user.activo) {
-          this.user  = _safeUser(user)
-          this.token = session.token
+          this.user         = _safeUser(user)
+          this.token        = session.token
+          this.currentOrgId = session.currentOrgId || user.orgId || null
         } else {
           localStorage.removeItem(LS_SESSION)
         }
@@ -109,31 +114,59 @@ export const useAuthStore = defineStore('auth', {
       const token   = generateToken()
       const expires = Date.now() + (remember ? 30 * 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000)
 
+      // currentOrgId: la org asignada al usuario, o null para super-admin
+      const currentOrgId = user.orgId || null
+
       localStorage.setItem(LS_SESSION, JSON.stringify({
         token,
-        userId:  user.id,
+        userId:       user.id,
+        currentOrgId,
         expires,
       }))
 
-      this.user  = _safeUser(user)
-      this.token = token
+      this.user         = _safeUser(user)
+      this.token        = token
+      this.currentOrgId = currentOrgId
+      return { ok: true }
+    },
+
+    /* ── Cambiar org activa (super-admin) ─────────────────────── */
+    switchOrg(orgId) {
+      if (!this.isSuperAdmin) return { ok: false, message: 'Sin permiso' }
+      this.currentOrgId = orgId
+
+      // Persistir en sesión
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(LS_SESSION)
+        if (raw) {
+          try {
+            const session = JSON.parse(raw)
+            session.currentOrgId = orgId
+            localStorage.setItem(LS_SESSION, JSON.stringify(session))
+          } catch { /* noop */ }
+        }
+      }
       return { ok: true }
     },
 
     /* ── Logout ────────────────────────────────────────────────── */
     logout() {
       localStorage.removeItem(LS_SESSION)
-      this.user  = null
-      this.token = null
+      this.user         = null
+      this.token        = null
+      this.currentOrgId = null
       return navigateTo('/login')
     },
 
-    /* ── CRUD Usuarios (solo Admin) ─────────────────────────────── */
-    getUsers() {
-      return this._getUsers().map(_safeUser)
+    /* ── CRUD Usuarios ──────────────────────────────────────────── */
+    getUsers(orgId = undefined) {
+      const all = this._getUsers().map(_safeUser)
+      if (orgId === undefined) return all
+      // Filtrar por org si se especifica (null = super-admins)
+      return all.filter(u => u.orgId === orgId)
     },
 
-    async createUser({ nombre, email, password, rol }) {
+    async createUser({ nombre, email, password, rol, orgId = null }) {
       const users = this._getUsers()
       if (users.find(u => u.email === email.toLowerCase()))
         return { ok: false, message: 'Email ya registrado' }
@@ -145,6 +178,8 @@ export const useAuthStore = defineStore('auth', {
         email:        email.toLowerCase().trim(),
         passwordHash,
         rol:          rol || ROLES.VIEWER,
+        orgId:        orgId || null,
+        esSuperAdmin: false,
         activo:       true,
         createdAt:    new Date().toISOString(),
       }
@@ -158,7 +193,6 @@ export const useAuthStore = defineStore('auth', {
       const idx   = users.findIndex(u => u.id === id)
       if (idx === -1) return { ok: false, message: 'Usuario no encontrado' }
 
-      // No permitir cambio de email a uno ya existente
       if (cambios.email) {
         const dup = users.find(u => u.email === cambios.email.toLowerCase() && u.id !== id)
         if (dup) return { ok: false, message: 'Email ya registrado' }
@@ -168,7 +202,6 @@ export const useAuthStore = defineStore('auth', {
       users[idx] = { ...users[idx], ...cambios, updatedAt: new Date().toISOString() }
       this._saveUsers(users)
 
-      // Actualizar usuario en sesión si es el mismo
       if (this.user?.id === id) {
         this.user = _safeUser(users[idx])
       }
@@ -191,7 +224,6 @@ export const useAuthStore = defineStore('auth', {
       const user  = users.find(u => u.id === id)
       if (!user) return { ok: false }
 
-      // No desactivar al único admin activo
       if (user.rol === ROLES.ADMIN && user.activo) {
         const adminCount = users.filter(u => u.rol === ROLES.ADMIN && u.activo).length
         if (adminCount <= 1) return { ok: false, message: 'Debe haber al menos un admin activo' }
@@ -207,25 +239,19 @@ export const useAuthStore = defineStore('auth', {
       const user  = users.find(u => u.id === id)
       if (!user) return { ok: false }
 
-      // No eliminar al único admin
       if (user.rol === ROLES.ADMIN) {
         const adminCount = users.filter(u => u.rol === ROLES.ADMIN).length
         if (adminCount <= 1) return { ok: false, message: 'No puedes eliminar al único administrador' }
       }
 
-      const filtered = users.filter(u => u.id !== id)
-      this._saveUsers(filtered)
+      this._saveUsers(users.filter(u => u.id !== id))
       return { ok: true }
     },
 
     /* ── Privados ───────────────────────────────────────────────── */
     _getUsers() {
       if (typeof localStorage === 'undefined') return []
-      try {
-        return JSON.parse(localStorage.getItem(LS_USERS) || '[]')
-      } catch {
-        return []
-      }
+      try { return JSON.parse(localStorage.getItem(LS_USERS) || '[]') } catch { return [] }
     },
 
     _saveUsers(users) {
@@ -238,16 +264,17 @@ export const useAuthStore = defineStore('auth', {
       if (users.length > 0) return
 
       const passwordHash = await hashPassword('Admin1234!')
-      const admin = {
+      this._saveUsers([{
         id:           newUserId(),
         nombre:       'Administrador',
         email:        'admin@rrhh.cl',
         passwordHash,
         rol:          ROLES.ADMIN,
+        orgId:        null,       // super-admin: sin org asignada
+        esSuperAdmin: true,
         activo:       true,
         createdAt:    new Date().toISOString(),
-      }
-      this._saveUsers([admin])
+      }])
     },
   },
 })

@@ -39,6 +39,8 @@ const ContratoSchema = new mongoose.Schema({
   // Estado
   estado:            { type: String, default: 'vigente', enum: ['vigente', 'terminado', 'borrador'] },
   pdf_generado:      { type: Boolean, default: false },
+  // Org (multi-empresa)
+  orgId:             { type: String, default: null, ref: 'Organization' },
   // Metadatos
   creado:            { type: Date, default: Date.now },
   fecha_generacion:  { type: String },

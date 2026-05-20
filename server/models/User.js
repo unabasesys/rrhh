@@ -7,6 +7,8 @@ const UserSchema = new mongoose.Schema(
     email:        { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     rol:          { type: String, enum: ['admin', 'manager', 'viewer'], default: 'viewer' },
+    orgId:        { type: String, default: null, ref: 'Organization' }, // null = super-admin
+    esSuperAdmin: { type: Boolean, default: false },
     activo:       { type: Boolean, default: true },
   },
   {

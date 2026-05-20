@@ -32,6 +32,8 @@ const LiquidacionSchema = new mongoose.Schema({
   notas:                { type: String },
   // Estado
   estado:               { type: String, default: 'borrador', enum: ['borrador', 'pagada', 'pendiente'] },
+  // Org (multi-empresa)
+  orgId:                { type: String, default: null, ref: 'Organization' },
   // Metadatos
   creado:               { type: Date, default: Date.now },
 }, { _id: false, versionKey: false })

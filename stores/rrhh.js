@@ -519,6 +519,9 @@ export const calcularFiniquito = (datos) => {
 
 const useRrhhStore = defineStore("rrhh", {
   state: () => ({
+    // Organización activa (se setea desde el layout al iniciar)
+    currentOrgId: null,
+
     // Trabajadores
     trabajadores: [],
     trabajadorSelected: null,
@@ -566,16 +569,28 @@ const useRrhhStore = defineStore("rrhh", {
   },
 
   actions: {
+    // ── Org context ───────────────────────────────────────────────────────────
+    setOrgId(orgId) {
+      this.currentOrgId = orgId || null;
+    },
+
     // ── LocalStorage helpers ──────────────────────────────────────────────────
     _lsGet(key) {
       if (typeof window === "undefined") return [];
       try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+    },
+    // Leer registros de una colección filtrando por org activa
+    _lsGetOrg(key) {
+      const all = this._lsGet(key);
+      if (!this.currentOrgId) return all; // super-admin: ver todo
+      return all.filter(r => r.orgId === this.currentOrgId || !r.orgId);
     },
     _lsSet(key, data) {
       if (typeof window === "undefined") return;
       localStorage.setItem(key, JSON.stringify(data));
     },
     _lsSave(key, record) {
+      // Guardar en el conjunto completo (sin filtrar por org)
       const all = this._lsGet(key);
       const idx = all.findIndex((r) => r._id === record._id);
       if (idx === -1) all.push(record);
@@ -620,9 +635,10 @@ const useRrhhStore = defineStore("rrhh", {
         this.trabajadores = apiData;
         return;
       }
-      // Fallback localStorage
-      let data = this._lsGet("rrhh_trabajadores");
-      if (!data.length) {
+      // Fallback localStorage — filtrado por org activa
+      let data = this._lsGetOrg("rrhh_trabajadores");
+      if (!data.length && !this.currentOrgId) {
+        // Solo cargar mocks si no hay org activa (primera vez)
         data = this._mockTrabajadores();
         this._lsSet("rrhh_trabajadores", data);
       }
@@ -631,7 +647,12 @@ const useRrhhStore = defineStore("rrhh", {
 
     async createTrabajador(datos) {
       this.loading = true;
-      const nuevo = { ...datos, _id: datos._id || this._lsId("w"), creado: new Date().toISOString() };
+      const nuevo = {
+        ...datos,
+        _id:   datos._id || this._lsId("w"),
+        orgId: datos.orgId || this.currentOrgId || null,
+        creado: new Date().toISOString(),
+      };
       const apiRes = await this._apiPost("trabajadores", nuevo);
       if (apiRes) {
         this.trabajadores.push(apiRes);
@@ -674,9 +695,9 @@ const useRrhhStore = defineStore("rrhh", {
         this.liquidaciones = apiData;
         return;
       }
-      // Fallback localStorage
-      let data = this._lsGet("rrhh_liquidaciones");
-      if (!data.length) {
+      // Fallback localStorage — filtrado por org activa
+      let data = this._lsGetOrg("rrhh_liquidaciones");
+      if (!data.length && !this.currentOrgId) {
         data = this._mockLiquidaciones();
         this._lsSet("rrhh_liquidaciones", data);
       }
@@ -689,7 +710,8 @@ const useRrhhStore = defineStore("rrhh", {
       const nueva = {
         ...datos,
         ...calculos,
-        _id: datos._id || this._lsId("liq"),
+        _id:   datos._id || this._lsId("liq"),
+        orgId: datos.orgId || this.currentOrgId || null,
         estado: datos.estado || "pendiente",
         creado: new Date().toISOString(),
       };
@@ -726,9 +748,9 @@ const useRrhhStore = defineStore("rrhh", {
         this.contratos = apiData;
         return;
       }
-      // Fallback localStorage
-      let data = this._lsGet("rrhh_contratos");
-      if (!data.length) {
+      // Fallback localStorage — filtrado por org activa
+      let data = this._lsGetOrg("rrhh_contratos");
+      if (!data.length && !this.currentOrgId) {
         data = this._mockContratos();
         this._lsSet("rrhh_contratos", data);
       }
@@ -736,7 +758,13 @@ const useRrhhStore = defineStore("rrhh", {
     },
 
     async createContrato(datos) {
-      const nuevo = { ...datos, _id: datos._id || this._lsId("c"), estado: datos.estado || "vigente", creado: new Date().toISOString() };
+      const nuevo = {
+        ...datos,
+        _id:   datos._id || this._lsId("c"),
+        orgId: datos.orgId || this.currentOrgId || null,
+        estado: datos.estado || "vigente",
+        creado: new Date().toISOString(),
+      };
       const apiRes = await this._apiPost("contratos", nuevo);
       if (apiRes) {
         this.contratos.push(apiRes);

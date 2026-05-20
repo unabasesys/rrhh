@@ -3,7 +3,7 @@
 
 const PUBLIC_ROUTES = ['/login']
 
-export default defineNuxtRouteMiddleware(async (to) => {
+export default defineNuxtRouteMiddleware((to) => {
   // Redirigir raíz a la vista principal
   if (to.path === '/' || to.path === '/home') {
     return navigateTo('/rrhh/trabajadores')
@@ -15,8 +15,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // Solo proteger rutas /rrhh/*
   if (!to.path.startsWith('/rrhh')) return
 
-  // Verificar sesión en localStorage (solo client-side)
-  if (typeof localStorage === 'undefined') return // SSR: dejar pasar
+  // Solo ejecutar en el cliente (localStorage no existe en SSR)
+  if (!import.meta.client) return
 
   const raw = localStorage.getItem('rrhh_session')
   if (!raw) {

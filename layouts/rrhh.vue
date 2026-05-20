@@ -17,10 +17,14 @@ const indicadores  = useIndicadoresStore()
 const route   = useRoute()
 const router  = useRouter()
 
-// Auth store — carga dinámica para evitar SSR issues
+// Auth + Org stores — carga dinámica para evitar SSR issues
 let authStore = null
-const currentUser = ref(null)
-const showUserMenu = ref(false)
+let orgStore  = null
+const currentUser    = ref(null)
+const showUserMenu   = ref(false)
+const currentOrg     = ref(null)
+const showOrgMenu    = ref(false)
+const allOrgs        = ref([])
 
 const sidebarExpanded = ref(true)
 const orgName = ref('Mi Empresa')
@@ -106,6 +110,28 @@ const navSections = computed(() => [
       },
     ],
   },
+  // Sección Admin (solo super-admin)
+  ...(authStore?.isSuperAdmin ? [{
+    label: 'Sistema',
+    items: [
+      {
+        label:   'Organizaciones',
+        icon:    'u u-empresa',
+        path:    '/rrhh/admin/organizaciones',
+        matches: (p) => p.startsWith('/rrhh/admin/organizaciones'),
+        badge:   null,
+        badgeColor: null,
+      },
+      {
+        label:   'Usuarios',
+        icon:    'u u-usuarios',
+        path:    '/rrhh/admin/usuarios',
+        matches: (p) => p.startsWith('/rrhh/admin/usuarios'),
+        badge:   null,
+        badgeColor: null,
+      },
+    ],
+  }] : []),
   {
     label: 'Herramientas',
     items: [
@@ -174,16 +200,45 @@ onMounted(async () => {
   if (!rrhhStore.trabajadores?.length) rrhhStore.getTrabajadores?.()
   asistencia.init?.()
 
-  // Cargar auth store
+  // Cargar auth + org stores
   const { useAuthStore } = await import('@/stores/auth')
+  const { useOrgStore }  = await import('@/stores/org')
   authStore = useAuthStore()
+  orgStore  = useOrgStore()
   await authStore.init()
+  orgStore.init()
+
   currentUser.value = authStore.user
+
+  // Org activa
+  allOrgs.value = orgStore.orgs
+  if (authStore.currentOrgId) {
+    currentOrg.value = orgStore.getById(authStore.currentOrgId)
+    orgName.value    = currentOrg.value?.nombre || orgName.value
+  }
+
+  // Sincronizar currentOrgId con el rrhh store
+  rrhhStore.setOrgId(authStore.currentOrgId)
 })
 
 function handleLogout() {
   showUserMenu.value = false
   authStore?.logout()
+}
+
+function switchOrg(orgId) {
+  showOrgMenu.value = false
+  authStore?.switchOrg(orgId)
+  currentOrg.value  = orgStore?.getById(orgId) || null
+  orgName.value     = currentOrg.value?.nombre || 'Mi Empresa'
+  allOrgs.value     = orgStore?.orgs || []
+  // Actualizar contexto del rrhh store y recargar datos
+  rrhhStore.setOrgId(orgId)
+  rrhhStore.trabajadores = []
+  rrhhStore.contratos    = []
+  rrhhStore.liquidaciones = []
+  rrhhStore.getTrabajadores?.()
+  rrhhStore.getContratos?.()
 }
 
 function userInitial(nombre) {
@@ -198,10 +253,13 @@ function rolColor(rol) {
   return ROLE_COLORS[rol] || '#6b7280'
 }
 
-// Cerrar dropdown al hacer click fuera
+// Cerrar dropdowns al hacer click fuera
 function handleOutsideClick(e) {
   if (showUserMenu.value && !e.target.closest('.user-menu-wrap')) {
     showUserMenu.value = false
+  }
+  if (showOrgMenu.value && !e.target.closest('.org-selector-wrap')) {
+    showOrgMenu.value = false
   }
 }
 
@@ -299,9 +357,46 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
             <span v-if="isDark">☀️</span>
             <span v-else>🌙</span>
           </button>
-          <span class="org-chip">
+          <!-- Selector de org activa (super-admin con múltiples orgs) -->
+          <div v-if="authStore?.isSuperAdmin && allOrgs.length > 0" class="org-selector-wrap">
+            <button class="org-chip org-chip--btn" @click="showOrgMenu = !showOrgMenu">
+              <span v-if="currentOrg?.logo" class="org-chip-logo">
+                <img :src="currentOrg.logo" alt="" />
+              </span>
+              <i v-else class="u u-empresa"></i>
+              <span>{{ currentOrg?.nombre || 'Sin org activa' }}</span>
+              <i class="u u-chevron-down" style="font-size:11px;opacity:0.5"></i>
+            </button>
+            <!-- Dropdown orgs -->
+            <div v-if="showOrgMenu" class="org-dropdown">
+              <div class="org-dropdown__label">Cambiar organización</div>
+              <button
+                v-for="org in allOrgs"
+                :key="org.id"
+                class="org-dropdown__item"
+                :class="{ 'org-dropdown__item--active': authStore?.currentOrgId === org.id }"
+                @click="switchOrg(org.id)"
+              >
+                <span class="org-item-logo">
+                  <img v-if="org.logo" :src="org.logo" alt="" />
+                  <span v-else>{{ org.nombre?.charAt(0).toUpperCase() }}</span>
+                </span>
+                <span class="org-item-info">
+                  <span class="org-item-name">{{ org.nombre }}</span>
+                  <span class="org-item-rut">{{ org.rut }}</span>
+                </span>
+                <i v-if="authStore?.currentOrgId === org.id" class="u u-check" style="color:#2a9d8f;font-size:13px"></i>
+              </button>
+              <div class="org-dropdown__divider"></div>
+              <button class="org-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showOrgMenu = false">
+                <i class="u u-settings" style="font-size:15px;width:28px;text-align:center"></i>
+                <span>Gestionar organizaciones</span>
+              </button>
+            </div>
+          </div>
+          <span v-else class="org-chip">
             <i class="u u-empresa"></i>
-            {{ orgName }}
+            {{ currentOrg?.nombre || orgName }}
           </span>
           <!-- Usuario actual -->
           <div v-if="currentUser" class="user-menu-wrap">
@@ -323,6 +418,9 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
                 </div>
               </div>
               <div class="user-dropdown__divider"></div>
+              <button v-if="authStore?.isSuperAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showUserMenu = false">
+                <i class="u u-empresa"></i> Organizaciones
+              </button>
               <button v-if="authStore?.isAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/usuarios'); showUserMenu = false">
                 <i class="u u-usuarios"></i> Gestión de usuarios
               </button>
@@ -639,6 +737,95 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
   color: var(--primary-text-default, #3ac7a5);
   white-space: nowrap;
 }
+
+/* ── Org selector ────────────────────────────────────────────────────────── */
+.org-selector-wrap {
+  position: relative;
+}
+
+.org-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(58, 199, 165, 0.08);
+  border: 1px solid rgba(58, 199, 165, 0.2);
+  color: var(--primary-text-default, #3ac7a5);
+  white-space: nowrap;
+}
+
+.org-chip--btn {
+  cursor: pointer;
+  background: none;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.org-chip--btn:hover { background: rgba(58,199,165,0.12); }
+
+.org-chip-logo {
+  width: 18px; height: 18px; border-radius: 4px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.org-chip-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+.org-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--neutral-background-default, #fff);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  min-width: 240px;
+  z-index: 999;
+  overflow: hidden;
+}
+
+.org-dropdown__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  padding: 10px 14px 6px;
+}
+
+.org-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--neutral-text-body, #374151);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.org-dropdown__item:hover { background: rgba(0,0,0,0.04); }
+.org-dropdown__item--active { background: rgba(42,157,143,0.08); }
+
+.org-item-logo {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: rgba(42,157,143,0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: #2a9d8f;
+  overflow: hidden; flex-shrink: 0;
+}
+.org-item-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+.org-item-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.org-item-name { font-weight: 600; font-size: 13px; }
+.org-item-rut  { font-size: 11px; color: #9ca3af; }
+
+.org-dropdown__divider { height: 1px; background: rgba(0,0,0,0.07); margin: 4px 0; }
 
 /* ── User chip ───────────────────────────────────────────────────────────── */
 .user-menu-wrap {

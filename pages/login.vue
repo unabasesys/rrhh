@@ -94,8 +94,9 @@ const showPass = ref(false)
 const { useAuthStore } = await import('@/stores/auth')
 const authStore = useAuthStore()
 
-// Si ya está logueado redirigir
-onMounted(() => {
+// Inicializar store (seed admin si localStorage está vacío) y verificar sesión activa
+onMounted(async () => {
+  await authStore.init()
   if (authStore.isAuthenticated) {
     router.replace(route.query.redirect || '/rrhh/trabajadores')
   }
