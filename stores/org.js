@@ -28,7 +28,7 @@ export const useOrgStore = defineStore('org', {
     init() {
       if (this.initialized) return
       this.initialized = true
-      if (typeof localStorage === 'undefined') return
+      if (!import.meta.client) return
       try {
         this.orgs = JSON.parse(localStorage.getItem(LS_ORGS) || '[]')
       } catch {

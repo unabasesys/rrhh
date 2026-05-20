@@ -77,7 +77,7 @@ export const useAuthStore = defineStore('auth', {
 
       await this._seedAdminIfEmpty()
 
-      if (typeof localStorage === 'undefined') return
+      if (!import.meta.client) return
       const raw = localStorage.getItem(LS_SESSION)
       if (!raw) return
       try {
@@ -250,7 +250,7 @@ export const useAuthStore = defineStore('auth', {
 
     /* ── Privados ───────────────────────────────────────────────── */
     _getUsers() {
-      if (typeof localStorage === 'undefined') return []
+      if (!import.meta.client) return []
       try { return JSON.parse(localStorage.getItem(LS_USERS) || '[]') } catch { return [] }
     },
 
@@ -259,7 +259,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async _seedAdminIfEmpty() {
-      if (typeof localStorage === 'undefined') return
+      if (!import.meta.client) return
       const users = this._getUsers()
       if (users.length > 0) return
 

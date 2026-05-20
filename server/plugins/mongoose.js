@@ -6,6 +6,7 @@ export default defineNitroPlugin(async () => {
   if (isConnected) return
 
   const uri = process.env.MONGODB_URI
+
   if (!uri) {
     console.warn('[RRHH] MONGODB_URI no definido — modo localStorage activo')
     return
