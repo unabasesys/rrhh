@@ -284,3 +284,5 @@ function _safeUser(u) {
   const { passwordHash, ...safe } = u
   return safe
 }
+
+export default useAuthStore

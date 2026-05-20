@@ -1,42 +1,17 @@
-import useAuthStore from "@/stores/auth";
-const authStore = useAuthStore();
+/**
+ * middleware/no-auth.js
+ * Redirige a usuarios ya autenticados fuera de las páginas de login.
+ */
+export default defineNuxtRouteMiddleware(() => {
+  if (!import.meta.client) return
 
-export default defineNuxtRouteMiddleware((to, from) => {
-  const tokenCookie = useCookie("access_token");
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    if (!raw) return
 
-  if (tokenCookie.value) {
-    if (to.path === "/login/validation") {
-      if (!authStore.validationPage) {
-        abortNavigation();
-        return navigateTo("/login");
-      }
-    } else if (to.path === "/login/welcome") {
-      if (!authStore.welcome) {
-        abortNavigation();
-        return navigateTo("/login");
-      }
-    } else if (to.path === "/login/new-pass") {
-      if (!authStore.validationForgot) {
-        abortNavigation();
-        return navigateTo("/login");
-      }
-      return;
-    } else if (to.path === "/login/validation-forgot") {
-      return;
-    } else {
-      return navigateTo("/incomes");
+    const session = JSON.parse(raw)
+    if (session?.token && session?.expires > Date.now()) {
+      return navigateTo('/rrhh/trabajadores')
     }
-  } else {
-    if (to.path === "/login/validation" || to.path === "/login/welcome") {
-      return navigateTo("/login");
-    } else if (
-      to.path === "/login/validation-forgot" ||
-      to.path === "/login/new-pass"
-    ) {
-      if (!authStore.validationForgot) {
-        abortNavigation();
-        return navigateTo("/login");
-      }
-    }
-  }
-});
+  } catch {}
+})
