@@ -4,17 +4,23 @@
  * 100% independiente: sin auth, sin globalStore de la plataforma.
  * Al integrar con Unabase OS, se conectará vía props/events al sistema central.
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import useRrhhStore   from '@/stores/rrhh'
 import { useAsistenciaStore } from '@/stores/asistencia'
 import { useIndicadoresStore } from '@/stores/indicadores'
+import { ROLE_LABELS, ROLE_COLORS } from '@/stores/auth'
 
 const rrhhStore    = useRrhhStore()
 const asistencia   = useAsistenciaStore()
 const indicadores  = useIndicadoresStore()
 const route   = useRoute()
 const router  = useRouter()
+
+// Auth store — carga dinámica para evitar SSR issues
+let authStore = null
+const currentUser = ref(null)
+const showUserMenu = ref(false)
 
 const sidebarExpanded = ref(true)
 const orgName = ref('Mi Empresa')
@@ -149,7 +155,7 @@ function toggleSidebar() {
   sidebarExpanded.value = !sidebarExpanded.value
 }
 
-onMounted(() => {
+onMounted(async () => {
   // Todo lo que usa localStorage solo puede ejecutarse en el cliente
   orgName.value = localStorage.getItem('rrhh_org_name') || 'Mi Empresa'
   // Leer tema guardado
@@ -167,7 +173,41 @@ onMounted(() => {
   if (!rrhhStore.contratos?.length)   rrhhStore.getContratos?.()
   if (!rrhhStore.trabajadores?.length) rrhhStore.getTrabajadores?.()
   asistencia.init?.()
+
+  // Cargar auth store
+  const { useAuthStore } = await import('@/stores/auth')
+  authStore = useAuthStore()
+  await authStore.init()
+  currentUser.value = authStore.user
 })
+
+function handleLogout() {
+  showUserMenu.value = false
+  authStore?.logout()
+}
+
+function userInitial(nombre) {
+  return (nombre || '?').charAt(0).toUpperCase()
+}
+
+function rolLabel(rol) {
+  return ROLE_LABELS[rol] || rol
+}
+
+function rolColor(rol) {
+  return ROLE_COLORS[rol] || '#6b7280'
+}
+
+// Cerrar dropdown al hacer click fuera
+function handleOutsideClick(e) {
+  if (showUserMenu.value && !e.target.closest('.user-menu-wrap')) {
+    showUserMenu.value = false
+  }
+}
+
+// Registrar/desregistrar listener para cerrar dropdown
+onMounted(() => { document.addEventListener('click', handleOutsideClick) })
+onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
 
 // Las páginas setean el título via useHead() o directamente vía provide/inject en futuras versiones
 </script>
@@ -263,6 +303,34 @@ onMounted(() => {
             <i class="u u-empresa"></i>
             {{ orgName }}
           </span>
+          <!-- Usuario actual -->
+          <div v-if="currentUser" class="user-menu-wrap">
+            <button class="user-chip" @click="showUserMenu = !showUserMenu">
+              <span class="user-avatar">{{ userInitial(currentUser.nombre) }}</span>
+              <span class="user-name">{{ currentUser.nombre }}</span>
+              <span class="user-rol-badge" :style="{ background: rolColor(currentUser.rol) + '22', color: rolColor(currentUser.rol), borderColor: rolColor(currentUser.rol) + '44' }">
+                {{ rolLabel(currentUser.rol) }}
+              </span>
+              <i class="u u-chevron-down" style="font-size:11px;opacity:0.5"></i>
+            </button>
+            <!-- Dropdown -->
+            <div v-if="showUserMenu" class="user-dropdown" @click.stop>
+              <div class="user-dropdown__header">
+                <span class="user-avatar user-avatar--lg">{{ userInitial(currentUser.nombre) }}</span>
+                <div>
+                  <div class="user-dropdown__name">{{ currentUser.nombre }}</div>
+                  <div class="user-dropdown__email">{{ currentUser.email }}</div>
+                </div>
+              </div>
+              <div class="user-dropdown__divider"></div>
+              <button v-if="authStore?.isAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/usuarios'); showUserMenu = false">
+                <i class="u u-usuarios"></i> Gestión de usuarios
+              </button>
+              <button class="user-dropdown__item user-dropdown__item--danger" @click="handleLogout">
+                <i class="u u-logout"></i> Cerrar sesión
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -570,6 +638,134 @@ onMounted(() => {
   border: 1px solid rgba(58, 199, 165, 0.2);
   color: var(--primary-text-default, #3ac7a5);
   white-space: nowrap;
+}
+
+/* ── User chip ───────────────────────────────────────────────────────────── */
+.user-menu-wrap {
+  position: relative;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  border-radius: 20px;
+  border: 1px solid var(--neutral-border-light, rgba(0,0,0,0.1));
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--neutral-text-title, #111827);
+  transition: background 0.15s;
+}
+
+.user-chip:hover {
+  background: var(--neutral-background-strong, #f1f5f9);
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2a9d8f;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.user-avatar--lg {
+  width: 38px;
+  height: 38px;
+  font-size: 15px;
+}
+
+.user-name {
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-rol-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* Dropdown */
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--neutral-background-default, #ffffff);
+  border: 1px solid var(--neutral-border-light, rgba(0,0,0,0.1));
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  min-width: 220px;
+  z-index: 999;
+  overflow: hidden;
+}
+
+.user-dropdown__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.user-dropdown__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--neutral-text-title, #111827);
+}
+
+.user-dropdown__email {
+  font-size: 11px;
+  color: var(--neutral-text-body, #6b7280);
+  margin-top: 2px;
+}
+
+.user-dropdown__divider {
+  height: 1px;
+  background: var(--neutral-border-light, rgba(0,0,0,0.08));
+  margin: 0;
+}
+
+.user-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--neutral-text-body, #374151);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.user-dropdown__item:hover {
+  background: var(--neutral-background-strong, #f1f5f9);
+}
+
+.user-dropdown__item--danger {
+  color: #ef4444;
+}
+
+.user-dropdown__item--danger:hover {
+  background: rgba(239, 68, 68, 0.08);
 }
 
 /* Content */
