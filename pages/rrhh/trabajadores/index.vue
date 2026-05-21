@@ -12,6 +12,25 @@ definePageMeta({
 
 useHead({ title: "Personas – RRHH" });
 
+// ── Migración huérfanos ───────────────────────────────────────────────────────
+const orphanDismissed = ref(false)
+const migrating = ref(false)
+
+const orphanCount = computed(() => {
+  if (orphanDismissed.value) return 0
+  return (rrhhStore.trabajadores || []).filter(t => !t.orgId).length
+})
+
+async function migrateOrphans() {
+  migrating.value = true
+  try {
+    const res = await rrhhStore.migrateOrphanWorkers(rrhhStore.currentOrgId)
+    if (res?.ok) orphanDismissed.value = true
+  } finally {
+    migrating.value = false
+  }
+}
+
 // ── Estado local ──────────────────────────────────────────────────────────────
 const busqueda       = ref("");
 const filtroEstado   = ref("activo");
@@ -530,6 +549,24 @@ onMounted(async () => {
           <span class="u u-plus"></span> Nueva Persona
         </button>
       </div>
+    </div>
+
+    <!-- Banner: trabajadores huérfanos sin org -->
+    <div v-if="orphanCount > 0 && rrhhStore.currentOrgId" class="orphan-banner">
+      <div class="orphan-banner__icon">
+        <i class="u u-warning"></i>
+      </div>
+      <div class="orphan-banner__text">
+        <strong>{{ orphanCount }} persona{{ orphanCount > 1 ? 's' : '' }} sin organización asignada.</strong>
+        ¿Reasignarlas a la organización activa?
+      </div>
+      <button class="orphan-banner__btn" :disabled="migrating" @click="migrateOrphans">
+        <span v-if="migrating" class="spin-sm"></span>
+        <span v-else>Reasignar ahora</span>
+      </button>
+      <button class="orphan-banner__dismiss" @click="orphanDismissed = true">
+        <i class="u u-close"></i>
+      </button>
     </div>
 
     <!-- Filtros + Toggle Vista -->
@@ -1586,4 +1623,54 @@ onMounted(async () => {
   border-radius: 6px; padding: 3px 8px;
   flex-shrink: 0; margin-left: 8px;
 }
+.orphan-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(240, 180, 0, 0.08);
+  border: 1px solid rgba(240, 180, 0, 0.25);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #d1d5db;
+  flex-wrap: wrap;
+}
+.orphan-banner__icon { color: #f59e0b; font-size: 16px; flex-shrink: 0; }
+.orphan-banner__text { flex: 1; min-width: 200px; }
+.orphan-banner__text strong { color: #fbbf24; }
+.orphan-banner__btn {
+  padding: 7px 14px;
+  background: rgba(240, 180, 0, 0.15);
+  border: 1px solid rgba(240, 180, 0, 0.3);
+  border-radius: 7px;
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.orphan-banner__btn:hover:not(:disabled) { background: rgba(240, 180, 0, 0.25); }
+.orphan-banner__btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.orphan-banner__dismiss {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.spin-sm {
+  width: 12px; height: 12px;
+  border: 2px solid rgba(251,191,36,0.3);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: spinSm 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spinSm { to { transform: rotate(360deg); } }
 </style>

@@ -630,7 +630,8 @@ const useRrhhStore = defineStore("rrhh", {
     // ── Trabajadores ──────────────────────────────────────────────────────────
     async getTrabajadores() {
       this.loading = true;
-      const apiData = await this._apiGet("trabajadores");
+      const apiParams = this.currentOrgId ? { orgId: this.currentOrgId } : {};
+      const apiData = await this._apiGet("trabajadores", apiParams);
       if (apiData) {
         this.trabajadores = apiData;
         return;
@@ -645,7 +646,26 @@ const useRrhhStore = defineStore("rrhh", {
       this.trabajadores = data;
     },
 
+    // Asignar org a trabajadores sin organización (huérfanos)
+    async migrateOrphanWorkers(toOrgId) {
+      try {
+        const res = await $fetch('/api/rrhh/trabajadores/migrate', {
+          method: 'POST',
+          body: { toOrgId },
+        })
+        if (res?.ok) await this.getTrabajadores()
+        return res
+      } catch (e) {
+        return { ok: false, message: e?.data?.statusMessage || 'Error al migrar' }
+      }
+    },
+
     async createTrabajador(datos) {
+      // Bloquear si no hay org activa
+      if (!datos.orgId && !this.currentOrgId) {
+        this.loading = false
+        throw new Error('Selecciona una organización activa antes de crear un trabajador')
+      }
       this.loading = true;
       const nuevo = {
         ...datos,

@@ -9,6 +9,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'nombre y apellido son requeridos' })
   }
 
+  // Organización requerida — no se puede crear un trabajador sin org
+  if (!body.orgId) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Se requiere una organización activa para crear un trabajador',
+    })
+  }
+
   // Generar _id único si no viene en el body
   const _id = body._id || `w_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 
