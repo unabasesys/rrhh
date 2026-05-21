@@ -3177,11 +3177,7 @@ async function _descargarLiqDesdeCalc() {
   }
 
   const payload = {
-    organizacion: {
-      nombre:    localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
-      rut:       localStorage.getItem('rrhh_org_rut') || '',
-      direccion: localStorage.getItem('rrhh_org_address') || '',
-    },
+    ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad } } })(),
     trabajador: {
       nombre:        `${t.nombre || ''} ${t.apellido || ''}`.trim(),
       rut:           t.rut || '',
@@ -3216,7 +3212,7 @@ async function _descargarLiqDesdeCalc() {
       renta_imponible:     lc.rentaImponible,
       costo_empresa:       lc.costoEmpresa,
     },
-    logo_base64: null,
+    logo_base64: getOrgForPdf().logo_base64,
   }
 
   const res = await $fetch('/api/rrhh/liquidacion-pdf', { method: 'POST', body: payload, responseType: 'blob' })
@@ -3325,11 +3321,7 @@ async function descargarLiqPDF(liq) {
     const descuentos = liq.descuentos || []
 
     const payload = {
-      organizacion: {
-        nombre:    localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
-        rut:       localStorage.getItem('rrhh_org_rut') || '',
-        direccion: localStorage.getItem('rrhh_org_address') || '',
-      },
+      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad } } })(),
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido}`,
         rut:             t.rut || '',
@@ -3365,7 +3357,7 @@ async function descargarLiqPDF(liq) {
         { nombre: 'Imp. Único 2ª Cat.', monto: liq.impuesto },
       ].filter(d => d.monto > 0),
       otros_descuentos: descuentos.filter(d => d.monto > 0),
-      logo_base64: null,
+      logo_base64: getOrgForPdf().logo_base64,
     }
 
     const res = await $fetch('/api/rrhh/liquidacion-pdf', {
@@ -3676,15 +3668,10 @@ async function generarContratoPDF() {
       clausulas_extras: cf.clausulas || [],
       fecha_documento:  new Date().toISOString().slice(0, 10),
       // Organización (lo que Python lee con org.get(...))
-      organizacion: {
-        nombre:   localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
-        rut:      localStorage.getItem('rrhh_org_rut') || '',
-        direccion: localStorage.getItem('rrhh_org_address') || '',
-        ciudad:   'Santiago',
-      },
+      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad }, logo_base64: _o.logo_base64 } })(),
       // Empleador — representante legal (emp.get("representante") en Python)
       empleador: {
-        representante:     '',
+        representante:     getOrgForPdf().representante,
         rut_representante: '',
       },
       // Trabajador — Python usa trab.get("nombre"), NO "nombre_completo"
@@ -3700,7 +3687,7 @@ async function generarContratoPDF() {
         afp:              t.afp || '',
         sistema_salud:    t.sistema_salud || 'FONASA',
       },
-      logo_base64: null,
+      logo_base64: getOrgForPdf().logo_base64,
     }
 
     const res = await $fetch('/api/rrhh/contrato-pdf', {
@@ -3791,12 +3778,10 @@ async function generarFiniquitoPDF() {
       fecha_termino:  ff.fecha_termino,
       fecha_aviso:    ff.mes_aviso_dado ? null : ff.fecha_termino,
       fecha_emision:  new Date().toISOString().slice(0, 10),
-      organizacion: {
-        nombre:        localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
-        rut:           localStorage.getItem('rrhh_org_rut') || '',
+      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut,
         representante: '',
         giro:          '',
-        domicilio:     localStorage.getItem('rrhh_org_address') || '',
+        domicilio: _o.direccion, ciudad: _o.ciudad } } })(),
       },
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido || ''}`,
@@ -3818,7 +3803,7 @@ async function generarFiniquitoPDF() {
         anos_servicio:                calc.anos_tope,
       },
       descuentos_finiquito: ff.descuentos.filter(d => d.monto > 0),
-      logo_base64: null,
+      logo_base64: getOrgForPdf().logo_base64,
     }
 
     const res = await $fetch('/api/rrhh/finiquito-pdf', {
@@ -3905,11 +3890,9 @@ async function descargarFiniquitoPDF(fin) {
       motivo_termino: fin.motivo_termino,
       fecha_termino:  fin.fecha_termino || `${fin.anio}-${String(fin.mes).padStart(2,'0')}-30`,
       fecha_emision:  new Date().toISOString().slice(0,10),
-      organizacion: {
-        nombre:        localStorage.getItem('rrhh_org_name') || 'Mi Empresa',
-        rut:           localStorage.getItem('rrhh_org_rut') || '',
+      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut,
         representante: '',
-        domicilio:     localStorage.getItem('rrhh_org_address') || '',
+        domicilio: _o.direccion, ciudad: _o.ciudad } } })(),
       },
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido || ''}`,
@@ -3931,7 +3914,7 @@ async function descargarFiniquitoPDF(fin) {
         anos_servicio:               fin.anos_servicio || 0,
       },
       descuentos_finiquito: [],
-      logo_base64: null,
+      logo_base64: getOrgForPdf().logo_base64,
     }
     const res = await $fetch('/api/rrhh/finiquito-pdf', { method: 'POST', body: payload, responseType: 'blob' })
     const url = URL.createObjectURL(new Blob([res], { type: 'application/pdf' }))
@@ -4021,7 +4004,41 @@ function getEstadoFirmaDoc(documento_id) {
   return firmasStore.getEstadoFirma(documento_id)
 }
 
+// ── Org store (para datos en PDFs) ────────────────────────────────────────
+let _orgStore  = null
+let _authStore = null
+
+/**
+ * Devuelve { org, logoB64 } de la org activa.
+ * Fallback: usa los valores de localStorage (legado).
+ */
+function getOrgForPdf() {
+  const org = _authStore && _orgStore
+    ? _orgStore.getById(_authStore.currentOrgId) || null
+    : null
+
+  const logoB64 = org?.logo
+    ? (org.logo.includes(',') ? org.logo.split(',')[1] : org.logo)
+    : null
+
+  return {
+    nombre:        org?.nombre        || localStorage.getItem('rrhh_org_name')    || 'Mi Empresa',
+    rut:           org?.rut           || localStorage.getItem('rrhh_org_rut')     || '',
+    direccion:     org?.direccion     || localStorage.getItem('rrhh_org_address') || '',
+    ciudad:        org?.ciudad        || 'Santiago',
+    representante: org?.representanteLegal?.nombre || '',
+    rut_rep:       org?.representanteLegal?.rut    || '',
+    logo_base64:   logoB64,
+  }
+}
+
 onMounted(async () => {
+  // Cargar org/auth stores
+  const { useOrgStore }  = await import('@/stores/org')
+  const { useAuthStore } = await import('@/stores/auth')
+  _orgStore  = useOrgStore()
+  _authStore = useAuthStore()
+
   if (!rrhhStore.trabajadores.length) {
     await rrhhStore.getTrabajadores()
   }
