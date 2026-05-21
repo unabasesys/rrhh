@@ -67,7 +67,7 @@
               {{ [org.comuna, org.ciudad].filter(Boolean).join(', ') }}
             </div>
             <div v-if="org.representanteLegal?.nombre" class="org-card__rep">
-              <i class="u u-persona" style="font-size:12px"></i>
+              <i class="u u-user" style="font-size:12px"></i>
               {{ org.representanteLegal.nombre }}
             </div>
           </div>
@@ -80,7 +80,7 @@
               @click="switchToOrg(org.id)"
               :disabled="authStore?.currentOrgId === org.id"
             >
-              <i class="u u-arrow-right"></i>
+              <i class="u u-chevron-right"></i>
             </button>
             <button class="action-btn" title="Editar" @click="openEdit(org)">
               <i class="u u-edit"></i>
@@ -90,10 +90,10 @@
               :title="org.activo !== false ? 'Desactivar' : 'Activar'"
               @click="toggleOrg(org.id)"
             >
-              <i :class="org.activo !== false ? 'u u-eye-off' : 'u u-eye'"></i>
+              <i :class="org.activo !== false ? 'u u-no-show' : 'u u-show'"></i>
             </button>
             <button class="action-btn action-btn--danger" title="Eliminar" @click="confirmDelete(org)">
-              <i class="u u-trash"></i>
+              <i class="u u-delete"></i>
             </button>
           </div>
         </div>
