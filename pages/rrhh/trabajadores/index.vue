@@ -581,7 +581,7 @@ onMounted(async () => {
         <input type="month" v-model="filtroMes" title="Filtrar por mes" />
       </div>
 
-      <!-- Toggle de vista — primero (como en contratos) -->
+      <!-- Toggle de vista -->
       <div class="view-toggle">
         <button :class="['view-btn', vistaActual === 'lista' && 'active']" @click="vistaActual = 'lista'" title="Lista completa">
           <span class="u u-list"></span>
@@ -602,15 +602,29 @@ onMounted(async () => {
         </button>
       </div>
 
-      <!-- Separador -->
-      <div class="filter-sep"></div>
+      <!-- Separador (solo desktop) -->
+      <div class="filter-sep desktop-only"></div>
 
-      <!-- Chips de filtro — van después del toggle de vista -->
-      <button :class="['chip', filtroEstado === 'todos' && 'active']"    @click="filtroEstado = 'todos'">Todos</button>
-      <button :class="['chip', filtroEstado === 'activo' && 'active']"   @click="filtroEstado = 'activo'">Activos</button>
-      <button :class="['chip', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
-      <button :class="['chip', filtroContrato === 'indefinido' && 'active']" @click="filtroContrato = filtroContrato === 'indefinido' ? 'todos' : 'indefinido'">Indefinido</button>
-      <button :class="['chip', filtroContrato === 'proyecto' && 'active']"   @click="filtroContrato = filtroContrato === 'proyecto' ? 'todos' : 'proyecto'">Por Proyecto</button>
+      <!-- Chips de filtro — desktop -->
+      <button :class="['chip desktop-only', filtroEstado === 'todos' && 'active']"    @click="filtroEstado = 'todos'">Todos</button>
+      <button :class="['chip desktop-only', filtroEstado === 'activo' && 'active']"   @click="filtroEstado = 'activo'">Activos</button>
+      <button :class="['chip desktop-only', filtroEstado === 'inactivo' && 'active']" @click="filtroEstado = 'inactivo'">Inactivos</button>
+      <button :class="['chip desktop-only', filtroContrato === 'indefinido' && 'active']" @click="filtroContrato = filtroContrato === 'indefinido' ? 'todos' : 'indefinido'">Indefinido</button>
+      <button :class="['chip desktop-only', filtroContrato === 'proyecto' && 'active']"   @click="filtroContrato = filtroContrato === 'proyecto' ? 'todos' : 'proyecto'">Por Proyecto</button>
+
+      <!-- Selects de filtro — mobile -->
+      <div class="mobile-filters">
+        <select v-model="filtroEstado" class="mobile-select">
+          <option value="todos">Todos</option>
+          <option value="activo">Activos</option>
+          <option value="inactivo">Inactivos</option>
+        </select>
+        <select v-model="filtroContrato" class="mobile-select">
+          <option value="todos">Todos los tipos</option>
+          <option value="indefinido">Indefinido</option>
+          <option value="proyecto">Por Proyecto</option>
+        </select>
+      </div>
     </div>
 
     <!-- ── Vista por Proyectos ──────────────────────────────────────────── -->
@@ -709,7 +723,38 @@ onMounted(async () => {
     </div>
 
     <!-- ── Vista Lista completa ──────────────────────────────────────────── -->
-    <div v-else-if="vistaActual === 'lista'" class="rrhhPage__table-wrap">
+    <div v-else-if="vistaActual === 'lista'">
+      <!-- Mobile: tarjetas -->
+      <div class="mobile-cards">
+        <div
+          v-for="t in trabajadoresFiltrados" :key="t._id + '-m'"
+          class="mobile-card"
+          @click="$router.push(`/rrhh/trabajadores/${t._id}`)"
+        >
+          <div class="mobile-card__avatar" :style="t.foto ? '' : 'background:#2a9d8f'">
+            <img v-if="t.foto" :src="t.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+            <template v-else>{{ t.nombre?.charAt(0) }}{{ (t.apellido || '')?.charAt(0) }}</template>
+          </div>
+          <div class="mobile-card__info">
+            <div class="mobile-card__name">{{ t.nombre }} {{ t.apellido || '' }}</div>
+            <div class="mobile-card__cargo">{{ t.cargo || '—' }}</div>
+            <div class="mobile-card__pills">
+              <span :class="['tagEstado', t.estado]">{{ t.estado === 'activo' ? '● Activo' : 'Inactivo' }}</span>
+              <span :class="['tagContrato', contratoVigente(t._id || t.id)?.tipo_contrato || t.tipo_contrato]">{{ tipoLabel(t) }}</span>
+              <span :class="['tagContrato-v', estadoContratoInfo(contratoVigente(t._id || t.id)).cls]">
+                {{ estadoContratoInfo(contratoVigente(t._id || t.id)).label }}
+              </span>
+            </div>
+          </div>
+          <div class="mobile-card__sueldo">{{ sueldoDisplay(t).label }}</div>
+        </div>
+        <div v-if="!trabajadoresFiltrados.length" class="mobile-empty">
+          No hay personas que coincidan
+        </div>
+      </div>
+
+      <!-- Desktop: tabla -->
+      <div class="rrhhPage__table-wrap desktop-table">
       <table class="rrhhTable">
         <thead>
           <tr>
@@ -770,7 +815,8 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-    </div>
+      </div><!-- /desktop-table -->
+    </div><!-- /lista -->
 
     <!-- ── Vista Fijos ────────────────────────────────────────────────────── -->
     <div v-else-if="vistaActual === 'fijos'" class="rrhhPage__table-wrap">
@@ -1673,4 +1719,83 @@ onMounted(async () => {
   display: inline-block;
 }
 @keyframes spinSm { to { transform: rotate(360deg); } }
+
+/* ── Mobile filters & cards ───────────────────────────────────────────────── */
+.mobile-filters { display: none; gap: 8px; }
+.mobile-cards   { display: none; flex-direction: column; gap: 8px; padding: 0 0 16px; }
+.mobile-empty   { padding: 32px; text-align: center; color: #6b7280; font-size: 13px; }
+
+.mobile-select {
+  height: 34px; padding: 0 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  color: var(--neutral-text-title, #e5e7eb);
+  font-size: 12px; font-family: inherit; font-weight: 600;
+  cursor: pointer; outline: none;
+  flex: 1;
+}
+.mobile-select option { background: #1a2332; color: #e5e7eb; }
+
+.mobile-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--neutral-background-default, #0f1923);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-card:active { background: rgba(58,199,165,0.06); border-color: rgba(58,199,165,0.3); }
+
+.mobile-card__avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: #fff;
+  flex-shrink: 0; overflow: hidden;
+  background: #2a9d8f;
+}
+.mobile-card__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mobile-card__name { font-size: 14px; font-weight: 700; color: var(--neutral-text-title, #e5e7eb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-card__cargo { font-size: 11px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-card__pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.mobile-card__sueldo { font-size: 12px; font-weight: 700; color: #3ac7a5; flex-shrink: 0; text-align: right; }
+
+@media (max-width: 767px) {
+  /* Filters */
+  .desktop-only { display: none !important; }
+  .mobile-filters { display: flex; width: 100%; }
+
+  /* Cards vs tabla */
+  .mobile-cards  { display: flex; }
+  .desktop-table { display: none; }
+
+  /* Header compacto */
+  .rrhhPage__header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .rrhhPage__header-right { width: 100%; display: flex; gap: 8px; }
+  .rrhhPage__header-right .btn { flex: 1; justify-content: center; font-size: 12px; padding: 8px 10px; }
+
+  /* Filtros en columna en 2 filas */
+  .rrhhPage__filters {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .filterInput { flex: 1; min-width: 0; }
+  .filterInput--mes { flex: 0 0 auto; }
+  .view-toggle { width: 100%; }
+  .view-btn { flex: 1; justify-content: center; }
+
+  /* KPIs pie: scroll horizontal */
+  .footer-kpis {
+    overflow-x: auto;
+    padding: 0 16px;
+    gap: 0;
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .footer-kpi { padding: 0 14px; min-width: 100px; }
+  .footer-kpi__val { font-size: 16px; }
+}
 </style>
