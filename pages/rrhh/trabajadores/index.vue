@@ -579,7 +579,8 @@ function tmTipoLabel(tipo) {
 }
 
 // ── Mobile "Mapa de costos" (spec 402×874) ────────────────────────────────────
-const isMobile = ref(false)
+const isMobile  = ref(false)
+const mmDayMode = ref(false)
 let   _mmResizeObs = null
 
 function _checkMobile() { isMobile.value = window.innerWidth < 768 }
@@ -781,7 +782,7 @@ watch(vistaActual, async (val) => {
 </script>
 
 <template>
-  <div class="rrhhPage" :class="{ 'mm-mode': vistaActual === 'proyectos' && isMobile }">
+  <div class="rrhhPage" :class="{ 'mm-mode': vistaActual === 'proyectos' && isMobile, 'mm-day-mode': mmDayMode && vistaActual === 'proyectos' && isMobile }">
 
     <!-- Header -->
     <div class="rrhhPage__header">
@@ -877,10 +878,19 @@ watch(vistaActual, async (val) => {
 
     <!-- ── Vista Proyectos ────────────────────────────────────────────────── -->
     <!-- Mobile: Mapa de costos hi-fi -->
-    <div v-if="vistaActual === 'proyectos' && isMobile" class="mapa-movil">
+    <div v-if="vistaActual === 'proyectos' && isMobile" :class="['mapa-movil', mmDayMode && 'mm-day']">
 
       <!-- Title block -->
       <div class="mm-title">
+        <!-- Day/Night toggle -->
+        <button class="mm-daynight-toggle" @click.stop="mmDayMode = !mmDayMode" :title="mmDayMode ? 'Modo oscuro' : 'Modo día'">
+          <svg v-if="!mmDayMode" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
         <div class="mm-crumb">
           <span class="mm-crumb-base">CENTRO DE COSTO</span>
           <span class="mm-crumb-sep">/</span>
@@ -2498,4 +2508,121 @@ watch(vistaActual, async (val) => {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ── Day/Night toggle button ── */
+.mm-title { position: relative; }
+.mm-daynight-toggle {
+  position: absolute;
+  top: 6px; right: 0;
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  border: 1px solid rgba(245,240,230,0.1);
+  background: rgba(255,255,255,0.06);
+  color: rgba(245,240,230,0.65);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.mm-daynight-toggle:active { background: rgba(255,255,255,0.12); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODO DÍA — light chrome, dark cells preserved
+   Activado via .mapa-movil.mm-day
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Page background in day mode */
+@media (max-width: 767px) {
+  .rrhhPage.mm-mode.mm-day-mode { background: #F5F0E6 !important; }
+}
+
+/* ── Container ── */
+.mapa-movil.mm-day {
+  background: #F5F0E6;
+  color: #062D3A;
+}
+
+/* ── Toggle button in day mode ── */
+.mm-day .mm-daynight-toggle {
+  border-color: rgba(6,45,58,0.12);
+  background: #FFFFFF;
+  color: rgba(6,45,58,0.7);
+  box-shadow: 0 1px 2px rgba(6,45,58,0.04);
+}
+
+/* ── Title block ── */
+.mm-day .mm-crumb-base  { color: rgba(6,45,58,0.5); }
+.mm-day .mm-crumb-sep   { color: rgba(6,45,58,0.25); }
+.mm-day .mm-crumb-active { color: #0AA888; }
+.mm-day .mm-h1          { color: #062D3A; }
+.mm-day .mm-total-val   { color: #0AA888; }
+.mm-day .mm-meta-txt    { color: rgba(6,45,58,0.6); }
+
+/* ── View switcher ── */
+.mm-day .mm-switcher {
+  background: #FFFFFF;
+  border-color: rgba(6,45,58,0.08);
+  box-shadow: 0 1px 2px rgba(6,45,58,0.04);
+}
+.mm-day .mm-pill {
+  color: rgba(6,45,58,0.55);
+  font-weight: 500;
+}
+.mm-day .mm-pill--active {
+  background: rgba(13,207,168,0.18);
+  color: #0AA888;
+  font-weight: 600;
+}
+.mm-day .mm-pill:disabled { opacity: .6; }
+
+/* ── Cells — keep dark gradients, add subtle border + shadow ── */
+.mm-day .mm-cell {
+  border: 1px solid rgba(6,45,58,0.08);
+  box-shadow: 0 2px 6px rgba(6,45,58,0.06);
+}
+
+/* Type chip — cream pill with backdrop blur, color from tipo */
+.mm-day .mm-chip {
+  background: rgba(245,240,230,0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Cell text stays white (dark cell bg provides contrast) */
+.mm-day .mm-cell-name {
+  color: #FFFFFF;
+  text-shadow: 0 1px 2px rgba(6,45,58,0.25);
+}
+.mm-day .mm-cell-cost {
+  color: #FFFFFF;
+  text-shadow: 0 1px 2px rgba(6,45,58,0.25);
+}
+.mm-day .mm-cell-sub {
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 2px rgba(6,45,58,0.25);
+}
+
+/* Watermark slightly more visible over cream surroundings */
+.mm-day .mm-watermark { opacity: 0.22; }
+
+/* ── Empty state ── */
+.mm-day .mm-empty { color: rgba(6,45,58,0.3); }
+
+/* ── KPI strip ── */
+.mm-day .mm-kpi-strip {
+  background: #F5F0E6;
+  border-top-color: rgba(6,45,58,0.08);
+}
+.mm-day .mm-kpi-item {
+  background: #FFFFFF;
+  border-color: rgba(6,45,58,0.08);
+  box-shadow: 0 1px 2px rgba(6,45,58,0.04);
+}
+.mm-day .mm-kpi-label {
+  font-family: 'Space Grotesk', sans-serif;
+  color: rgba(6,45,58,0.55);
+  font-weight: 600;
+}
+.mm-day .mm-kpi-val { color: #062D3A; }
 </style>
