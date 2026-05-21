@@ -335,19 +335,31 @@ onUnmounted(() => {
     <aside class="rrhh-sidebar" :class="{ 'mobile-open': sidebarMobileOpen }">
       <!-- Logo / Módulo -->
       <div class="sidebar-brand">
-        <div class="brand-icon">
-          <!-- Isotipo Unabase: dark (blanco) en sidebar oscuro, light (navy) en sidebar claro -->
-          <img
-            :src="(isMobile || isDark) ? '/img/isotipo-dark.svg' : '/img/isotipo-light.svg'"
-            alt="Unabase"
-            width="26"
-            height="26"
-          />
+        <!-- Collapsed: show only isotipo -->
+        <div v-if="!sidebarExpanded && !isMobile" class="brand-icon">
+          <img src="/img/isotipo-dark.svg" alt="Unabase" width="26" height="26" />
         </div>
+        <!-- Expanded: personas lockup -->
         <transition name="fade-label">
-          <div v-if="sidebarExpanded || isMobile" class="brand-name">
-            <span class="brand-name__una">una</span><span class="brand-name__base">base</span>
-            <span class="brand-name__module">Personas</span>
+          <div v-if="sidebarExpanded || isMobile" class="sidebar-personas-lockup">
+            <img src="/img/logo-unabase-white.png" alt="unabase" class="spl-wordmark" />
+            <svg class="spl-graffiti" viewBox="0 0 400 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <g transform="rotate(-9 200 40)">
+                <text x="200" y="44" text-anchor="middle"
+                      font-family='"Permanent Marker", "Brush Script MT", cursive'
+                      font-size="38" font-style="italic" font-weight="900"
+                      fill="#FF3D7F" letter-spacing="-1"
+                      style="filter:blur(0.3px)">personas</text>
+                <rect x="94"  y="46" width="2" height="11" fill="#FF3D7F" opacity="0.85"/>
+                <rect x="170" y="47" width="2" height="12" fill="#FF3D7F" opacity="0.85"/>
+                <rect x="258" y="46" width="2" height="10" fill="#FF3D7F" opacity="0.85"/>
+                <rect x="308" y="46" width="2" height="11" fill="#FF3D7F" opacity="0.85"/>
+                <circle cx="76"  cy="36" r="1.5" fill="#FF3D7F" opacity="0.45"/>
+                <circle cx="326" cy="32" r="1.3" fill="#FF3D7F" opacity="0.45"/>
+                <circle cx="115" cy="50" r="1"   fill="#FF3D7F" opacity="0.4"/>
+                <circle cx="290" cy="50" r="1"   fill="#FF3D7F" opacity="0.4"/>
+              </g>
+            </svg>
           </div>
         </transition>
         <button
@@ -563,9 +575,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 18px 16px 16px;
+  padding: 14px 16px 18px;
   border-bottom: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
-  min-height: 64px;
+  min-height: 72px;
 }
 
 .brand-icon {
@@ -610,6 +622,30 @@ onUnmounted(() => {
   border-radius: 4px;
   background: rgba(6, 204, 180, 0.1);
   border: 1px solid rgba(6, 204, 180, 0.2);
+}
+
+/* Personas lockup in sidebar */
+.sidebar-personas-lockup {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  padding-bottom: 14px;
+}
+.spl-wordmark {
+  display: block;
+  height: 22px;
+  width: auto;
+  max-width: 130px;
+}
+.spl-graffiti {
+  position: absolute;
+  left: -2px;
+  bottom: -2px;
+  width: 140px;
+  height: 36px;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .collapse-btn {
