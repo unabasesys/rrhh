@@ -472,6 +472,9 @@ const TM_CYCLE = [
   { bg:'linear-gradient(140deg,#0f1f2e 0%,#172d44 100%)', accent:'#60a5fa' },
   { bg:'linear-gradient(140deg,#251c00 0%,#3a2b00 100%)', accent:'#fbbf24' },
 ]
+// Iconos decorativos por tipo / ciclo
+const TM_ICONS_BY_TIPO = { venta: 'u-ventas', gasto: 'u-dashboard', default: 'u-grid' }
+const TM_ICON_CYCLE    = ['u-ventas', 'u-dashboard', 'u-grid', 'u-usuarios', 'u-config']
 
 function _tmWorst(values, rowSum, shorter) {
   if (!rowSum || !shorter) return Infinity
@@ -540,7 +543,8 @@ const treemapRects = computed(() => {
   return rects.map((r, i) => {
     const tipo    = r.tipo || 'default'
     const palette = TM_PALETTES[tipo] || TM_CYCLE[r._idx % TM_CYCLE.length]
-    return { ...r, palette, area: r.w * r.h }
+    const icon    = TM_ICONS_BY_TIPO[tipo] || TM_ICON_CYCLE[r._idx % TM_ICON_CYCLE.length]
+    return { ...r, palette, area: r.w * r.h, icon }
   })
 })
 
@@ -794,6 +798,15 @@ watch(vistaActual, async (val) => {
       <!-- Canvas del treemap -->
       <div ref="treemapContainer" class="treemap-canvas">
 
+        <!-- Input oculto para subir foto -->
+        <input
+          ref="fotoFileRefProyecto"
+          type="file"
+          accept="image/*"
+          style="display:none"
+          @change="onFotoProyectoChange"
+        />
+
         <!-- Estado vacío -->
         <div v-if="!treemapRects.length" class="treemap-empty">
           <span class="u u-grid" style="font-size:32px;opacity:.2"></span>
@@ -810,11 +823,30 @@ watch(vistaActual, async (val) => {
             top:    r.y + 'px',
             width:  r.w + 'px',
             height: r.h + 'px',
-            background: r.palette.bg,
             '--accent': r.palette.accent,
+            background: fotoProyecto[r.key]
+              ? `linear-gradient(to bottom,rgba(0,0,0,.25) 0%,rgba(0,0,0,.68) 100%),url(${fotoProyecto[r.key]}) center/cover no-repeat`
+              : r.palette.bg,
           }"
           @click="$router.push(`/rrhh/trabajadores/${r.trabajadores[0]?._id || ''}`)"
         >
+          <!-- Icono decorativo de fondo (sólo si no hay foto) -->
+          <span
+            v-if="!fotoProyecto[r.key] && r.area >= 10000"
+            :class="['u', r.icon, 'tm-tile__deco']"
+          ></span>
+
+          <!-- Botón "Adjuntar foto" — aparece en hover -->
+          <button
+            v-if="r.area >= 14000"
+            class="tm-tile__foto-btn"
+            @click.stop="subirFotoProyecto(r.key)"
+            :title="fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto'"
+          >
+            <span class="u u-edit" style="font-size:10px"></span>
+            {{ fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto' }}
+          </button>
+
           <!-- Contenido adaptable por tamaño -->
           <template v-if="r.area >= 18000">
             <div class="tm-tile__badge" :style="{ background: r.palette.accent + '28', color: r.palette.accent }">
@@ -1663,6 +1695,48 @@ watch(vistaActual, async (val) => {
   filter: brightness(1.12);
   border-color: var(--accent, rgba(255,255,255,0.18));
   z-index: 10;
+}
+/* Patrón de puntos sobre el tile */
+.tm-tile::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+/* Todos los hijos directos encima del patrón */
+.tm-tile > * { position: relative; z-index: 1; }
+
+/* Icono decorativo de fondo */
+.tm-tile__deco {
+  position: absolute !important;
+  right: -10px; bottom: -10px; z-index: 0 !important;
+  font-size: 120px;
+  color: var(--accent, rgba(255,255,255,0.06));
+  opacity: .12;
+  pointer-events: none;
+  line-height: 1;
+  user-select: none;
+  transition: opacity .18s;
+}
+.tm-tile:hover .tm-tile__deco { opacity: .2; }
+
+/* Botón adjuntar foto */
+.tm-tile__foto-btn {
+  position: absolute !important;
+  top: 10px; right: 10px; z-index: 20 !important;
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 7px; padding: 4px 9px;
+  font-family: Nunito; font-size: 10.5px; font-weight: 700;
+  color: rgba(255,255,255,0.75); cursor: pointer;
+  opacity: 0; transition: opacity .18s, background .15s;
+}
+.tm-tile:hover .tm-tile__foto-btn { opacity: 1; }
+.tm-tile__foto-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border-color: var(--accent, rgba(255,255,255,0.35));
 }
 
 /* Badge tipo */
