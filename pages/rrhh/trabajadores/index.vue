@@ -387,6 +387,25 @@ function subirFotoProyecto(key, negocioId = null) {
   fotoFileRefProyecto.value?.click();
 }
 
+async function quitarFotoProyecto(key, negocioId = null) {
+  // Eliminar del ref local
+  const fotos = { ...fotoProyecto.value };
+  delete fotos[key];
+  fotoProyecto.value = fotos;
+  try { localStorage.setItem('rrhh_fotos_proyectos', JSON.stringify(fotos)); } catch {}
+  // Borrar de MongoDB
+  if (negocioId) {
+    try {
+      await $fetch(`/api/rrhh/proyectos/${negocioId}`, {
+        method: 'PUT',
+        body: { foto: null },
+      });
+      const idx = proyectosDB.value.findIndex(p => p._id === negocioId);
+      if (idx !== -1) proyectosDB.value[idx] = { ...proyectosDB.value[idx], foto: null };
+    } catch (err) { console.warn('[foto] Error borrando foto en MongoDB:', err); }
+  }
+}
+
 const trabajadoresPorProyecto = computed(() => {
   const contratos    = rrhhStore.contratos   || [];
   const trabajadores = rrhhStore.trabajadores || [];
@@ -1079,16 +1098,26 @@ watch(vistaActual, async (val) => {
             :class="['u', r.icon, 'tm-tile__deco']"
           ></span>
 
-          <!-- Botón "Adjuntar foto" — aparece en hover -->
-          <button
-            v-if="r.area >= 14000"
-            class="tm-tile__foto-btn"
-            @click.stop="subirFotoProyecto(r.key, r.negocio_id)"
-            :title="fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto'"
-          >
-            <span class="u u-edit" style="font-size:10px"></span>
-            {{ fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto' }}
-          </button>
+          <!-- Botones foto — aparecen en hover -->
+          <template v-if="r.area >= 14000">
+            <button
+              class="tm-tile__foto-btn"
+              @click.stop="subirFotoProyecto(r.key, r.negocio_id)"
+              :title="fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto'"
+            >
+              <span class="u u-edit" style="font-size:10px"></span>
+              {{ fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto' }}
+            </button>
+            <button
+              v-if="fotoProyecto[r.key]"
+              class="tm-tile__foto-btn tm-tile__foto-btn--remove"
+              @click.stop="quitarFotoProyecto(r.key, r.negocio_id)"
+              title="Quitar foto"
+            >
+              <span class="u u-close" style="font-size:10px"></span>
+              Quitar foto
+            </button>
+          </template>
 
           <!-- Contenido adaptable por tamaño -->
           <template v-if="r.area >= 18000">
@@ -1963,7 +1992,7 @@ watch(vistaActual, async (val) => {
 }
 .tm-tile:hover .tm-tile__deco { opacity: .2; }
 
-/* Botón adjuntar foto */
+/* Botones foto */
 .tm-tile__foto-btn {
   position: absolute !important;
   top: 10px; right: 10px; z-index: 20 !important;
@@ -1975,11 +2004,22 @@ watch(vistaActual, async (val) => {
   color: rgba(255,255,255,0.75); cursor: pointer;
   opacity: 0; transition: opacity .18s, background .15s;
 }
+.tm-tile__foto-btn--remove {
+  top: auto !important;
+  bottom: auto !important;
+  right: 10px !important;
+  top: 36px !important;
+}
 .tm-tile:hover .tm-tile__foto-btn { opacity: 1; }
 .tm-tile__foto-btn:hover {
   background: rgba(255,255,255,0.15);
   color: #fff;
   border-color: var(--accent, rgba(255,255,255,0.35));
+}
+.tm-tile__foto-btn--remove:hover {
+  background: rgba(224,120,86,0.55);
+  border-color: rgba(224,120,86,0.6);
+  color: #fff;
 }
 
 /* Badge tipo */
