@@ -3464,9 +3464,10 @@ function openGenContrato() {
   showGenContrato.value = true
 }
 
-function abrirContratoExistente(c) {
+async function abrirContratoExistente(c) {
   // Abrir el modal en modo vista/edición de un contrato ya creado
-  negocioSeleccionado.value = proyectosLocales.value.find(n => n._id === c.negocio_id) || null
+  const proyEnLista = proyectosLocales.value.find(n => n._id === c.negocio_id) || null
+  negocioSeleccionado.value = proyEnLista
   negocioBusqueda.value = c.negocio_nombre || ''
   contratoViewMode.value = true
   contratoEditId.value = c._id
@@ -3498,6 +3499,19 @@ function abrirContratoExistente(c) {
     valor_hora_extra:        c.valor_hora_extra || 0,
     horas_extras_contratadas: c.horas_extras_contratadas || 0,
   }
+
+  // Cargar líneas del proyecto si tiene negocio_id
+  lineasNegocioActual.value = []
+  if (c.negocio_id) {
+    try {
+      lineasNegocioActual.value = await $fetch(`/api/rrhh/lineas?proyectoId=${c.negocio_id}`)
+      // Si el proyecto no estaba en la lista local, crear objeto mínimo para habilitarlo
+      if (!negocioSeleccionado.value) {
+        negocioSeleccionado.value = { _id: c.negocio_id, nombre: c.negocio_nombre || '' }
+      }
+    } catch { lineasNegocioActual.value = [] }
+  }
+
   showGenContrato.value = true
 }
 
