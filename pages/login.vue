@@ -7,14 +7,14 @@
 
         <!-- Logo -->
         <div class="brand-row">
-          <img src="/img/logo-dark.svg" alt="unabase" class="brand-logo" />
+          <img src="/img/logo-unabase-white.png" alt="unabase" class="brand-logo" />
         </div>
 
         <!-- Kicker + Headline -->
         <div class="kicker">Módulo de Personas · RRHH</div>
         <h1 class="headline">
-          Tu equipo creativo,<br>
-          <span class="headline-accent">en una sola base.</span>
+          Tu equipo,<br>
+          <span class="headline-accent">todo en una sola base.</span>
         </h1>
         <p class="lede">
           Contratos, liquidaciones, finiquitos y horarios para estudios,
@@ -62,6 +62,7 @@
               </span>
               Mantener sesión 30 días
             </label>
+            <a class="forgot-link">¿Olvidaste tu clave?</a>
           </div>
 
           <!-- Error global -->
@@ -86,8 +87,11 @@
 
         <!-- Footer -->
         <div class="footer">
-          <span>unabase · Personas v1.2</span>
+          <span>unabase · RRHH v1.2</span>
           <span class="footer-dot">·</span>
+          <a class="footer-link">Soporte</a>
+          <span class="footer-dot">·</span>
+          <a class="footer-link">Estado del sistema</a>
           <span class="footer-status">
             <span class="status-dot"></span>
             operativo
@@ -98,7 +102,7 @@
 
     <!-- ── DESKTOP: Right illustration panel ─────────────────────── -->
     <div class="illus-panel">
-      <!-- Desk illustration SVG -->
+      <!-- Desk illustration SVG — includes Bruno + polaroid -->
       <svg class="illus-svg" viewBox="0 0 640 600" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="wall-grad" x1="0" y1="0" x2="0" y2="1">
@@ -133,6 +137,62 @@
           <rect x="556" y="68" width="10" height="32" fill="#F0B040"/>
         </g>
 
+        <!-- Polaroid de los chicos — colgado en la pared, rotate(5deg), scale 2x -->
+        <g transform="translate(290 44) rotate(5) scale(2)">
+          <!-- sombra detrás -->
+          <rect x="2" y="3" width="62" height="76" rx="1" fill="#062D3A" opacity="0.18"/>
+          <!-- marco cream -->
+          <rect width="62" height="76" rx="1" fill="#F8F2E4" stroke="#062D3A" stroke-width="0.6"/>
+          <!-- área foto: cielo -->
+          <rect x="4" y="4" width="54" height="52" fill="#A8C2C9"/>
+          <!-- pasto -->
+          <rect x="4" y="42" width="54" height="14" fill="#6B8A56"/>
+          <!-- cerco de madera líneas -->
+          <rect x="4" y="40" width="54" height="1.5" fill="#8A6B3A"/>
+          <rect x="4" y="48" width="54" height="1" fill="#8A6B3A"/>
+
+          <!-- Niño 1: polerón rojo -->
+          <g transform="translate(17 28)">
+            <path d="M-9 30 L-9 14 Q-9 12 -7 12 L7 12 Q9 12 9 14 L9 30 Z" fill="#D6324A"/>
+            <path d="M-7 24 Q0 28 7 24 L7 30 L-7 30 Z" fill="#B8243C"/>
+            <path d="M-4 11 Q0 14 4 11 Q4 13 0 13 Q-4 13 -4 11 Z" fill="#B8243C"/>
+            <line x1="-2.5" y1="13" x2="-2.5" y2="20" stroke="#F5F0E6" stroke-width="0.5"/>
+            <line x1="2.5" y1="13" x2="2.5" y2="20" stroke="#F5F0E6" stroke-width="0.5"/>
+            <circle cx="-2.5" cy="20" r="0.6" fill="#F5F0E6"/>
+            <circle cx="2.5" cy="20" r="0.6" fill="#F5F0E6"/>
+            <ellipse cx="0" cy="9" rx="3" ry="2" fill="#C99570"/>
+            <ellipse cx="0" cy="4" rx="5" ry="6" fill="#D4A87E"/>
+            <path d="M-5 -1 Q-6 -7 0 -8 Q6 -7 5 -1 Q4 0 3 -1 Q1 -2 -1 0 Q-3 -2 -5 0 Q-6 -1 -5 -1 Z" fill="#1A0E08"/>
+            <circle cx="-1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <circle cx="1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <line x1="-2.6" y1="2.6" x2="-0.9" y2="2.6" stroke="#0A0A12" stroke-width="0.5" stroke-linecap="round"/>
+            <line x1="0.9" y1="2.6" x2="2.6" y2="2.6" stroke="#0A0A12" stroke-width="0.5" stroke-linecap="round"/>
+            <line x1="-1.5" y1="7" x2="1.5" y2="7" stroke="#0A0A12" stroke-width="0.5" stroke-linecap="round"/>
+          </g>
+
+          <!-- Niño 2: jersey blanco cuello V navy -->
+          <g transform="translate(44 28)">
+            <path d="M-9 30 L-9 14 Q-9 12 -7 12 L7 12 Q9 12 9 14 L9 30 Z" fill="#F5EFE0"/>
+            <path d="M-4 12 L0 17 L4 12 Q4 13 3 13 L0 16 L-3 13 Q-4 13 -4 12 Z" fill="#1E2A4A"/>
+            <path d="M-9 12 L-9 16 Q-7 14 -5 14" stroke="#1E2A4A" stroke-width="1.2" fill="none"/>
+            <path d="M9 12 L9 16 Q7 14 5 14" stroke="#1E2A4A" stroke-width="1.2" fill="none"/>
+            <text x="0" y="23" font-size="2.5" font-family="Space Grotesk, sans-serif" fill="#1E2A4A" text-anchor="middle" font-weight="700">ECKO</text>
+            <ellipse cx="0" cy="10" rx="3" ry="2" fill="#A87555"/>
+            <ellipse cx="0" cy="4" rx="5" ry="6" fill="#B58366"/>
+            <path d="M-5.5 -1 Q-7 -8 0 -9 Q7 -8 5.5 -1 Q5 1 3.5 -1 Q1.5 -3 -0.5 0 Q-2.5 -3 -4.5 0 Q-6 1 -5.5 -1 Z" fill="#0F0805"/>
+            <circle cx="-1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <circle cx="1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <line x1="-2.6" y1="2.6" x2="-0.9" y2="2.6" stroke="#0A0A12" stroke-width="0.5" stroke-linecap="round"/>
+            <line x1="0.9" y1="2.6" x2="2.6" y2="2.6" stroke="#0A0A12" stroke-width="0.5" stroke-linecap="round"/>
+            <path d="M-2 6.5 Q0 8.2 2 6.5" stroke="#0A0A12" stroke-width="0.5" fill="none" stroke-linecap="round"/>
+          </g>
+
+          <!-- Caption "Los chicos" -->
+          <text x="31" y="68" font-size="5.5" font-family="Space Grotesk, sans-serif" fill="#062D3A" text-anchor="middle" font-weight="600" letter-spacing="0.5">Los chicos</text>
+          <!-- masking tape -->
+          <rect x="22" y="-3" width="18" height="6" fill="#FFEC8E" opacity="0.75" transform="rotate(-8 31 0)"/>
+        </g>
+
         <!-- Desk surface -->
         <rect x="0" y="380" width="640" height="14" fill="#062D3A"/>
         <rect x="0" y="394" width="640" height="206" fill="#0B3744"/>
@@ -145,16 +205,13 @@
           <rect x="0" y="0" width="180" height="160" rx="6" fill="#062D3A"/>
           <rect x="8" y="8" width="164" height="144" rx="3" fill="#F5F0E6"/>
           <rect x="8" y="8" width="164" height="18" fill="#062D3A"/>
-          <!-- isotipo en pantalla -->
           <circle cx="18" cy="17" r="5" fill="#0DCFA8" opacity="0.9"/>
           <rect x="28" y="14" width="40" height="6" rx="1" fill="#fff" opacity="0.6"/>
-          <!-- días -->
           <text x="26" y="36" font-size="6" fill="#062D3A" text-anchor="middle" font-family="Space Grotesk, sans-serif" opacity="0.6">L</text>
           <text x="56" y="36" font-size="6" fill="#062D3A" text-anchor="middle" font-family="Space Grotesk, sans-serif" opacity="0.6">M</text>
           <text x="86" y="36" font-size="6" fill="#062D3A" text-anchor="middle" font-family="Space Grotesk, sans-serif" opacity="0.6">M</text>
           <text x="116" y="36" font-size="6" fill="#062D3A" text-anchor="middle" font-family="Space Grotesk, sans-serif" opacity="0.6">J</text>
           <text x="146" y="36" font-size="6" fill="#062D3A" text-anchor="middle" font-family="Space Grotesk, sans-serif" opacity="0.6">V</text>
-          <!-- grid turnos -->
           <rect x="14" y="42" width="26" height="12" rx="2" fill="#0DCFA8"/>
           <rect x="44" y="42" width="26" height="12" rx="2" fill="#062D3A" opacity="0.1"/>
           <rect x="74" y="42" width="26" height="12" rx="2" fill="#E07856"/>
@@ -200,6 +257,45 @@
           <g fill="#062D3A" opacity="0.25">
             <ellipse cx="16" cy="26" rx="3" ry="10" transform="rotate(-15 16 26)"/>
             <ellipse cx="28" cy="36" rx="3" ry="9" transform="rotate(20 28 36)"/>
+          </g>
+        </g>
+
+        <!-- Bruno — gato tuxedo, scale 1.7x, sentado entre la planta y el laptop -->
+        <g transform="translate(140 283) scale(1.7)">
+          <!-- cola larga curva hacia el frente -->
+          <path d="M50 56 Q 64 56 70 46 Q 74 32 64 24 Q 56 20 52 26"
+                stroke="#0A0A12" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <!-- punta blanca de la cola -->
+          <circle cx="52" cy="26" r="3" fill="#F5F0E6"/>
+          <!-- cuerpo de espaldas (pera invertida) -->
+          <path d="M18 56 Q 14 36 18 24 Q 22 14 30 12 Q 38 14 42 24 Q 46 36 42 56 Z" fill="#0A0A12"/>
+          <!-- franja blanca del lomo -->
+          <path d="M28 56 Q 26 40 30 30 Q 32 28 34 30 Q 36 40 34 56 Z" fill="#F5F0E6"/>
+          <!-- patas delanteras con calcetines blancos -->
+          <ellipse cx="22" cy="55" rx="5" ry="3" fill="#0A0A12"/>
+          <ellipse cx="38" cy="55" rx="5" ry="3" fill="#0A0A12"/>
+          <ellipse cx="22" cy="57" rx="4.5" ry="2" fill="#F5F0E6"/>
+          <ellipse cx="38" cy="57" rx="4.5" ry="2" fill="#F5F0E6"/>
+          <!-- cabeza girada 3/4 a la derecha -->
+          <ellipse cx="32" cy="12" rx="11" ry="10" fill="#0A0A12"/>
+          <!-- perfil del hocico -->
+          <path d="M40 12 Q 44 12 44 14 Q 44 17 42 17 Q 39 17 38 15 Z" fill="#0A0A12"/>
+          <circle cx="43" cy="14" r="0.9" fill="#E07856" opacity="0.7"/>
+          <!-- manchita blanca del pecho -->
+          <path d="M38 18 Q 41 20 41 24 Q 38 24 36 22 Z" fill="#F5F0E6"/>
+          <!-- orejas pointy con interior coral -->
+          <path d="M22 8 L 18 -4 L 28 4 Z" fill="#0A0A12"/>
+          <path d="M40 8 L 44 -4 L 34 4 Z" fill="#0A0A12"/>
+          <path d="M23 5 L 21 -1 L 26 4 Z" fill="#E07856" opacity="0.55"/>
+          <path d="M39 5 L 41 -1 L 36 4 Z" fill="#E07856" opacity="0.55"/>
+          <!-- ojo amarillo con pupila vertical -->
+          <ellipse cx="40" cy="11" rx="1.4" ry="2" fill="#F4D26B"/>
+          <ellipse cx="40" cy="11" rx="0.5" ry="1.6" fill="#0A0A12"/>
+          <circle cx="40.3" cy="10.4" r="0.3" fill="#F5F0E6"/>
+          <!-- bigotes -->
+          <g stroke="#F5F0E6" stroke-width="0.5" opacity="0.6" stroke-linecap="round">
+            <line x1="44" y1="15" x2="50" y2="14"/>
+            <line x1="44" y1="16" x2="50" y2="17"/>
           </g>
         </g>
 
@@ -310,9 +406,11 @@
         </defs>
         <rect width="402" height="260" fill="url(#m1bg)"/>
         <rect width="402" height="260" fill="url(#m1grid)"/>
+
         <!-- Desk -->
         <rect x="0" y="205" width="402" height="5" fill="#062D3A"/>
         <rect x="0" y="210" width="402" height="50" fill="#0B3744"/>
+
         <!-- Laptop -->
         <g transform="translate(120 70)">
           <path d="M-14 130 L176 130 L186 140 L-24 140 Z" fill="#041B22"/>
@@ -355,7 +453,8 @@
             <rect x="112" y="60" width="24" height="11" rx="2" fill="#E07856"/>
           </g>
         </g>
-        <!-- Plant -->
+
+        <!-- Plant left -->
         <g transform="translate(28 138)">
           <path d="M-3 50 L37 50 L33 84 L1 84 Z" fill="#E07856"/>
           <rect x="-3" y="46" width="40" height="6" rx="1.5" fill="#C95F38"/>
@@ -366,7 +465,45 @@
             <ellipse cx="20" cy="38" rx="5" ry="11" transform="rotate(5 20 38)"/>
           </g>
         </g>
-        <!-- Coffee -->
+
+        <!-- Bruno mobile — sentado en el escritorio -->
+        <g transform="translate(76 158)">
+          <!-- cola -->
+          <path d="M48 50 Q 62 50 64 42 Q 64 34 56 32" stroke="#0A0A12" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <circle cx="56" cy="32" r="2.6" fill="#F5F0E6"/>
+          <!-- cuerpo -->
+          <path d="M12 50 Q 8 34 12 22 Q 16 12 24 10 Q 32 12 36 22 Q 40 34 36 50 Z" fill="#0A0A12"/>
+          <!-- franja blanca -->
+          <path d="M22 50 Q 20 36 24 26 Q 26 24 28 26 Q 30 36 28 50 Z" fill="#F5F0E6"/>
+          <!-- patas -->
+          <ellipse cx="16" cy="49" rx="4.5" ry="2.5" fill="#0A0A12"/>
+          <ellipse cx="32" cy="49" rx="4.5" ry="2.5" fill="#0A0A12"/>
+          <ellipse cx="16" cy="51" rx="4" ry="1.8" fill="#F5F0E6"/>
+          <ellipse cx="32" cy="51" rx="4" ry="1.8" fill="#F5F0E6"/>
+          <!-- cabeza -->
+          <ellipse cx="26" cy="10" rx="9.5" ry="8.5" fill="#0A0A12"/>
+          <!-- hocico -->
+          <path d="M33 10 Q 37 10 37 12 Q 37 14 35 14 Q 32 14 31 12 Z" fill="#0A0A12"/>
+          <circle cx="36.5" cy="12" r="0.8" fill="#E07856" opacity="0.7"/>
+          <!-- pecho -->
+          <path d="M31 15 Q 33 17 33 20 Q 30 20 28 18 Z" fill="#F5F0E6"/>
+          <!-- orejas -->
+          <path d="M18 6 L 15 -3 L 23 3 Z" fill="#0A0A12"/>
+          <path d="M32 6 L 36 -3 L 28 3 Z" fill="#0A0A12"/>
+          <path d="M19 4 L 17 -1 L 21 3 Z" fill="#E07856" opacity="0.55"/>
+          <path d="M31 4 L 33 -1 L 29 3 Z" fill="#E07856" opacity="0.55"/>
+          <!-- ojo -->
+          <ellipse cx="33" cy="9" rx="1.2" ry="1.7" fill="#F4D26B"/>
+          <ellipse cx="33" cy="9" rx="0.45" ry="1.4" fill="#0A0A12"/>
+          <circle cx="33.2" cy="8.4" r="0.28" fill="#F5F0E6"/>
+          <!-- bigotes -->
+          <g stroke="#F5F0E6" stroke-width="0.4" opacity="0.6" stroke-linecap="round">
+            <line x1="37" y1="12" x2="42" y2="11"/>
+            <line x1="37" y1="13" x2="42" y2="14"/>
+          </g>
+        </g>
+
+        <!-- Coffee mug right -->
         <g transform="translate(320 168)">
           <rect x="0" y="0" width="34" height="42" rx="3" fill="#062D3A"/>
           <rect x="3" y="3" width="28" height="5" rx="1" fill="#0DCFA8"/>
@@ -376,10 +513,43 @@
             <path d="M20 -6 Q16 -12 22 -18 Q28 -24 24 -30"/>
           </g>
         </g>
+
         <!-- Lamp -->
         <line x1="360" y1="0" x2="360" y2="50" stroke="#062D3A" stroke-width="2.5"/>
         <line x1="360" y1="50" x2="330" y2="66" stroke="#062D3A" stroke-width="2.5"/>
         <path d="M315 58 L342 50 L336 76 L322 76 Z" fill="#0DCFA8" stroke="#062D3A" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M329 76 L380 205 L280 205 Z" fill="#FFF7DE" opacity="0.3"/>
+
+        <!-- Polaroid mobile — esquina superior derecha -->
+        <g transform="translate(333 6) rotate(5) scale(1.05)">
+          <rect x="2" y="3" width="62" height="76" rx="1" fill="#062D3A" opacity="0.18"/>
+          <rect width="62" height="76" rx="1" fill="#F8F2E4" stroke="#062D3A" stroke-width="0.6"/>
+          <rect x="4" y="4" width="54" height="52" fill="#A8C2C9"/>
+          <rect x="4" y="42" width="54" height="14" fill="#6B8A56"/>
+          <rect x="4" y="40" width="54" height="1.5" fill="#8A6B3A"/>
+          <rect x="4" y="48" width="54" height="1" fill="#8A6B3A"/>
+          <g transform="translate(17 28)">
+            <path d="M-9 30 L-9 14 Q-9 12 -7 12 L7 12 Q9 12 9 14 L9 30 Z" fill="#D6324A"/>
+            <path d="M-4 11 Q0 14 4 11 Q4 13 0 13 Q-4 13 -4 11 Z" fill="#B8243C"/>
+            <ellipse cx="0" cy="4" rx="5" ry="6" fill="#D4A87E"/>
+            <path d="M-5 -1 Q-6 -7 0 -8 Q6 -7 5 -1 Q4 0 3 -1 Q1 -2 -1 0 Q-3 -2 -5 0 Z" fill="#1A0E08"/>
+            <circle cx="-1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <circle cx="1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <line x1="-1.5" y1="7" x2="1.5" y2="7" stroke="#0A0A12" stroke-width="0.5" stroke-linecap="round"/>
+          </g>
+          <g transform="translate(44 28)">
+            <path d="M-9 30 L-9 14 Q-9 12 -7 12 L7 12 Q9 12 9 14 L9 30 Z" fill="#F5EFE0"/>
+            <path d="M-4 12 L0 17 L4 12 Q4 13 3 13 L0 16 L-3 13 Q-4 13 -4 12 Z" fill="#1E2A4A"/>
+            <ellipse cx="0" cy="4" rx="5" ry="6" fill="#B58366"/>
+            <path d="M-5.5 -1 Q-7 -8 0 -9 Q7 -8 5.5 -1 Q5 1 3.5 -1 Q1.5 -3 -0.5 0 Q-2.5 -3 -4.5 0 Q-6 1 -5.5 -1 Z" fill="#0F0805"/>
+            <circle cx="-1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <circle cx="1.7" cy="4" r="0.55" fill="#0A0A12"/>
+            <path d="M-2 6.5 Q0 8.2 2 6.5" stroke="#0A0A12" stroke-width="0.5" fill="none" stroke-linecap="round"/>
+          </g>
+          <text x="31" y="68" font-size="5.5" font-family="Space Grotesk, sans-serif" fill="#062D3A" text-anchor="middle" font-weight="600">Los chicos</text>
+          <rect x="22" y="-3" width="18" height="6" fill="#FFEC8E" opacity="0.75" transform="rotate(-8 31 0)"/>
+        </g>
+
         <!-- Clock -->
         <g transform="translate(54 50)">
           <circle r="15" fill="#fff" stroke="#062D3A" stroke-width="1.5"/>
@@ -387,6 +557,7 @@
           <line x2="7" y2="3" stroke="#0DCFA8" stroke-width="2" stroke-linecap="round"/>
           <circle r="1.5" fill="#062D3A"/>
         </g>
+
         <!-- Sticky note -->
         <g transform="translate(40 92) rotate(-6)">
           <rect width="44" height="40" fill="#FFEC8E" stroke="#062D3A" stroke-width="0.8"/>
@@ -447,6 +618,8 @@ async function handleLogin() {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap');
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── Root: split layout desktop, column en móvil ───────────────── */
@@ -455,7 +628,7 @@ async function handleLogin() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-  font-family: 'Inter Tight', 'Nunito', system-ui, sans-serif;
+  font-family: 'Inter Tight', system-ui, sans-serif;
   background: #062D3A;
   overflow: hidden;
 }
@@ -494,12 +667,12 @@ async function handleLogin() {
 /* Headline */
 .headline {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 40px;
+  font-size: 42px;
   line-height: 1.05;
   letter-spacing: -0.025em;
   font-weight: 600;
   color: #F5F0E6;
-  margin: 0 0 14px;
+  margin: 0 0 16px;
 }
 .headline-accent {
   font-style: italic;
@@ -509,15 +682,15 @@ async function handleLogin() {
 
 /* Lede */
 .lede {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.55;
   color: rgba(245,240,230,0.65);
   margin: 0 0 32px;
   max-width: 380px;
 }
 
 /* Form */
-.form { display: flex; flex-direction: column; gap: 14px; }
+.form { display: flex; flex-direction: column; gap: 16px; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-label {
@@ -546,7 +719,7 @@ async function handleLogin() {
 .error-msg { font-size: 11px; color: #f87171; }
 
 .input-wrap { position: relative; }
-.input-wrap input { padding-right: 68px; }
+.input-wrap input { padding-right: 80px; }
 .eye-btn {
   position: absolute;
   right: 10px;
@@ -601,6 +774,15 @@ async function handleLogin() {
   background: #0DCFA8;
   border-color: #0DCFA8;
 }
+.forgot-link {
+  font-size: 13px;
+  color: #0DCFA8;
+  cursor: pointer;
+  text-decoration: none;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.forgot-link:hover { opacity: 1; }
 
 /* Alert */
 .alert-error {
@@ -656,6 +838,8 @@ async function handleLogin() {
   flex-wrap: wrap;
 }
 .footer-dot { opacity: 0.5; }
+.footer-link { color: inherit; cursor: pointer; text-decoration: none; }
+.footer-link:hover { color: rgba(245,240,230,0.65); }
 .footer-status {
   margin-left: auto;
   display: flex;
@@ -752,10 +936,10 @@ async function handleLogin() {
 }
 .testimonial-role { font-size: 10px; color: rgba(6,45,58,0.55); margin-top: 1px; }
 
-/* ── Mobile illustration band (hidden on desktop) ──────────────── */
+/* ── Mobile illustration band ───────────────────────────────────── */
 .mobile-illus {
   display: none;
-  height: 240px;
+  height: 260px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -767,7 +951,6 @@ async function handleLogin() {
     grid-template-rows: auto 1fr;
   }
 
-  /* Mostrar band ilustración arriba */
   .mobile-illus {
     display: block;
     grid-row: 1;
@@ -775,31 +958,30 @@ async function handleLogin() {
     order: -1;
   }
 
-  /* Ocultar panel derecho de escritorio */
   .illus-panel { display: none; }
 
-  /* Form panel ocupa toda la pantalla restante */
   .form-panel {
     grid-row: 2;
     grid-column: 1;
-    padding: 24px 28px 48px;
+    padding: 24px 28px 56px;
     align-items: flex-start;
     min-height: 0;
   }
 
   .form-inner { max-width: 100%; }
-  .brand-row { margin-bottom: 20px; }
+  .brand-row { margin-bottom: 18px; }
   .brand-logo { height: 22px; }
   .headline { font-size: 26px; }
   .kicker { font-size: 10px; margin-bottom: 10px; }
-  .lede { font-size: 13px; margin-bottom: 20px; display: none; }
-  .footer { margin-top: 24px; }
+  .lede { display: none; }
+  .footer { margin-top: 20px; }
   .primary-btn { height: 48px; font-size: 14px; }
   .field input { height: 44px; font-size: 14px; }
 }
 
 @media (max-width: 480px) {
-  .form-panel { padding: 20px 22px 40px; }
-  .headline { font-size: 22px; }
+  .form-panel { padding: 20px 22px 44px; }
+  .headline { font-size: 24px; }
+  .mobile-illus { height: 240px; }
 }
 </style>
