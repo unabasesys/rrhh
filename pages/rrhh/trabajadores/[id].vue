@@ -2132,7 +2132,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue"
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue"
 import { useRoute, useRouter } from 'vue-router'
 import useRrhhStore from '@/stores/rrhh'
 import { useAsistenciaStore } from '@/stores/asistencia'
@@ -3501,7 +3501,14 @@ async function abrirContratoExistente(c) {
   }
 
   // Cargar líneas del proyecto si tiene negocio_id
+  // Guardamos linea_codigo y lo reseteamos para que el select se re-renderice
+  // correctamente una vez que las opciones estén disponibles (timing async)
+  const savedLinea  = c.linea_codigo || ''
+  const savedLinNom = c.linea_nombre || ''
+  contratoForm.value.linea_codigo = ''
+  contratoForm.value.linea_nombre = ''
   lineasNegocioActual.value = []
+
   if (c.negocio_id) {
     try {
       lineasNegocioActual.value = await $fetch(`/api/rrhh/lineas?proyectoId=${c.negocio_id}`)
@@ -3511,6 +3518,11 @@ async function abrirContratoExistente(c) {
       }
     } catch { lineasNegocioActual.value = [] }
   }
+
+  // Restaurar la línea seleccionada DESPUÉS de que el DOM tenga las opciones
+  await nextTick()
+  contratoForm.value.linea_codigo = savedLinea
+  contratoForm.value.linea_nombre = savedLinNom
 
   showGenContrato.value = true
 }
