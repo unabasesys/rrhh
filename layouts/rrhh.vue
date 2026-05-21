@@ -223,7 +223,7 @@ onMounted(async () => {
   authStore = useAuthStore()
   orgStore  = useOrgStore()
   await authStore.init()
-  orgStore.init()
+  await orgStore.init()
 
   currentUser.value = authStore.user
 

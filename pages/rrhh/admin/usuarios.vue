@@ -274,7 +274,7 @@ onMounted(async () => {
 
   if (!isSuperAdmin.value) return
 
-  orgStore.init()
+  await orgStore.init()
   orgs.value = orgStore.orgs || []
   await loadUsers()
 })

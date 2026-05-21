@@ -1,96 +1,104 @@
 import { defineStore } from 'pinia'
 
-/* ── localStorage key ──────────────────────────────────────────── */
-const LS_ORGS = 'rrhh_orgs'
-
-/* ── Helpers ───────────────────────────────────────────────────── */
-function newOrgId() {
-  return `org_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+/* ── Normalizar objeto de org (API devuelve _id, nosotros usamos id) ────── */
+function normalize(org) {
+  if (!org) return null
+  return { ...org, id: org._id || org.id }
 }
 
-/* ── Store ─────────────────────────────────────────────────────── */
+/* ── Store ─────────────────────────────────────────────────────────────── */
 export const useOrgStore = defineStore('org', {
   state: () => ({
-    orgs:         [],
-    initialized:  false,
+    orgs:        [],
+    initialized: false,
+    loading:     false,
   }),
 
   getters: {
-    // Organización por ID
-    getById: (s) => (id) => s.orgs.find(o => o.id === id) || null,
-
-    // Solo orgs activas
+    getById:    (s) => (id) => s.orgs.find(o => o.id === id) || null,
     activeOrgs: (s) => s.orgs.filter(o => o.activo !== false),
   },
 
   actions: {
-    /* ── Init ──────────────────────────────────────────────────── */
-    init() {
+    /* ── Init: carga orgs desde MongoDB ──────────────────────────────── */
+    async init() {
       if (this.initialized) return
-      this.initialized = true
       if (!import.meta.client) return
+      this.initialized = true
+      await this.fetchOrgs()
+    },
+
+    async fetchOrgs() {
       try {
-        this.orgs = JSON.parse(localStorage.getItem(LS_ORGS) || '[]')
+        this.loading = true
+        const data = await $fetch('/api/orgs')
+        this.orgs = (data || []).map(normalize)
       } catch {
         this.orgs = []
+      } finally {
+        this.loading = false
       }
     },
 
-    /* ── CRUD ──────────────────────────────────────────────────── */
-    createOrg({ nombre, rut, logo = null, direccion = '', comuna = '', ciudad = '', representanteLegal = null }) {
-      const org = {
-        id:                newOrgId(),
-        nombre:            nombre?.trim() || '',
-        rut:               rut?.trim() || '',
-        logo,                              // base64 string o null
-        direccion:         direccion?.trim() || '',
-        comuna:            comuna?.trim() || '',
-        ciudad:            ciudad?.trim() || '',
+    /* ── CRUD (llamadas a la API) ─────────────────────────────────────── */
+    async createOrg({ nombre, rut, logo = null, direccion = '', comuna = '', ciudad = '', representanteLegal = null }) {
+      const payload = {
+        nombre:             nombre?.trim() || '',
+        rut:                rut?.trim()    || '',
+        logo,
+        direccion:          direccion?.trim()  || '',
+        comuna:             comuna?.trim()     || '',
+        ciudad:             ciudad?.trim()     || '',
         representanteLegal: representanteLegal
           ? {
               nombre: representanteLegal.nombre?.trim() || '',
-              rut:    representanteLegal.rut?.trim() || '',
+              rut:    representanteLegal.rut?.trim()    || '',
             }
           : null,
-        activo:    true,
-        createdAt: new Date().toISOString(),
+        activo: true,
       }
-      this.orgs.push(org)
-      this._save()
-      return { ok: true, org }
+      try {
+        const created = await $fetch('/api/orgs', { method: 'POST', body: payload })
+        const org = normalize(created)
+        this.orgs.push(org)
+        return { ok: true, org }
+      } catch (err) {
+        return { ok: false, message: err?.data?.message || 'Error al crear organización' }
+      }
     },
 
-    updateOrg(id, cambios) {
-      const idx = this.orgs.findIndex(o => o.id === id)
-      if (idx === -1) return { ok: false, message: 'Organización no encontrada' }
-
-      this.orgs[idx] = {
-        ...this.orgs[idx],
-        ...cambios,
-        updatedAt: new Date().toISOString(),
+    async updateOrg(id, cambios) {
+      try {
+        const updated = await $fetch(`/api/orgs/${id}`, { method: 'PUT', body: cambios })
+        const org = normalize(updated)
+        const idx = this.orgs.findIndex(o => o.id === id)
+        if (idx !== -1) this.orgs[idx] = org
+        return { ok: true, org }
+      } catch (err) {
+        return { ok: false, message: err?.data?.message || 'Error al actualizar' }
       }
-      this._save()
-      return { ok: true, org: this.orgs[idx] }
     },
 
-    toggleOrg(id) {
+    async toggleOrg(id) {
       const org = this.orgs.find(o => o.id === id)
       if (!org) return { ok: false }
-      org.activo = !org.activo
-      this._save()
-      return { ok: true, activo: org.activo }
+      const nuevoActivo = !org.activo
+      try {
+        await $fetch(`/api/orgs/${id}`, { method: 'PUT', body: { activo: nuevoActivo } })
+        org.activo = nuevoActivo
+        return { ok: true, activo: nuevoActivo }
+      } catch (err) {
+        return { ok: false, message: err?.data?.message || 'Error al actualizar' }
+      }
     },
 
-    deleteOrg(id) {
-      this.orgs = this.orgs.filter(o => o.id !== id)
-      this._save()
-      return { ok: true }
-    },
-
-    /* ── Privado ───────────────────────────────────────────────── */
-    _save() {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(LS_ORGS, JSON.stringify(this.orgs))
+    async deleteOrg(id) {
+      try {
+        await $fetch(`/api/orgs/${id}`, { method: 'DELETE' })
+        this.orgs = this.orgs.filter(o => o.id !== id)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, message: err?.data?.message || 'Error al eliminar' }
       }
     },
   },

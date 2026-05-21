@@ -263,7 +263,7 @@ onMounted(async () => {
   // init() restaura la sesión desde localStorage (necesario tras SSR)
   await authStore.init()
   authLoading.value = false
-  orgStore.init()
+  await orgStore.init()
   fetchWorkerCounts()
 })
 
@@ -315,7 +315,7 @@ function closeModal() {
   modal.error = ''
 }
 
-function saveOrg() {
+async function saveOrg() {
   modal.error = ''
   if (!form.nombre.trim()) { modal.error = 'La razón social es requerida'; return }
   if (!form.rut.trim())    { modal.error = 'El RUT es requerido'; return }
@@ -335,20 +335,21 @@ function saveOrg() {
 
   let result
   if (modal.mode === 'create') {
-    result = orgStore.createOrg(payload)
+    result = await orgStore.createOrg(payload)
   } else {
-    result = orgStore.updateOrg(modal.editId, payload)
+    result = await orgStore.updateOrg(modal.editId, payload)
   }
 
   modal.loading = false
   if (!result.ok) { modal.error = result.message; return }
+  const modeLabel = modal.mode
   closeModal()
-  showToast(modal.mode === 'create' ? 'Organización creada' : 'Organización actualizada', 'success')
+  showToast(modeLabel === 'create' ? 'Organización creada' : 'Organización actualizada', 'success')
 }
 
 // ── Toggle ─────────────────────────────────────────────────────────────────
-function toggleOrg(id) {
-  const result = orgStore.toggleOrg(id)
+async function toggleOrg(id) {
+  const result = await orgStore.toggleOrg(id)
   if (result.ok) showToast(result.activo ? 'Organización activada' : 'Organización desactivada', 'success')
 }
 
@@ -360,8 +361,8 @@ function confirmDelete(org) {
   deleteModal.open = true
 }
 
-function doDelete() {
-  orgStore.deleteOrg(deleteModal.org.id)
+async function doDelete() {
+  await orgStore.deleteOrg(deleteModal.org.id)
   deleteModal.open = false
   showToast('Organización eliminada', 'success')
 }
