@@ -854,12 +854,22 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group">
-                <label>Línea Presupuestal</label>
+              <div class="form-group" style="position:relative">
+                <label style="display:flex;align-items:center;justify-content:space-between">
+                  <span>Línea Presupuestal</span>
+                  <button v-if="negocioSeleccionado" type="button"
+                    class="add-linea-btn"
+                    @click="abrirCrearLinea"
+                    title="Agregar línea a este proyecto">
+                    <i class="u u-agregar" style="font-size:11px"></i> Nueva línea
+                  </button>
+                </label>
                 <select v-model="contratoForm.linea_codigo" class="form-input"
-                  :disabled="!lineasNegocio.length"
+                  :disabled="!negocioSeleccionado"
                   @change="e => { const item = lineasNegocio.find(i => i.codigo === e.target.value); if(item) contratoForm.linea_nombre = item.nombre }">
-                  <option value="">{{ lineasNegocio.length ? '— Seleccionar línea —' : '← Selecciona un negocio primero' }}</option>
+                  <option value="">
+                    {{ !negocioSeleccionado ? '← Selecciona un proyecto primero' : (lineasNegocio.length ? '— Seleccionar línea —' : '— Sin líneas, agrega una →') }}
+                  </option>
                   <optgroup v-for="cat in [...new Set(lineasNegocio.map(i => i.categoria))]" :key="cat" :label="cat">
                     <option v-for="item in lineasNegocio.filter(i => i.categoria === cat)"
                       :key="item.codigo" :value="item.codigo">
@@ -867,6 +877,43 @@
                     </option>
                   </optgroup>
                 </select>
+
+                <!-- Mini-form crear línea inline -->
+                <div v-if="showCrearLinea" class="crear-proyecto-form" style="top:100%;margin-top:4px">
+                  <div class="cpf-header">
+                    <span>Nueva Línea — {{ negocioSeleccionado?.nombre }}</span>
+                    <button type="button" class="cpf-close" @click="showCrearLinea = false">×</button>
+                  </div>
+                  <div class="cpf-body">
+                    <div class="form-group" style="margin-bottom:8px">
+                      <label style="font-size:11px">Nombre *</label>
+                      <input v-model="crearLineaForm.nombre" type="text" class="form-input form-input-sm"
+                        placeholder="Ej: Camarógrafo, Director de Arte..."
+                        @keyup.enter="confirmarCrearLinea" @keyup.esc="showCrearLinea = false" />
+                    </div>
+                    <div class="form-grid-2" style="gap:8px;margin-bottom:8px">
+                      <div class="form-group">
+                        <label style="font-size:11px">Código <small style="color:#6b7280">(opcional)</small></label>
+                        <input v-model="crearLineaForm.codigo" type="text" class="form-input form-input-sm"
+                          placeholder="Ej: 1403-0001"
+                          @keyup.enter="confirmarCrearLinea" />
+                      </div>
+                      <div class="form-group">
+                        <label style="font-size:11px">Categoría <small style="color:#6b7280">(opcional)</small></label>
+                        <input v-model="crearLineaForm.categoria" type="text" class="form-input form-input-sm"
+                          placeholder="Ej: Camera, Art..."
+                          @keyup.enter="confirmarCrearLinea" />
+                      </div>
+                    </div>
+                    <p v-if="crearLineaError" class="cpf-error">{{ crearLineaError }}</p>
+                    <div class="cpf-actions">
+                      <button type="button" class="btn btn-ghost btn-sm" @click="showCrearLinea = false">Cancelar</button>
+                      <button type="button" class="btn btn-primary btn-sm" @click="confirmarCrearLinea">
+                        <i class="u u-agregar"></i> Agregar línea
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div v-if="contratoForm.linea_codigo" class="presupuesto-selected">
@@ -2201,6 +2248,50 @@ async function confirmarCrearProyecto() {
     seleccionarNegocio(nuevo)
   } catch (e) {
     crearProyectoError.value = e?.data?.message || 'Error al crear proyecto'
+  }
+}
+
+// ── Crear línea inline ────────────────────────────────────────────────────────
+const showCrearLinea  = ref(false)
+const crearLineaForm  = ref({ nombre: '', codigo: '', categoria: '' })
+const crearLineaError = ref('')
+
+function abrirCrearLinea() {
+  crearLineaForm.value  = { nombre: '', codigo: '', categoria: '' }
+  crearLineaError.value = ''
+  showCrearLinea.value  = true
+}
+
+async function confirmarCrearLinea() {
+  const nombre = crearLineaForm.value.nombre.trim()
+  if (!nombre) { crearLineaError.value = 'El nombre es requerido'; return }
+  if (!negocioSeleccionado.value) { crearLineaError.value = 'Selecciona un proyecto primero'; return }
+
+  const orgId = _authStore?.currentOrgId || null
+  const proyectoId = negocioSeleccionado.value._id
+
+  // Auto-generar código si no se ingresó
+  const codigo = crearLineaForm.value.codigo.trim() ||
+    `LIN-${String(lineasNegocioActual.value.length + 1).padStart(3, '0')}`
+
+  try {
+    const nueva = await $fetch('/api/rrhh/lineas', {
+      method: 'POST',
+      body: {
+        nombre,
+        codigo,
+        categoria: crearLineaForm.value.categoria.trim() || 'General',
+        proyectoId,
+        orgId,
+      },
+    })
+    lineasNegocioActual.value = [...lineasNegocioActual.value, nueva]
+    // Auto-seleccionar la línea recién creada
+    contratoForm.value.linea_codigo = nueva.codigo
+    contratoForm.value.linea_nombre = nueva.nombre
+    showCrearLinea.value = false
+  } catch (e) {
+    crearLineaError.value = e?.data?.message || 'Error al crear línea'
   }
 }
 
@@ -4331,6 +4422,17 @@ onMounted(async () => {
   transition: background .12s;
 }
 .negocio-create-btn:hover { background: rgba(58,199,165,0.08); }
+
+.add-linea-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 6px;
+  border: 1px solid rgba(58,199,165,0.3);
+  background: rgba(58,199,165,0.06);
+  color: #3ac7a5; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s;
+  font-family: inherit;
+}
+.add-linea-btn:hover { background: rgba(58,199,165,0.14); }
 
 /* Mini-form crear proyecto */
 .crear-proyecto-form {
