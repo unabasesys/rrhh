@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import useRrhhStore from "@/stores/rrhh";
 
 const rrhhStore   = useRrhhStore();
@@ -390,8 +390,9 @@ const trabajadoresPorProyecto = computed(() => {
 
     if (!grupos[key]) {
       grupos[key] = {
-        nombre: key === '__sin_proyecto__' ? 'Sin proyecto asignado' : key,
+        nombre:      key === '__sin_proyecto__' ? 'Sin proyecto asignado' : key,
         key,
+        negocio_id:  c?.negocio_id || null,
         trabajadores: [],
         contratos: [],
         fecha_inicio: null,
@@ -444,6 +445,115 @@ const trabajadoresPorProyecto = computed(() => {
     .filter(g => g.key !== '__sin_proyecto__')
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 });
+
+// ── Treemap "Centro de costo" ─────────────────────────────────────────────────
+const proyectosDB      = ref([])
+const treemapContainer = ref(null)
+const treemapSize      = ref({ w: 900, h: 480 })
+let   _tmRO            = null
+
+// Map proyectoId → tipo (venta / gasto)
+const proyectoTipoMap = computed(() => {
+  const m = {}
+  proyectosDB.value.forEach(p => { m[p._id] = p.tipo || 'venta' })
+  return m
+})
+
+// Palette by tipo
+const TM_PALETTES = {
+  venta:   { bg: 'linear-gradient(140deg,#0b2921 0%,#143d31 100%)', accent: '#3ac7a5', label: 'Ingreso' },
+  gasto:   { bg: 'linear-gradient(140deg,#2d150a 0%,#3f200c 100%)', accent: '#f4a261', label: 'Gasto' },
+  default: { bg: 'linear-gradient(140deg,#111827 0%,#1e2d3d 100%)', accent: '#818cf8', label: 'Centro' },
+}
+const TM_CYCLE = [
+  { bg:'linear-gradient(140deg,#0b2921 0%,#143d31 100%)', accent:'#3ac7a5' },
+  { bg:'linear-gradient(140deg,#2d150a 0%,#3f200c 100%)', accent:'#f4a261' },
+  { bg:'linear-gradient(140deg,#1a1035 0%,#2a1a50 100%)', accent:'#a78bfa' },
+  { bg:'linear-gradient(140deg,#0f1f2e 0%,#172d44 100%)', accent:'#60a5fa' },
+  { bg:'linear-gradient(140deg,#251c00 0%,#3a2b00 100%)', accent:'#fbbf24' },
+]
+
+function _tmWorst(values, rowSum, shorter) {
+  if (!rowSum || !shorter) return Infinity
+  let max = 0, min = Infinity
+  for (const v of values) { if (v > max) max = v; if (v < min) min = v }
+  return Math.max((shorter * shorter * max) / (rowSum * rowSum),
+                  (rowSum * rowSum) / (shorter * shorter * min))
+}
+
+function squarify(items, x, y, w, h) {
+  if (!items.length || !w || !h) return []
+  const total  = items.reduce((s, i) => s + i.value, 0)
+  const factor = (w * h) / total
+  const pool   = [...items]
+    .sort((a, b) => b.value - a.value)
+    .map(i => ({ ...i, value: i.value * factor }))
+  const rects  = []
+  let cx = x, cy = y, cw = w, ch = h, idx = 0
+  while (idx < pool.length) {
+    const shorter = Math.min(cw, ch)
+    const row = [], rowVals = []
+    let rowSum = 0, prevWorst = Infinity
+    while (idx < pool.length) {
+      const item = pool[idx]
+      const newSum    = rowSum + item.value
+      const newWorst  = _tmWorst([...rowVals, item.value], newSum, shorter)
+      if (row.length > 0 && newWorst > prevWorst) break
+      row.push(item); rowVals.push(item.value)
+      rowSum = newSum; prevWorst = newWorst; idx++
+    }
+    if (!row.length) { idx++; continue }
+    if (cw >= ch) {
+      const sw = rowSum / ch; let ry = cy
+      for (const it of row) {
+        const rh = ch * (it.value / rowSum)
+        rects.push({ ...it, x: cx, y: ry, w: sw, h: rh }); ry += rh
+      }
+      cx += sw; cw -= sw
+    } else {
+      const sh = rowSum / cw; let rx = cx
+      for (const it of row) {
+        const rw = cw * (it.value / rowSum)
+        rects.push({ ...it, x: rx, y: cy, w: rw, h: sh }); rx += rw
+      }
+      cy += sh; ch -= sh
+    }
+  }
+  return rects
+}
+
+const treemapRects = computed(() => {
+  const grupos = trabajadoresPorProyecto.value
+  const { w, h } = treemapSize.value
+  if (!grupos.length || !w || !h) return []
+  const tipoMap = proyectoTipoMap.value
+  const items = grupos
+    .map((g, i) => ({
+      ...g,
+      value: g.total_costo || 1,
+      tipo: tipoMap[g.negocio_id] || null,
+      _idx: i,
+    }))
+    .filter(g => g.value > 0)
+  if (!items.length) return []
+  const rects = squarify(items, 0, 0, w, h)
+  return rects.map((r, i) => {
+    const tipo    = r.tipo || 'default'
+    const palette = TM_PALETTES[tipo] || TM_CYCLE[r._idx % TM_CYCLE.length]
+    return { ...r, palette, area: r.w * r.h }
+  })
+})
+
+function fmtM(v) {
+  if (!v) return '—'
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000)     return `$${Math.round(v / 1_000)}k`
+  return `$${v}`
+}
+
+function tmTipoLabel(tipo) {
+  return TM_PALETTES[tipo]?.label || 'Centro'
+}
 
 // ── Sprint 2: contrato vigente, estado doble, labels contextuales ─────────────
 
@@ -528,7 +638,43 @@ onMounted(async () => {
     await Promise.all([rrhhStore.getTrabajadores(), rrhhStore.getContratos()]);
   } finally {
   }
+  // Cargar proyectos para tipos de treemap
+  try {
+    const authStore = (await import('@/stores/auth')).useAuthStore()
+    const orgId = authStore?.currentOrgId || null
+    proyectosDB.value = await $fetch(orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos')
+  } catch { proyectosDB.value = [] }
+  // ResizeObserver para dimensiones del treemap
+  if (treemapContainer.value) {
+    _tmRO = new ResizeObserver(entries => {
+      for (const e of entries) {
+        const cr = e.contentRect
+        treemapSize.value = { w: cr.width, h: cr.height }
+      }
+    })
+    _tmRO.observe(treemapContainer.value)
+    const cr = treemapContainer.value.getBoundingClientRect()
+    treemapSize.value = { w: cr.width || 900, h: cr.height || 480 }
+  }
 });
+onUnmounted(() => { _tmRO?.disconnect() });
+
+// Cuando el usuario cambia a vista treemap, conectar ResizeObserver
+watch(vistaActual, async (val) => {
+  if (val !== 'proyectos') return
+  await nextTick()
+  if (!treemapContainer.value) return
+  if (_tmRO) { _tmRO.disconnect(); _tmRO = null }
+  _tmRO = new ResizeObserver(entries => {
+    for (const e of entries) {
+      const cr = e.contentRect
+      treemapSize.value = { w: Math.max(cr.width, 100), h: Math.max(cr.height, 100) }
+    }
+  })
+  _tmRO.observe(treemapContainer.value)
+  const cr = treemapContainer.value.getBoundingClientRect()
+  treemapSize.value = { w: cr.width || 900, h: cr.height || 480 }
+})
 
 </script>
 
@@ -627,100 +773,86 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- ── Vista por Proyectos ──────────────────────────────────────────── -->
-    <div v-if="vistaActual === 'proyectos'" class="proyectos-grid">
-      <input ref="fotoFileRefProyecto" type="file" accept="image/*" style="display:none" @change="onFotoProyectoChange" />
+    <!-- ── Vista Treemap "Centro de costo" ───────────────────────────────── -->
+    <div v-if="vistaActual === 'proyectos'" class="treemap-wrap">
 
-      <div
-        v-for="grupo in trabajadoresPorProyecto"
-        :key="grupo.key"
-        class="proyecto-card"
-      >
-        <!-- Cabecera con foto -->
-        <div class="proyecto-card__cover" :style="fotoProyecto[grupo.key] ? `background-image:url(${fotoProyecto[grupo.key]})` : ''">
-          <div class="proyecto-card__cover-overlay">
-            <div class="proyecto-card__cover-actions">
-              <button class="btn-foto-up" @click.stop="subirFotoProyecto(grupo.key)" :title="fotoProyecto[grupo.key] ? 'Cambiar foto' : 'Subir foto'">
-                <span class="u u-edit" style="font-size:12px"></span>
-                {{ fotoProyecto[grupo.key] ? 'Cambiar' : 'Foto' }}
-              </button>
-            </div>
-          </div>
-          <div class="proyecto-card__name-wrap">
-            <h3 class="proyecto-card__name">{{ grupo.nombre }}</h3>
-            <div class="proyecto-card__dates" v-if="grupo.fecha_inicio">
-              {{ new Date(grupo.fecha_inicio + 'T12:00').toLocaleDateString('es-CL', { day:'numeric', month:'short', year:'numeric' }) }}
-              <template v-if="grupo.fecha_termino">
-                → {{ new Date(grupo.fecha_termino + 'T12:00').toLocaleDateString('es-CL', { day:'numeric', month:'short', year:'numeric' }) }}
-              </template>
-              <template v-else>→ Indefinido</template>
-            </div>
-          </div>
+      <!-- Título del mapa -->
+      <div class="treemap-header">
+        <div class="treemap-header__left">
+          <span class="treemap-header__title">Centro de costo</span>
+          <span class="treemap-header__dot">·</span>
+          <span class="treemap-header__sub">
+            Mapa de {{ new Date(filtroMes + '-01').toLocaleDateString('es-CL', { month:'long' }) }}
+          </span>
         </div>
-
-        <!-- KPIs del proyecto -->
-        <div class="proyecto-card__stats">
-          <div class="proyecto-stat">
-            <span class="proyecto-stat__lbl">Líquido</span>
-            <span class="proyecto-stat__val teal">{{ fmtCLP(grupo.total_liquido) }}</span>
-          </div>
-          <div class="proyecto-stat__sep"></div>
-          <div class="proyecto-stat">
-            <span class="proyecto-stat__lbl">Costo empresa</span>
-            <span class="proyecto-stat__val orange">{{ fmtCLP(grupo.total_costo) }}</span>
-          </div>
-          <div class="proyecto-stat__sep"></div>
-          <div class="proyecto-stat">
-            <span class="proyecto-stat__lbl">Imposiciones</span>
-            <span class="proyecto-stat__val rose">{{ fmtCLP(grupo.total_imposiciones) }}</span>
-          </div>
+        <div class="treemap-header__right">
+          <span class="treemap-legend-dot" style="background:#3ac7a5"></span><span class="treemap-legend-lbl">Ingreso</span>
+          <span class="treemap-legend-dot" style="background:#f4a261;margin-left:12px"></span><span class="treemap-legend-lbl">Gasto</span>
         </div>
-
-        <!-- Barra visual + contador de trabajadores -->
-        <div class="proyecto-card__bar-wrap">
-          <div class="proyecto-card__bar" v-if="grupo.contratos.length">
-            <div
-              v-for="(c, i) in grupo.contratos"
-              :key="i"
-              :class="['bar-seg', c.tipo_contrato]"
-              :style="`width:${100/grupo.contratos.length}%`"
-              :title="c.tipo_contrato"
-            ></div>
-          </div>
-          <div class="proyecto-card__count">
-            <span class="u u-usuarios" style="font-size:12px"></span>
-            {{ grupo.trabajadores.length }} {{ grupo.trabajadores.length === 1 ? 'trabajador' : 'trabajadores' }}
-          </div>
-        </div>
-
-        <!-- Lista de trabajadores -->
-        <div class="proyecto-card__workers">
-          <div
-            v-for="t in grupo.trabajadores"
-            :key="t._id"
-            class="proyecto-worker"
-            @click="$router.push(`/rrhh/trabajadores/${t._id}`)"
-          >
-            <div class="proyecto-worker__avatar">
-              <img v-if="t.foto" :src="t.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
-              <template v-else>{{ t.nombre?.charAt(0) }}{{ (t.apellido || t.nombre?.split(' ')[1] || '')?.charAt(0) }}</template>
-            </div>
-            <div class="proyecto-worker__info">
-              <span class="proyecto-worker__name">{{ t.nombre }} {{ t.apellido || '' }}</span>
-              <span class="proyecto-worker__cargo">{{ t.cargo || '—' }}</span>
-            </div>
-            <div class="proyecto-worker__pills">
-              <span :class="['tagEstado', t.estado]">{{ t.estado === 'activo' ? '● Activo' : 'Inactivo' }}</span>
-              <span :class="['tagContrato-v', estadoContratoInfo(contratoVigente(t._id || t.id)).cls]" style="font-size:10px">
-                {{ estadoContratoInfo(contratoVigente(t._id || t.id)).label }}
-              </span>
-            </div>
-          </div>
-          <div v-if="!grupo.trabajadores.length" class="proyecto-empty">Sin personas asignadas</div>
-        </div>
-
       </div>
-    </div>
+
+      <!-- Canvas del treemap -->
+      <div ref="treemapContainer" class="treemap-canvas">
+
+        <!-- Estado vacío -->
+        <div v-if="!treemapRects.length" class="treemap-empty">
+          <span class="u u-grid" style="font-size:32px;opacity:.2"></span>
+          <p>Sin proyectos con costo asignado en {{ filtroMes }}</p>
+        </div>
+
+        <!-- Tiles del mapa -->
+        <div
+          v-for="(r, i) in treemapRects"
+          :key="r.key"
+          class="tm-tile"
+          :style="{
+            left:   r.x + 'px',
+            top:    r.y + 'px',
+            width:  r.w + 'px',
+            height: r.h + 'px',
+            background: r.palette.bg,
+            '--accent': r.palette.accent,
+          }"
+          @click="$router.push(`/rrhh/trabajadores/${r.trabajadores[0]?._id || ''}`)"
+        >
+          <!-- Contenido adaptable por tamaño -->
+          <template v-if="r.area >= 18000">
+            <div class="tm-tile__badge" :style="{ background: r.palette.accent + '28', color: r.palette.accent }">
+              {{ tmTipoLabel(r.tipo) }}
+            </div>
+            <div class="tm-tile__body">
+              <div class="tm-tile__name">{{ r.nombre }}</div>
+              <div class="tm-tile__cost" :style="{ color: r.palette.accent }">{{ fmtM(r.total_costo) }}</div>
+              <div class="tm-tile__meta">costo del mes · {{ r.trabajadores.length }} {{ r.trabajadores.length === 1 ? 'persona' : 'personas' }}</div>
+            </div>
+            <div class="tm-tile__workers" v-if="r.area >= 40000 && r.trabajadores.length">
+              <div
+                v-for="t in r.trabajadores.slice(0, r.area >= 80000 ? 5 : 3)"
+                :key="t._id"
+                class="tm-worker-chip"
+                @click.stop="$router.push(`/rrhh/trabajadores/${t._id}`)"
+              >
+                <div class="tm-worker-chip__av" :style="{ background: r.palette.accent }">
+                  {{ t.nombre?.charAt(0) }}{{ (t.apellido || '')?.charAt(0) }}
+                </div>
+                <span class="tm-worker-chip__name">{{ t.nombre }} {{ t.apellido || '' }}</span>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="r.area >= 6000">
+            <div class="tm-tile__body tm-tile__body--sm">
+              <div class="tm-tile__name tm-tile__name--sm">{{ r.nombre }}</div>
+              <div class="tm-tile__cost tm-tile__cost--sm" :style="{ color: r.palette.accent }">{{ fmtM(r.total_costo) }}</div>
+            </div>
+          </template>
+          <!-- Tile muy pequeño: solo dot de color -->
+          <template v-else>
+            <div class="tm-tile__dot" :style="{ background: r.palette.accent }"></div>
+          </template>
+        </div>
+
+      </div><!-- /treemap-canvas -->
+    </div><!-- /treemap-wrap -->
 
     <!-- ── Vista Lista completa ──────────────────────────────────────────── -->
     <div v-else-if="vistaActual === 'lista'">
@@ -1472,158 +1604,131 @@ onMounted(async () => {
   border-radius: 20px; margin-left: 2px;
 }
 
-/* ── Grid de proyectos ────────────────────────────────────────────────────── */
-.proyectos-grid {
+/* ── Treemap "Centro de costo" ───────────────────────────────────────────── */
+.treemap-wrap {
   flex: 1; min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 20px;
-  overflow-y: auto;
-  padding-bottom: 16px;
-}
-.proyectos-grid::-webkit-scrollbar { width: 6px; }
-.proyectos-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-
-/* ── Tarjeta de proyecto ─────────────────────────────────────────────────── */
-.proyecto-card {
-  background: var(--neutral-background-default, #ffffff);
-  border: 1.5px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
+  display: flex; flex-direction: column; gap: 10px;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: border-color .15s, box-shadow .15s;
-}
-.proyecto-card:hover {
-  border-color: rgba(58,199,165,0.3);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
 }
 
-/* Cover */
-.proyecto-card__cover {
-  height: 140px;
-  background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
-  background-size: cover;
-  background-position: center;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+/* Header del mapa */
+.treemap-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; padding: 0 2px;
 }
-.proyecto-card__cover-overlay {
+.treemap-header__left { display: flex; align-items: center; gap: 7px; }
+.treemap-header__title {
+  font-size: 14px; font-weight: 800;
+  color: var(--neutral-text-title, #f1f5f9);
+  letter-spacing: -.01em;
+}
+.treemap-header__dot  { color: rgba(255,255,255,0.25); font-size: 14px; }
+.treemap-header__sub  { font-size: 13px; font-weight: 500; color: var(--neutral-text-caption, #94a3b8); }
+.treemap-header__right { display: flex; align-items: center; gap: 5px; }
+.treemap-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.treemap-legend-lbl { font-size: 11px; color: var(--neutral-text-caption, #94a3b8); font-weight: 600; }
+
+/* Canvas del treemap */
+.treemap-canvas {
+  flex: 1; min-height: 0;
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #08121a;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.45);
+}
+
+/* Estado vacío */
+.treemap-empty {
   position: absolute; inset: 0;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%);
-  display: flex; align-items: flex-start; justify-content: flex-end;
-  padding: 10px;
-  opacity: 0; transition: opacity .18s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; color: rgba(255,255,255,0.2);
+  font-size: 14px;
 }
-.proyecto-card:hover .proyecto-card__cover-overlay { opacity: 1; }
+.treemap-empty p { margin: 0; }
 
-.btn-foto-up {
-  display: flex; align-items: center; gap: 4px;
-  background: rgba(0,0,0,0.55);
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 8px; color: var(--neutral-text-title, #1f2937);
-  font-family: Nunito; font-size: 11px; font-weight: 600;
-  padding: 4px 10px; cursor: pointer;
-  transition: background .15s;
-}
-.btn-foto-up:hover { background: rgba(58,199,165,0.3); color: #fff; border-color: rgba(58,199,165,0.5); }
-
-.proyecto-card__name-wrap {
-  padding: 14px 16px 12px;
-  position: relative;
-}
-.proyecto-card__name {
-  margin: 0; font-size: 16px; font-weight: 800; color: var(--neutral-text-title, #111827);
-  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
-}
-.proyecto-card__dates {
-  font-size: 11px; color: rgba(229,231,235,0.75); margin-top: 4px;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
-}
-
-/* Stats / KPIs por proyecto */
-.proyecto-card__stats {
-  display: flex; align-items: center; gap: 0;
-  padding: 12px 16px;
-  border-top: 1px solid rgba(255,255,255,0.07);
-}
-.proyecto-stat {
-  flex: 1;
-  display: flex; flex-direction: column; gap: 3px;
-}
-.proyecto-stat__lbl {
-  font-size: 10px; color: var(--neutral-text-subtitle, #6b7280);
-  text-transform: uppercase; letter-spacing: 0.05em;
-}
-.proyecto-stat__val {
-  font-size: 16px; font-weight: 800; color: var(--neutral-text-title, #111827);
-}
-.proyecto-stat__val.teal   { color: #3ac7a5; }
-.proyecto-stat__val.orange { color: #fb923c; }
-.proyecto-stat__val.rose   { color: #f472b6; }
-.proyecto-stat__sep {
-  width: 1px; height: 36px; background: rgba(255,255,255,0.08); margin: 0 14px;
-}
-
-/* Barra de tipos + contador */
-.proyecto-card__bar-wrap {
-  border-top: 1px solid rgba(255,255,255,0.07);
-}
-.proyecto-card__bar {
-  display: flex; height: 4px; overflow: hidden;
-}
-.proyecto-card__count {
-  display: flex; align-items: center; gap: 5px;
-  padding: 7px 16px 6px;
-  font-size: 11px; font-weight: 700; color: var(--neutral-text-subtitle, #6b7280);
-  letter-spacing: 0.02em;
-}
-.bar-seg { height: 100%; transition: opacity .15s; }
-.bar-seg.indefinido  { background: #3ac7a5; }
-.bar-seg.proyecto    { background: #a78bfa; }
-.bar-seg.plazo_fijo  { background: #fbbf24; }
-.bar-seg.honorarios  { background: #fb923c; }
-.bar-seg.part_time   { background: #60a5fa; }
-
-/* Lista de trabajadores en tarjeta */
-.proyecto-card__workers {
-  flex: 1;
-  display: flex; flex-direction: column;
+/* Tile del treemap */
+.tm-tile {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #08121a;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 6px;
   overflow: hidden;
-}
-.proyecto-worker {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
   cursor: pointer;
-  transition: background .12s;
+  transition: filter .15s, border-color .15s;
 }
-.proyecto-worker:last-child { border-bottom: none; }
-.proyecto-worker:hover { background: rgba(58,199,165,0.05); }
-.proyecto-worker__avatar {
-  width: 32px; height: 32px; border-radius: 50%;
+.tm-tile:hover {
+  filter: brightness(1.12);
+  border-color: var(--accent, rgba(255,255,255,0.18));
+  z-index: 10;
+}
+
+/* Badge tipo */
+.tm-tile__badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  width: fit-content;
+  flex-shrink: 0;
+}
+
+/* Body */
+.tm-tile__body {
+  flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px;
+}
+.tm-tile__body--sm {
+  justify-content: center; gap: 2px;
+}
+.tm-tile__name {
+  font-size: 15px; font-weight: 800; color: #fff;
+  line-height: 1.2; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.tm-tile__name--sm {
+  font-size: 12px; -webkit-line-clamp: 1;
+}
+.tm-tile__cost {
+  font-size: 22px; font-weight: 900; line-height: 1.1;
+  letter-spacing: -.02em;
+}
+.tm-tile__cost--sm {
+  font-size: 15px;
+}
+.tm-tile__meta {
+  font-size: 11px; color: rgba(255,255,255,0.45); font-weight: 500;
+}
+
+/* Workers chips */
+.tm-tile__workers {
+  display: flex; flex-direction: column; gap: 5px;
+  margin-top: 4px;
+}
+.tm-worker-chip {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 20px; padding: 4px 10px 4px 4px;
+  cursor: pointer; transition: background .12s;
+  width: fit-content; max-width: 100%;
+}
+.tm-worker-chip:hover { background: rgba(255,255,255,0.1); }
+.tm-worker-chip__av {
+  width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #fff;
-  background: #2a9d8f; flex-shrink: 0;
-  overflow: hidden;
+  font-size: 9px; font-weight: 800; color: #fff; flex-shrink: 0;
+  opacity: .85;
 }
-.proyecto-worker__info {
-  display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0;
+.tm-worker-chip__name {
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
 }
-.proyecto-worker__name {
-  font-size: 13px; font-weight: 700; color: var(--neutral-text-title, #111827);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+
+/* Dot para tiles muy pequeños */
+.tm-tile__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  position: absolute; top: 8px; left: 8px; opacity: .7;
 }
-.proyecto-worker__cargo {
-  font-size: 11px; color: var(--neutral-text-subtitle, #6b7280);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.proyecto-worker__pills {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0;
-}
-.proyecto-empty { padding: 20px; text-align: center; color: #4b5563; font-size: 13px; }
 
 /* ── KPIs pie de página ──────────────────────────────────────────────────── */
 .footer-kpis {
