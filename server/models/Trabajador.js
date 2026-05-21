@@ -31,9 +31,8 @@ const TrabajadorSchema = new mongoose.Schema({
   actualizado:  { type: Date, default: Date.now },
 }, { _id: false, versionKey: false })
 
-TrabajadorSchema.pre('save', function (next) {
+TrabajadorSchema.pre('save', async function () {
   this.actualizado = new Date()
-  next()
 })
 
 export default mongoose.models.Trabajador
