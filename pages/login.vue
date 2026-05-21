@@ -7,28 +7,7 @@
 
         <!-- Logo personas lockup -->
         <div class="brand-row">
-          <div class="personas-lockup personas-lockup--sm">
-            <img src="/img/logo-unabase-white.png" alt="unabase" class="pl-wordmark" />
-            <svg class="pl-graffiti" viewBox="0 0 560 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <g transform="rotate(-10 280 55)">
-                <text x="280" y="65" text-anchor="middle"
-                      font-family='"Permanent Marker", "Brush Script MT", cursive'
-                      font-size="56" font-style="italic" font-weight="900"
-                      fill="#FF3D7F" letter-spacing="-1"
-                      style="filter:blur(0.4px)">personas</text>
-                <rect x="135" y="68" width="2.5" height="16" fill="#FF3D7F" opacity="0.85"/>
-                <rect x="240" y="70" width="2.5" height="18" fill="#FF3D7F" opacity="0.85"/>
-                <rect x="360" y="69" width="2.5" height="14" fill="#FF3D7F" opacity="0.85"/>
-                <rect x="430" y="68" width="2.5" height="16" fill="#FF3D7F" opacity="0.85"/>
-                <circle cx="110" cy="50" r="2" fill="#FF3D7F" opacity="0.5"/>
-                <circle cx="450" cy="45" r="1.8" fill="#FF3D7F" opacity="0.5"/>
-                <circle cx="170" cy="72" r="1.5" fill="#FF3D7F" opacity="0.45"/>
-                <circle cx="400" cy="72" r="1.5" fill="#FF3D7F" opacity="0.45"/>
-                <circle cx="490" cy="40" r="1.2" fill="#FF3D7F" opacity="0.4"/>
-                <circle cx="95" cy="68" r="1" fill="#FF3D7F" opacity="0.4"/>
-              </g>
-            </svg>
-          </div>
+          <img src="/img/unabase-personas-logo.png" alt="unabase personas" class="brand-personas-logo" />
         </div>
 
         <!-- Kicker + Headline -->
@@ -681,30 +660,18 @@ async function handleLogin() {
 }
 
 /* Brand */
-.brand-row { margin-bottom: 40px; }
+.brand-row { margin-bottom: 36px; }
 .brand-logo { height: 34px; width: auto; display: block; }
 
-/* Personas lockup */
-.personas-lockup {
-  position: relative;
-  display: inline-block;
-}
-.pl-wordmark {
+/* Personas lockup PNG */
+.brand-personas-logo {
   display: block;
-  height: 36px;
+  height: 80px;
   width: auto;
+  max-width: 320px;
+  object-fit: contain;
+  object-position: left center;
 }
-.pl-graffiti {
-  position: absolute;
-  left: -4px;
-  bottom: -22px;
-  width: 100%;
-  height: 50px;
-  overflow: visible;
-  pointer-events: none;
-}
-.personas-lockup--sm .pl-wordmark { height: 32px; }
-.personas-lockup--sm .pl-graffiti { bottom: -18px; height: 44px; }
 
 /* Kicker */
 .kicker {
@@ -1023,10 +990,8 @@ async function handleLogin() {
   }
 
   .form-inner { max-width: 100%; }
-  .brand-row { margin-bottom: 32px; }
-  .brand-logo { height: 22px; }
-  .personas-lockup--sm .pl-wordmark { height: 26px; }
-  .personas-lockup--sm .pl-graffiti { bottom: -14px; height: 36px; }
+  .brand-row { margin-bottom: 20px; }
+  .brand-personas-logo { height: 58px; max-width: 240px; }
   .headline { font-size: 26px; }
   .kicker { font-size: 10px; margin-bottom: 10px; }
   .lede { display: none; }

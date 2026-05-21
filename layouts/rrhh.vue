@@ -342,24 +342,7 @@ onUnmounted(() => {
         <!-- Expanded: personas lockup -->
         <transition name="fade-label">
           <div v-if="sidebarExpanded || isMobile" class="sidebar-personas-lockup">
-            <img src="/img/logo-unabase-white.png" alt="unabase" class="spl-wordmark" />
-            <svg class="spl-graffiti" viewBox="0 0 400 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <g transform="rotate(-9 200 40)">
-                <text x="200" y="44" text-anchor="middle"
-                      font-family='"Permanent Marker", "Brush Script MT", cursive'
-                      font-size="38" font-style="italic" font-weight="900"
-                      fill="#FF3D7F" letter-spacing="-1"
-                      style="filter:blur(0.3px)">personas</text>
-                <rect x="94"  y="46" width="2" height="11" fill="#FF3D7F" opacity="0.85"/>
-                <rect x="170" y="47" width="2" height="12" fill="#FF3D7F" opacity="0.85"/>
-                <rect x="258" y="46" width="2" height="10" fill="#FF3D7F" opacity="0.85"/>
-                <rect x="308" y="46" width="2" height="11" fill="#FF3D7F" opacity="0.85"/>
-                <circle cx="76"  cy="36" r="1.5" fill="#FF3D7F" opacity="0.45"/>
-                <circle cx="326" cy="32" r="1.3" fill="#FF3D7F" opacity="0.45"/>
-                <circle cx="115" cy="50" r="1"   fill="#FF3D7F" opacity="0.4"/>
-                <circle cx="290" cy="50" r="1"   fill="#FF3D7F" opacity="0.4"/>
-              </g>
-            </svg>
+            <img src="/img/unabase-personas-logo.png" alt="unabase personas" class="spl-logo" />
           </div>
         </transition>
         <button
@@ -626,26 +609,19 @@ onUnmounted(() => {
 
 /* Personas lockup in sidebar */
 .sidebar-personas-lockup {
-  position: relative;
   flex: 1;
   min-width: 0;
-  overflow: visible;
-  padding-bottom: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
 }
-.spl-wordmark {
+.spl-logo {
   display: block;
-  height: 22px;
+  height: 44px;
   width: auto;
-  max-width: 130px;
-}
-.spl-graffiti {
-  position: absolute;
-  left: -2px;
-  bottom: -2px;
-  width: 140px;
-  height: 36px;
-  overflow: visible;
-  pointer-events: none;
+  max-width: 150px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .collapse-btn {
