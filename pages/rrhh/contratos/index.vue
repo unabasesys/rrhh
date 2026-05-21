@@ -396,6 +396,10 @@ const rrhhStore   = useRrhhStore()
 const router = useRouter()
 const route  = useRoute()
 
+// Org y auth stores (carga dinámica para evitar SSR issues)
+let _orgStore  = null
+let _authStore = null
+
 const pdfLoading = ref(null)
 
 const searchQ  = ref('')
@@ -652,39 +656,60 @@ async function descargarContratoPDF(c) {
   if (pdfLoading.value) return
   pdfLoading.value = c._id
   try {
-    const orgInfo = {}
-    const trab = rrhhStore.trabajadores.find(t => t._id === c.trabajador_id) || {}
+    // Obtener org activa desde el store
+    const orgId  = _authStore?.currentOrgId
+    const org    = orgId ? _orgStore?.getById(orgId) : null
+    const trab   = rrhhStore.trabajadores.find(t => t._id === c.trabajador_id) || {}
 
+    // Extraer logo (base64 sin el prefijo "data:image/...;base64,")
+    let logoB64 = null
+    if (org?.logo) {
+      logoB64 = org.logo.includes(',') ? org.logo.split(',')[1] : org.logo
+    }
+
+    // El script Python espera estos campos en el nivel raíz del objeto
     const payload = {
-      tipo_contrato: c.tipo_contrato,
+      tipo_contrato:    c.tipo_contrato || 'indefinido',
+      cargo:            c.cargo || trab.cargo || '',
+      sueldo_base:      c.sueldo_base || 0,
+      fecha_inicio:     c.fecha_inicio || '',
+      fecha_termino:    c.fecha_termino || '',
+      fecha_documento:  new Date().toISOString().slice(0, 10),
+      modalidad:        c.modalidad || 'presencial',
+      lugar_trabajo:    c.lugar_trabajo || org?.ciudad || 'Santiago',
+      direccion_trabajo: c.direccion_trabajo || org?.direccion || '',
+      jornada_horas:    c.jornada_horas || 44,
+      horario:          c.horario || 'Lunes a jueves de 08:30 a 18:30 horas y viernes de 08:30 a 17:30 horas',
+      funciones:        c.funciones || [],
+      nombre_proyecto:  c.nombre_proyecto || '',
+
+      // Datos organización (empleador)
       organizacion: {
-        nombre:        orgInfo.name || orgInfo.razon_social || 'Empresa',
-        rut:           orgInfo.rut  || '',
-        representante: orgInfo.representative || orgInfo.representante || '',
-        giro:          orgInfo.businessType || orgInfo.giro || '',
-        domicilio:     orgInfo.address || orgInfo.domicilio || '',
+        nombre:    org?.nombre || '',
+        rut:       org?.rut    || '',
+        direccion: org?.direccion || '',
+        ciudad:    org?.ciudad    || 'Santiago',
       },
+
+      // Representante legal → campo "empleador" en el Python
+      empleador: {
+        representante:     org?.representanteLegal?.nombre || '',
+        rut_representante: org?.representanteLegal?.rut    || '',
+      },
+
+      // Datos trabajador
       trabajador: {
-        nombre_completo: `${trab.nombre || ''} ${trab.apellido || ''}`.trim(),
-        rut:             trab.rut || '',
-        cargo:           c.cargo || trab.cargo || '',
-        domicilio:       trab.direccion || '',
-        fecha_ingreso:   c.fecha_inicio || trab.fecha_ingreso,
-        fecha_termino:   c.fecha_termino || null,
-        nombre_proyecto: c.nombre_proyecto || '',
-        horas_semana:    c.jornada_horas || 45,
-        lugar_prestacion: c.lugar_trabajo || 'Santiago',
-        afp:             trab.afp || '',
-        sistema_salud:   trab.sistema_salud || 'FONASA',
-        tipo_contrato:   c.tipo_contrato,
+        nombre:          `${trab.nombre || ''} ${trab.apellido || ''}`.trim(),
+        rut:             trab.rut             || '',
+        fecha_nacimiento: trab.fecha_nacimiento || '',
+        domicilio:       trab.direccion       || '',
+        email:           trab.email           || '',
+        afp:             trab.afp             || 'AFP Capital',
+        sistema_salud:   trab.sistema_salud   || 'FONASA',
       },
-      remuneracion: {
-        sueldo_base:  c.sueldo_base || trab.sueldo_base || 0,
-        gratificacion: c.gratificacion || trab.gratificacion || 'mensual',
-        colacion:     trab.colacion || 0,
-        movilizacion: trab.movilizacion || 0,
-      },
-      logo_base64: orgInfo.logoBase64 || null,
+
+      // Logo org en base64 puro (sin prefijo data:)
+      logo_base64: logoB64,
     }
 
     const res = await $fetch('/api/rrhh/contrato-pdf', {
@@ -702,7 +727,8 @@ async function descargarContratoPDF(c) {
     showDetailModal.value = false
   } catch (e) {
     console.error('Error generando contrato PDF:', e)
-    alert('Error al generar el contrato PDF. Verifica que el servidor esté activo.')
+    const msg = e?.data?.message || e?.message || 'Error desconocido'
+    alert(`Error al generar el contrato PDF:\n${msg}`)
   } finally {
     pdfLoading.value = null
   }
@@ -717,6 +743,12 @@ function exportarContratos() {
 }
 
 onMounted(async () => {
+  // Cargar org/auth stores
+  const { useOrgStore }  = await import('@/stores/org')
+  const { useAuthStore } = await import('@/stores/auth')
+  _orgStore  = useOrgStore()
+  _authStore = useAuthStore()
+
   loading.value = true
   await Promise.all([
     rrhhStore.getContratos(),
