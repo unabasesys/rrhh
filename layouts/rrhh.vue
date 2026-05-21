@@ -1215,23 +1215,24 @@ onUnmounted(() => {
   }
 
   /* Sidebar: drawer fijo que aparece desde la izquierda */
+  /* !important necesario para vencer la especificidad del CSS scoped (data-v-xxxx) */
   .rrhh-sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 9999;
-    transform: translateX(-100%);
-    transition: transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    box-shadow: 6px 0 32px rgba(0,0,0,0.5);
-    /* Fondo sólido siempre visible en móvil */
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 260px !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    box-shadow: 6px 0 32px rgba(0,0,0,0.5) !important;
     background: #1a2332 !important;
     border-right: 1px solid rgba(255,255,255,0.1) !important;
   }
 
   .rrhh-sidebar.mobile-open {
-    transform: translateX(0);
+    transform: translateX(0) !important;
   }
 
   /* Textos del sidebar visibles en móvil */
