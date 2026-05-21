@@ -3176,8 +3176,10 @@ async function _descargarLiqDesdeCalc() {
     return '$' + Math.round(v).toLocaleString('es-CL')
   }
 
+  const _orgLiq1 = getOrgForPdf()
   const payload = {
-    ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad } } })(),
+    organizacion: { nombre: _orgLiq1.nombre, rut: _orgLiq1.rut, direccion: _orgLiq1.direccion, ciudad: _orgLiq1.ciudad },
+    logo_base64:  _orgLiq1.logo_base64,
     trabajador: {
       nombre:        `${t.nombre || ''} ${t.apellido || ''}`.trim(),
       rut:           t.rut || '',
@@ -3212,7 +3214,6 @@ async function _descargarLiqDesdeCalc() {
       renta_imponible:     lc.rentaImponible,
       costo_empresa:       lc.costoEmpresa,
     },
-    logo_base64: getOrgForPdf().logo_base64,
   }
 
   const res = await $fetch('/api/rrhh/liquidacion-pdf', { method: 'POST', body: payload, responseType: 'blob' })
@@ -3320,8 +3321,10 @@ async function descargarLiqPDF(liq) {
     const bonos     = liq.bonos     || []
     const descuentos = liq.descuentos || []
 
+    const _orgLiq2 = getOrgForPdf()
     const payload = {
-      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad } } })(),
+      organizacion: { nombre: _orgLiq2.nombre, rut: _orgLiq2.rut, direccion: _orgLiq2.direccion, ciudad: _orgLiq2.ciudad },
+      logo_base64:  _orgLiq2.logo_base64,
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido}`,
         rut:             t.rut || '',
@@ -3357,7 +3360,6 @@ async function descargarLiqPDF(liq) {
         { nombre: 'Imp. Único 2ª Cat.', monto: liq.impuesto },
       ].filter(d => d.monto > 0),
       otros_descuentos: descuentos.filter(d => d.monto > 0),
-      logo_base64: getOrgForPdf().logo_base64,
     }
 
     const res = await $fetch('/api/rrhh/liquidacion-pdf', {
@@ -3668,7 +3670,8 @@ async function generarContratoPDF() {
       clausulas_extras: cf.clausulas || [],
       fecha_documento:  new Date().toISOString().slice(0, 10),
       // Organización (lo que Python lee con org.get(...))
-      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad }, logo_base64: _o.logo_base64 } })(),
+      organizacion: (() => { const _o = getOrgForPdf(); return { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad } })(),
+      logo_base64:  getOrgForPdf().logo_base64,
       // Empleador — representante legal (emp.get("representante") en Python)
       empleador: {
         representante:     getOrgForPdf().representante,
@@ -3687,7 +3690,6 @@ async function generarContratoPDF() {
         afp:              t.afp || '',
         sistema_salud:    t.sistema_salud || 'FONASA',
       },
-      logo_base64: getOrgForPdf().logo_base64,
     }
 
     const res = await $fetch('/api/rrhh/contrato-pdf', {
@@ -3773,16 +3775,21 @@ async function generarFiniquitoPDF() {
   try {
     const orgInfo = {}
 
+    const _orgFin1 = getOrgForPdf()
     const payload = {
       motivo_termino: ff.motivo_termino,
       fecha_termino:  ff.fecha_termino,
       fecha_aviso:    ff.mes_aviso_dado ? null : ff.fecha_termino,
       fecha_emision:  new Date().toISOString().slice(0, 10),
-      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut,
-        representante: '',
+      organizacion: {
+        nombre:        _orgFin1.nombre,
+        rut:           _orgFin1.rut,
+        representante: _orgFin1.representante || '',
         giro:          '',
-        domicilio: _o.direccion, ciudad: _o.ciudad } } })(),
+        domicilio:     _orgFin1.direccion,
+        ciudad:        _orgFin1.ciudad,
       },
+      logo_base64: _orgFin1.logo_base64,
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido || ''}`,
         rut:             t.rut || '',
@@ -3803,7 +3810,6 @@ async function generarFiniquitoPDF() {
         anos_servicio:                calc.anos_tope,
       },
       descuentos_finiquito: ff.descuentos.filter(d => d.monto > 0),
-      logo_base64: getOrgForPdf().logo_base64,
     }
 
     const res = await $fetch('/api/rrhh/finiquito-pdf', {
@@ -3886,14 +3892,19 @@ async function descargarFiniquitoPDF(fin) {
   if (!t) return
   try {
     const orgInfo = {}
+    const _orgFin2 = getOrgForPdf()
     const payload = {
       motivo_termino: fin.motivo_termino,
       fecha_termino:  fin.fecha_termino || `${fin.anio}-${String(fin.mes).padStart(2,'0')}-30`,
       fecha_emision:  new Date().toISOString().slice(0,10),
-      ...(() => { const _o = getOrgForPdf(); return { organizacion: { nombre: _o.nombre, rut: _o.rut,
-        representante: '',
-        domicilio: _o.direccion, ciudad: _o.ciudad } } })(),
+      organizacion: {
+        nombre:        _orgFin2.nombre,
+        rut:           _orgFin2.rut,
+        representante: _orgFin2.representante || '',
+        domicilio:     _orgFin2.direccion,
+        ciudad:        _orgFin2.ciudad,
       },
+      logo_base64: _orgFin2.logo_base64,
       trabajador: {
         nombre_completo: `${t.nombre} ${t.apellido || ''}`,
         rut:             t.rut || '',
@@ -3914,7 +3925,6 @@ async function descargarFiniquitoPDF(fin) {
         anos_servicio:               fin.anos_servicio || 0,
       },
       descuentos_finiquito: [],
-      logo_base64: getOrgForPdf().logo_base64,
     }
     const res = await $fetch('/api/rrhh/finiquito-pdf', { method: 'POST', body: payload, responseType: 'blob' })
     const url = URL.createObjectURL(new Blob([res], { type: 'application/pdf' }))
