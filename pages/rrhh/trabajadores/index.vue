@@ -351,20 +351,39 @@ const guardarTrabajador = async () => {
 const fotoProyecto         = ref({});
 const fotoFileRefProyecto  = ref(null);
 const proyectoFotoTarget   = ref(null);
+const proyectoIdTarget     = ref(null);
 
 function onFotoProyectoChange(e) {
   const file = e.target.files?.[0];
   if (!file || !proyectoFotoTarget.value) return;
   const reader = new FileReader();
-  reader.onload = (ev) => {
-    fotoProyecto.value = { ...fotoProyecto.value, [proyectoFotoTarget.value]: ev.target.result };
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result;
+    const key    = proyectoFotoTarget.value;
+    fotoProyecto.value = { ...fotoProyecto.value, [key]: base64 };
+    // Respaldo local
     try { localStorage.setItem('rrhh_fotos_proyectos', JSON.stringify(fotoProyecto.value)); } catch {}
+    // Guardar en MongoDB para que todos los dispositivos vean la foto
+    if (proyectoIdTarget.value) {
+      try {
+        await $fetch(`/api/rrhh/proyectos/${proyectoIdTarget.value}`, {
+          method: 'PUT',
+          body: { foto: base64 },
+        });
+        // Actualizar proyectosDB en memoria para que recarga no pierda la foto
+        const idx = proyectosDB.value.findIndex(p => p._id === proyectoIdTarget.value);
+        if (idx !== -1) proyectosDB.value[idx] = { ...proyectosDB.value[idx], foto: base64 };
+      } catch (err) {
+        console.warn('[foto] Error guardando foto en MongoDB:', err);
+      }
+    }
   };
   reader.readAsDataURL(file);
 }
 
-function subirFotoProyecto(key) {
+function subirFotoProyecto(key, negocioId = null) {
   proyectoFotoTarget.value = key;
+  proyectoIdTarget.value   = negocioId;
   fotoFileRefProyecto.value?.click();
 }
 
@@ -712,11 +731,17 @@ onMounted(async () => {
     await Promise.all([rrhhStore.getTrabajadores(), rrhhStore.getContratos()]);
   } finally {
   }
-  // Cargar proyectos para tipos de treemap
+  // Cargar proyectos para tipos de treemap y fotos
   try {
     const authStore = (await import('@/stores/auth')).useAuthStore()
     const orgId = authStore?.currentOrgId || null
     proyectosDB.value = await $fetch(orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos')
+    // Cargar fotos desde MongoDB (sobreescribe localStorage si hay foto en DB)
+    const fotosDB = {}
+    proyectosDB.value.forEach(p => { if (p.foto) fotosDB[p.nombre] = p.foto })
+    if (Object.keys(fotosDB).length) {
+      fotoProyecto.value = { ...fotoProyecto.value, ...fotosDB }
+    }
   } catch { proyectosDB.value = [] }
   // ResizeObserver para dimensiones del treemap
   if (treemapContainer.value) {
@@ -1019,7 +1044,7 @@ watch(vistaActual, async (val) => {
           <button
             v-if="r.area >= 14000"
             class="tm-tile__foto-btn"
-            @click.stop="subirFotoProyecto(r.key)"
+            @click.stop="subirFotoProyecto(r.key, r.negocio_id)"
             :title="fotoProyecto[r.key] ? 'Cambiar foto' : 'Adjuntar foto'"
           >
             <span class="u u-edit" style="font-size:10px"></span>

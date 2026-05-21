@@ -10,6 +10,7 @@ const ProyectoSchema = new mongoose.Schema(
     orgId:       { type: String, default: null },
     activo:      { type: Boolean, default: true },
     unabase_id:  { type: String, default: null },  // future integration
+    foto:        { type: String, default: null },  // base64 cover photo
   },
   { _id: false, versionKey: false, timestamps: true }
 )
