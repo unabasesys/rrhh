@@ -10,10 +10,12 @@
       <!-- Header -->
       <div class="login-header">
         <div class="login-logo">
-          <i class="u u-personas" style="font-size:28px;color:#2a9d8f"></i>
+          <img src="/img/isotipo-dark.svg" alt="Unabase" width="48" height="48" />
         </div>
-        <h1 class="login-title">RRHH</h1>
-        <p class="login-subtitle">Recursos Humanos · Unabase</p>
+        <div class="login-brand">
+          <span class="login-brand__name">unabase</span>
+        </div>
+        <p class="login-subtitle">Módulo de Recursos Humanos</p>
       </div>
 
       <!-- Form -->
@@ -73,7 +75,8 @@
 
       <!-- Footer -->
       <div class="login-footer">
-        <span>RRHH v1.1 · Unabase</span>
+        <img src="/img/isotipo-dark.svg" alt="" width="14" height="14" style="opacity:0.4;vertical-align:middle;margin-right:4px" />
+        <span>unabase · RRHH v1.1</span>
       </div>
     </div>
   </div>
@@ -179,21 +182,25 @@ async function handleLogin() {
 /* Header */
 .login-header { text-align: center; margin-bottom: 32px; }
 .login-logo {
-  width: 56px; height: 56px;
-  background: rgba(42,157,143,0.12);
-  border: 1px solid rgba(42,157,143,0.3);
-  border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 14px;
+  margin: 0 auto 12px;
 }
-.login-title {
-  font-size: 26px; font-weight: 800;
-  color: #fff;
-  letter-spacing: 2px;
+.login-logo img { width: 48px; height: 48px; }
+.login-brand {
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 6px;
+}
+.login-brand__name {
+  font-family: 'Syne', 'Nunito', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.5px;
 }
 .login-subtitle {
-  font-size: 12px; color: #6b7280;
-  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 0;
 }
 
 /* Fields */

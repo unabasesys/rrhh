@@ -14,12 +14,17 @@ export default defineNuxtConfig({
 
   app: {
     head: {
+      meta: [
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      ],
       link: [
         { rel: 'stylesheet', href: '/css/styles.css' },
         { rel: 'stylesheet', href: '/css/styleguide.css' },
         { rel: 'stylesheet', href: '/css/colors.css' },
         { rel: 'stylesheet', href: '/css/icons.css' },
+        { rel: 'stylesheet', href: '/css/responsive.css' },
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css?family=Nunito:400,500,600,700,800' },
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap' },
       ],
     },
   },

@@ -27,6 +27,8 @@ const showOrgMenu    = ref(false)
 const allOrgs        = ref([])
 
 const sidebarExpanded = ref(true)
+const sidebarMobileOpen = ref(false)
+const isMobile = ref(false)
 const orgName = ref('Mi Empresa')
 const pageTitle  = ref('Recursos Humanos')
 const breadcrumb = ref([])
@@ -175,10 +177,24 @@ const isActive = (item) => item.matches(route.path)
 
 function goTo(path) {
   router.push(path)
+  if (isMobile.value) sidebarMobileOpen.value = false
 }
 
 function toggleSidebar() {
-  sidebarExpanded.value = !sidebarExpanded.value
+  if (isMobile.value) {
+    sidebarMobileOpen.value = !sidebarMobileOpen.value
+  } else {
+    sidebarExpanded.value = !sidebarExpanded.value
+  }
+}
+
+function closeMobileSidebar() {
+  sidebarMobileOpen.value = false
+}
+
+function handleResize() {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) sidebarMobileOpen.value = false
 }
 
 onMounted(async () => {
@@ -264,27 +280,50 @@ function handleOutsideClick(e) {
 }
 
 // Registrar/desregistrar listener para cerrar dropdown
-onMounted(() => { document.addEventListener('click', handleOutsideClick) })
-onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
+onMounted(() => {
+  document.addEventListener('click', handleOutsideClick)
+  handleResize()
+  window.addEventListener('resize', handleResize)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  window.removeEventListener('resize', handleResize)
+})
 
 // Las páginas setean el título via useHead() o directamente vía provide/inject en futuras versiones
 </script>
 
 <template>
-  <div class="rrhh-layout" :class="{ expanded: sidebarExpanded, collapsed: !sidebarExpanded }">
+  <div class="rrhh-layout" :class="{ expanded: sidebarExpanded, collapsed: !sidebarExpanded, 'is-mobile': isMobile }">
 
-    <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
-    <aside class="rrhh-sidebar">
+    <!-- ── Backdrop móvil (se muestra sobre el contenido cuando el drawer está abierto) -->
+    <div v-if="sidebarMobileOpen" class="sidebar-backdrop" @click="closeMobileSidebar"></div>
+
+    <!-- ── Sidebar (desktop: columna fija; móvil: drawer deslizante) ─────────── -->
+    <aside class="rrhh-sidebar" :class="{ 'mobile-open': sidebarMobileOpen }">
       <!-- Logo / Módulo -->
       <div class="sidebar-brand">
         <div class="brand-icon">
-          <i class="u u-usuarios"></i>
+          <!-- Isotipo Unabase: dark (blanco) en sidebar oscuro, light (navy) en sidebar claro -->
+          <img
+            :src="(isMobile || isDark) ? '/img/isotipo-dark.svg' : '/img/isotipo-light.svg'"
+            alt="Unabase"
+            width="26"
+            height="26"
+          />
         </div>
         <transition name="fade-label">
-          <span v-if="sidebarExpanded" class="brand-name">RRHH</span>
+          <div v-if="sidebarExpanded || isMobile" class="brand-name">
+            <span class="brand-name__una">una</span><span class="brand-name__base">base</span>
+            <span class="brand-name__module">RRHH</span>
+          </div>
         </transition>
-        <button class="collapse-btn" @click="toggleSidebar" :title="sidebarExpanded ? 'Colapsar' : 'Expandir'">
-          <i :class="sidebarExpanded ? 'u u-arrow-left' : 'u u-arrow-right'"></i>
+        <button
+          class="collapse-btn"
+          @click="isMobile ? closeMobileSidebar() : toggleSidebar()"
+          :title="isMobile ? 'Cerrar' : (sidebarExpanded ? 'Colapsar' : 'Expandir')"
+        >
+          <i :class="isMobile ? 'u u-close' : (sidebarExpanded ? 'u u-arrow-left' : 'u u-arrow-right')"></i>
         </button>
       </div>
 
@@ -292,7 +331,7 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
       <nav class="sidebar-nav">
         <template v-for="section in navSections" :key="section.label">
           <!-- Separador de sección -->
-          <div v-if="sidebarExpanded" class="nav-section-label">{{ section.label }}</div>
+          <div v-if="sidebarExpanded || isMobile" class="nav-section-label">{{ section.label }}</div>
           <div v-else class="nav-section-divider"></div>
 
           <button
@@ -301,21 +340,21 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
             class="nav-item"
             :class="{ active: isActive(item) }"
             @click="goTo(item.path)"
-            :title="!sidebarExpanded ? item.label : ''"
+            :title="(!sidebarExpanded && !isMobile) ? item.label : ''"
           >
             <i :class="item.icon" class="nav-icon"></i>
             <transition name="fade-label">
-              <span v-if="sidebarExpanded" class="nav-label">{{ item.label }}</span>
+              <span v-if="sidebarExpanded || isMobile" class="nav-label">{{ item.label }}</span>
             </transition>
             <!-- Badge dinámico -->
             <transition name="fade-label">
               <span
-                v-if="sidebarExpanded && item.badge"
+                v-if="(sidebarExpanded || isMobile) && item.badge"
                 class="nav-badge"
                 :class="`nav-badge--${item.badgeColor}`"
               >{{ item.badge }}</span>
             </transition>
-            <span v-if="isActive(item) && sidebarExpanded" class="nav-active-bar"></span>
+            <span v-if="isActive(item) && (sidebarExpanded || isMobile)" class="nav-active-bar"></span>
           </button>
         </template>
       </nav>
@@ -324,9 +363,9 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
       <div class="sidebar-footer">
         <div class="module-version">
           <transition name="fade-label">
-            <span v-if="sidebarExpanded" style="font-size:10px;color:#4b5563;font-weight:600;letter-spacing:0.05em">RRHH · v1.1</span>
+            <span v-if="sidebarExpanded || isMobile" style="font-size:10px;font-weight:600;letter-spacing:0.05em">RRHH · v1.1</span>
           </transition>
-          <span v-if="!sidebarExpanded" style="font-size:9px;color:#4b5563">v1.1</span>
+          <span v-if="!sidebarExpanded && !isMobile" style="font-size:9px">v1.1</span>
         </div>
       </div>
     </aside>
@@ -335,6 +374,10 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
     <div class="rrhh-main">
       <!-- Header -->
       <header class="rrhh-header">
+        <!-- Hamburger (solo móvil) -->
+        <button v-if="isMobile" class="hamburger-btn" @click="toggleSidebar">
+          <span></span><span></span><span></span>
+        </button>
         <div class="header-left">
           <h1 class="header-title">{{ pageTitle }}</h1>
           <nav v-if="breadcrumb.length" class="header-breadcrumb" aria-label="breadcrumb">
@@ -479,26 +522,44 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: var(--primary-surface-default, #2a9d8f);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.brand-icon i {
-  color: #fff;
-  font-size: 18px;
+  background: transparent;
 }
 
 .brand-name {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--neutral-text-title, #111827);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
   flex: 1;
   white-space: nowrap;
+  overflow: hidden;
+  flex-wrap: nowrap;
+  line-height: 1;
+}
+.brand-name__una,
+.brand-name__base {
+  font-family: 'Syne', 'Nunito', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.brand-name__una  { color: var(--neutral-text-title, #111827); }
+.brand-name__base { color: var(--primary-text-default, #06CCB4); }
+.brand-name__module {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--neutral-text-body, #9ca3af);
+  margin-left: 6px;
+  align-self: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(6, 204, 180, 0.1);
+  border: 1px solid rgba(6, 204, 180, 0.2);
 }
 
 .collapse-btn {
@@ -970,17 +1031,14 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
 .fade-label-leave-active { transition: opacity 0.12s ease, width 0.12s ease; }
 .fade-label-enter-from, .fade-label-leave-to { opacity: 0; width: 0; }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/* ── Responsive base (el sidebar mobile se maneja vía Teleport en el <style> global) ── */
 @media (max-width: 768px) {
   .rrhh-layout.expanded,
   .rrhh-layout.collapsed {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
-
-  .rrhh-sidebar {
-    display: none;
-  }
+  /* Desktop sidebar oculto en móvil (el Teleport lo reemplaza) */
 }
 </style>
 
@@ -1106,6 +1164,166 @@ onUnmounted(() => { document.removeEventListener('click', handleOutsideClick) })
 :root.light-theme .search-input,
 :root.light-theme .filterInput input {
   color: #111827 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — Mobile first (< 768px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Backdrop para cerrar el sidebar en móvil */
+/* Estilos del sidebar/backdrop teleportado — NO scoped (van al body) */
+</style>
+
+<!-- Estilos globales para el sidebar teleportado en móvil -->
+<style>
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9998;
+}
+
+/* (Teleport eliminado — sidebar único con CSS drawer) */
+
+/* Botón hamburger */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.hamburger-btn:hover { background: var(--neutral-background-strong, #e5e7eb); }
+.hamburger-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--neutral-text-title, #111827);
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+@media (max-width: 767px) {
+  /* Layout: grid de 1 columna (sidebar fuera del flujo) */
+  .rrhh-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Sidebar: drawer fijo que aparece desde la izquierda */
+  .rrhh-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 9999;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: 6px 0 32px rgba(0,0,0,0.5);
+    /* Fondo sólido siempre visible en móvil */
+    background: #1a2332 !important;
+    border-right: 1px solid rgba(255,255,255,0.1) !important;
+  }
+
+  .rrhh-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Textos del sidebar visibles en móvil */
+  .brand-name__una  { color: #e2e8f0 !important; }
+  .brand-name__base { color: #06CCB4 !important; }
+  .brand-name__module {
+    color: rgba(255,255,255,0.5) !important;
+    background: rgba(6,204,180,0.15) !important;
+    border-color: rgba(6,204,180,0.25) !important;
+  }
+  .nav-item {
+    color: #cbd5e1 !important;
+  }
+  .nav-item.active {
+    color: #3ac7a5 !important;
+    background: rgba(58,199,165,0.15) !important;
+  }
+  .nav-item:hover {
+    background: rgba(255,255,255,0.07) !important;
+    color: #f1f5f9 !important;
+  }
+  .nav-section-label {
+    color: rgba(255,255,255,0.35) !important;
+  }
+  .collapse-btn {
+    color: #94a3b8 !important;
+  }
+  .sidebar-footer {
+    border-top-color: rgba(255,255,255,0.1) !important;
+  }
+
+  /* Siempre expandido en móvil */
+  .brand-name {
+    display: flex !important;
+    opacity: 1 !important;
+  }
+  .nav-label,
+  .nav-section-label,
+  .nav-badge {
+    display: flex !important;
+    opacity: 1 !important;
+  }
+
+  /* Hamburger visible */
+  .hamburger-btn {
+    display: flex;
+  }
+
+  /* Header compacto */
+  .rrhh-header {
+    padding: 0 16px;
+    gap: 8px;
+  }
+
+  /* Ocultar breadcrumb en móvil (muy estrecho) */
+  .header-breadcrumb {
+    display: none;
+  }
+
+  /* Título más pequeño */
+  .header-title {
+    font-size: 14px;
+  }
+
+  /* Org chip: solo icono en móvil */
+  .org-chip span:not(.org-chip-logo) {
+    display: none;
+  }
+  .org-chip {
+    padding: 5px 8px;
+  }
+
+  /* User chip: solo avatar */
+  .user-name,
+  .user-rol-badge,
+  .user-chip .u-chevron-down {
+    display: none;
+  }
+  .user-chip {
+    padding: 4px;
+    gap: 0;
+  }
+
+  /* Ocultar theme toggle en móvil para ahorrar espacio */
+  .theme-toggle {
+    display: none;
+  }
+
+  /* Contenido: scroll normal */
+  .rrhh-content {
+    overflow-y: auto;
+  }
 }
 
 /* ── Alertas / banners ── */

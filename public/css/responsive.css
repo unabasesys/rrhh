@@ -1,0 +1,233 @@
+/**
+ * responsive.css — RRHH Unabase
+ * Estilos responsive globales para todas las páginas del módulo.
+ * Se carga después de styles.css para poder sobreescribir sin !important
+ * cuando sea posible.
+ */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLET  (768px – 1023px)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* Reducir padding de página */
+  .rrhhPage { padding: 16px; gap: 12px; }
+
+  /* Grid de 2 columnas en formularios → 1 columna */
+  .formGrid2 { grid-template-columns: 1fr !important; }
+
+  /* Proyectos: tarjetas más pequeñas */
+  .proyectos-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE  (< 768px)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* ── Página base ──────────────────────────────────────────────────────── */
+  .rrhhPage {
+    padding: 12px;
+    gap: 10px;
+    overflow: visible;      /* dejar que el body haga el scroll */
+    height: auto;
+    min-height: 100%;
+  }
+
+  /* ── Header de página (título + botones) ──────────────────────────────── */
+  .rrhhPage__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .rrhhPage__header-left { width: 100%; }
+  .rrhhPage__header-right {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .rrhhPage__header-right .btn,
+  .rrhhPage__header-right button {
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+  }
+  .rrhhPage__title { font-size: 16px; }
+  .rrhhPage__subtitle { display: block; margin-left: 0; margin-top: 2px; }
+
+  /* ── Filtros ──────────────────────────────────────────────────────────── */
+  .rrhhPage__filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .filterInput {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .filterInput input { width: 100%; min-width: 0; }
+
+  /* Separador vertical → ocultar en móvil */
+  .filter-sep { display: none; }
+
+  /* View toggle (Lista / Fijos / Proyectos) ocupa el ancho completo */
+  .view-toggle { width: 100%; justify-content: stretch; }
+  .view-btn { flex: 1; justify-content: center; }
+
+  /* Chips de filtro (Todos / Activos / Inactivos etc.) */
+  .chip { font-size: 11px; padding: 0 10px; height: 30px; }
+
+  /* ── Tabla ────────────────────────────────────────────────────────────── */
+  .rrhhPage__table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    flex: none;
+    border-radius: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rrhhTable { min-width: 600px; }   /* tabla no se aplasta */
+
+  .rrhhTable th,
+  .rrhhTable td { padding: 10px 12px; }
+
+  /* Ocultar columnas de baja prioridad en móvil */
+  .rrhhTable .col-hide-mobile { display: none; }
+
+  /* ── Footer KPIs ──────────────────────────────────────────────────────── */
+  .footer-kpis {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    border-radius: 12px;
+  }
+  .footer-kpi { padding: 12px 16px; }
+  .footer-kpi__sep {
+    width: auto;
+    height: 1px;
+    background: rgba(255,255,255,0.07);
+    margin: 0;
+  }
+  .footer-kpi__val { font-size: 20px; }
+  .footer-kpi__badge {
+    position: static;
+    margin-top: 8px;
+    align-self: flex-start;
+  }
+
+  /* ── Modales: full-screen en móvil ───────────────────────────────────── */
+  .u-dialog__box,
+  .modalBox {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+  }
+  .modalBox__body { padding: 14px 16px; }
+  .modalBox__footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+  .modalBox__footer .btn { flex: 1; justify-content: center; }
+
+  /* ── Formularios ─────────────────────────────────────────────────────── */
+  .formGrid2 { grid-template-columns: 1fr !important; gap: 10px; }
+
+  /* ── Botones ─────────────────────────────────────────────────────────── */
+  .btn { height: 38px; }
+
+  /* ── Proyectos grid ──────────────────────────────────────────────────── */
+  .proyectos-grid {
+    grid-template-columns: 1fr;
+    overflow-y: visible;
+    padding-bottom: 20px;
+  }
+
+  /* ── Ficha de trabajador ([id].vue) ──────────────────────────────────── */
+  .ficha-layout,
+  .worker-layout {
+    flex-direction: column !important;
+  }
+  .ficha-sidebar,
+  .worker-sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .tabs-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  /* ── Contratos y Liquidaciones ───────────────────────────────────────── */
+  .contrato-card,
+  .liq-card {
+    padding: 14px !important;
+  }
+  .contrato-header,
+  .liq-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .contrato-amounts,
+  .liq-amounts {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ── Asistencia / Marcaciones ────────────────────────────────────────── */
+  .marcaciones-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .turno-card { padding: 12px !important; }
+
+  /* ── Indicadores page ────────────────────────────────────────────────── */
+  .indicadores-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Dashboard / Reportes ────────────────────────────────────────────── */
+  .dashboard-grid,
+  .kpi-grid,
+  .report-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Org / Usuarios (admin) ──────────────────────────────────────────── */
+  .orgs-grid,
+  .users-table-wrap {
+    overflow-x: auto;
+  }
+
+  /* ── Tags / Badges ───────────────────────────────────────────────────── */
+  .tagContrato,
+  .tagEstado,
+  .tagContrato-v {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  /* ── Scrollbar principal ─────────────────────────────────────────────── */
+  .rrhh-content {
+    overflow-y: auto !important;
+    overflow-x: hidden;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EXTRA SMALL  (< 400px) — teléfonos muy pequeños
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 399px) {
+  .rrhhPage { padding: 8px; gap: 8px; }
+  .rrhhPage__title { font-size: 15px; }
+  .rrhhTable { min-width: 500px; }
+  .btn { height: 36px; font-size: 12px; }
+  .chip { font-size: 10px; padding: 0 8px; height: 28px; }
+}
