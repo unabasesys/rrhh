@@ -899,7 +899,9 @@ watch(vistaActual, async (val) => {
             class="mm-cell"
             :style="{
               flex: p.total_costo,
-              background: `linear-gradient(135deg, ${p.cover.from} 0%, ${p.cover.to} 100%)`,
+              background: fotoProyecto[p.key]
+                ? `linear-gradient(to bottom,rgba(3,26,34,.2) 0%,rgba(3,26,34,.72) 100%),url(${fotoProyecto[p.key]}) center/cover no-repeat`
+                : `linear-gradient(135deg, ${p.cover.from} 0%, ${p.cover.to} 100%)`,
             }"
             @click="$router.push(`/rrhh/trabajadores/${p.trabajadores[0]?._id || ''}`)"
           >
