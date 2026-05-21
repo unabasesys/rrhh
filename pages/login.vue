@@ -373,20 +373,30 @@
         </div>
       </div>
 
-      <!-- Testimonial -->
-      <div class="testimonial">
-        <svg width="20" height="16" viewBox="0 0 20 16" fill="none" style="margin-bottom:8px;display:block">
-          <path d="M0 16V10C0 4.5 3 1 8 0v3C5 4 4 6 4 9h4v7H0zM12 16V10c0-5.5 3-9 8-10v3c-3 1-4 3-4 6h4v7h-8z" fill="#0DCFA8"/>
-        </svg>
+      <!-- Testimonial 1 — Vale -->
+      <div class="testimonial testimonial--top">
         <p class="testimonial-text">
-          Pasamos de planillas en Excel a tener todo el equipo
-          de producción en un solo lugar. Cero pelusa.
+          "Creo liquidaciones en un paso y las organizo en proyectos."
         </p>
         <div class="testimonial-author">
-          <div class="testimonial-avatar">VC</div>
+          <div class="testimonial-avatar testimonial-avatar--teal">VP</div>
           <div>
-            <div class="testimonial-name">Valentina Cofré</div>
-            <div class="testimonial-role">Productora · Estudio Beyond</div>
+            <div class="testimonial-name">Vale</div>
+            <div class="testimonial-role">Vale Producciones</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Testimonial 2 — Rafa -->
+      <div class="testimonial testimonial--bottom">
+        <p class="testimonial-text">
+          "Pongo un iPad al empezar la producción y la gente marca entrada y salida. Son cracks."
+        </p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar testimonial-avatar--coral">RA</div>
+          <div>
+            <div class="testimonial-name">Rafa</div>
+            <div class="testimonial-role">Conciertos SPA</div>
           </div>
         </div>
       </div>
@@ -897,44 +907,45 @@ async function handleLogin() {
 }
 .chip-sub { font-size: 11px; color: rgba(6,45,58,0.55); margin-top: 1px; }
 
-/* Testimonial */
+/* Testimonials — two compact cards */
 .testimonial {
   position: absolute;
-  bottom: 44px;
-  right: 48px;
-  width: 280px;
-  padding: 20px 22px;
+  right: 50px;
+  width: 260px;
+  padding: 14px 16px;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 16px 40px rgba(6,45,58,0.12);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(6,45,58,0.12);
   border: 1px solid rgba(6,45,58,0.05);
 }
+.testimonial--top  { top: 280px; }
+.testimonial--bottom { bottom: 40px; width: 280px; }
 .testimonial-text {
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.45;
   color: #062D3A;
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   font-style: italic;
 }
 .testimonial-author { display: flex; align-items: center; gap: 10px; }
 .testimonial-avatar {
-  width: 32px; height: 32px;
+  width: 34px; height: 34px;
   border-radius: 50%;
-  background: #0DCFA8;
-  color: #062D3A;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 12px;
   flex-shrink: 0;
 }
+.testimonial-avatar--teal  { background: #0DCFA8; color: #062D3A; }
+.testimonial-avatar--coral { background: #E07856; color: #F5F0E6; }
 .testimonial-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #062D3A;
 }
-.testimonial-role { font-size: 10px; color: rgba(6,45,58,0.55); margin-top: 1px; }
+.testimonial-role { font-size: 11px; color: rgba(6,45,58,0.55); margin-top: 1px; }
 
 /* ── Mobile illustration band ───────────────────────────────────── */
 .mobile-illus {
