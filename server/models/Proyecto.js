@@ -5,7 +5,8 @@ const ProyectoSchema = new mongoose.Schema(
     _id:         { type: String },
     nombre:      { type: String, required: true, trim: true },
     codigo:      { type: String, trim: true, default: '' },
-    tipo:        { type: String, enum: ['venta', 'gasto'], default: 'venta' },
+    tipo:        { type: String, default: 'venta' },          // venta | gasto | pelicula | evento | …
+    presupuesto: { type: Number, default: 0 },               // ingresos esperados del proyecto
     descripcion: { type: String, default: '' },
     orgId:       { type: String, default: null },
     activo:      { type: Boolean, default: true },

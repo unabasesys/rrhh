@@ -595,10 +595,32 @@ const MM_COVERS = [
   { from: '#5A3E2E', to: '#3A2415' },  // rust
 ]
 
-// Type → chip display
+// Type → chip display (extensible, con fallback dinámico)
 const MM_TIPO_CONF = {
-  venta: { label: 'INGRESO',   color: '#0DCFA8', icon: 'u-ventas' },
-  gasto: { label: 'GASTO',     color: '#F4D26B', icon: 'u-config' },
+  venta:      { label: 'INGRESO',    color: '#0DCFA8', icon: 'u-ventas'    },
+  gasto:      { label: 'GASTO',      color: '#F4D26B', icon: 'u-config'    },
+  pelicula:   { label: 'PELÍCULA',   color: '#C4B6E0', icon: 'u-grid'      },
+  película:   { label: 'PELÍCULA',   color: '#C4B6E0', icon: 'u-grid'      },
+  evento:     { label: 'EVENTO',     color: '#B5D4B0', icon: 'u-usuarios'  },
+  documental: { label: 'DOCUMENTAL', color: '#E07856', icon: 'u-dashboard' },
+  publicidad: { label: 'PUBLICIDAD', color: '#F4D26B', icon: 'u-ventas'    },
+  servicio:   { label: 'SERVICIO',   color: '#0DCFA8', icon: 'u-config'    },
+}
+const _MM_COLOR_CYCLE = ['#0DCFA8','#F4D26B','#C4B6E0','#B5D4B0','#E07856']
+function mmTipoConf(tipo) {
+  const key = (tipo || '').toLowerCase()
+  if (MM_TIPO_CONF[key]) return MM_TIPO_CONF[key]
+  // Fallback: tipo desconocido → color cíclico basado en hash
+  const hash = key.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  return { label: key.toUpperCase(), color: _MM_COLOR_CYCLE[hash % _MM_COLOR_CYCLE.length], icon: 'u-grid' }
+}
+
+// Color semántico del margen
+function mmMargenColor(pct) {
+  if (pct === null || pct === undefined) return null
+  if (pct >= 20)  return '#0DCFA8'   // verde
+  if (pct >= 0)   return '#F4D26B'   // ámbar
+  return '#E07856'                    // coral (negativo)
 }
 
 const mmMesLabel = computed(() =>
@@ -606,16 +628,23 @@ const mmMesLabel = computed(() =>
 )
 
 const mobileMapProyectos = computed(() => {
-  const tipoMap = proyectoTipoMap.value
+  const tipoMap  = proyectoTipoMap.value
+  const dbMap    = {}
+  proyectosDB.value.forEach(p => { dbMap[p._id] = p })
   return trabajadoresPorProyecto.value
     .slice()
     .sort((a, b) => b.total_costo - a.total_costo)
     .slice(0, 6)
     .map((g, i) => {
-      const tipo  = tipoMap[g.negocio_id] || 'venta'
-      const conf  = MM_TIPO_CONF[tipo] || MM_TIPO_CONF['venta']
-      const cover = MM_COVERS[i % MM_COVERS.length]
-      return { ...g, _mmIdx: i, tipo, conf, cover }
+      const proyecto     = dbMap[g.negocio_id] || {}
+      const tipo         = proyecto.tipo || tipoMap[g.negocio_id] || 'venta'
+      const conf         = mmTipoConf(tipo)
+      const cover        = MM_COVERS[i % MM_COVERS.length]
+      const presupuesto  = proyecto.presupuesto || 0
+      const margen       = presupuesto > 0
+        ? Math.round((presupuesto - g.total_costo) / presupuesto * 100)
+        : null
+      return { ...g, _mmIdx: i, tipo, conf, cover, presupuesto, margen }
     })
 })
 
@@ -943,7 +972,7 @@ watch(vistaActual, async (val) => {
             <!-- Type chip -->
             <div class="mm-chip">
               <span class="mm-chip-dot" :style="{ background: p.conf.color }"></span>
-              <span v-if="row.size === 'lg'" class="mm-chip-lbl" :style="{ color: p.conf.color }">{{ p.conf.label }}</span>
+              <span v-if="row.size !== 'sm'" class="mm-chip-lbl" :style="{ color: p.conf.color }">{{ p.conf.label }}</span>
             </div>
 
             <!-- Name + cost -->
@@ -954,7 +983,7 @@ watch(vistaActual, async (val) => {
                   {{ fmtShort(p.total_costo) }}
                 </div>
                 <div v-if="row.size !== 'sm'" class="mm-cell-sub">
-                  {{ p.trabajadores.length }}p
+                  {{ p.trabajadores.length }}p<template v-if="p.margen !== null"> · <span :style="{ color: mmMargenColor(p.margen) }">{{ p.margen }}% margen</span></template>
                 </div>
               </div>
             </div>
