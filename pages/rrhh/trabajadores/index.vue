@@ -559,6 +559,74 @@ function tmTipoLabel(tipo) {
   return TM_PALETTES[tipo]?.label || 'Centro'
 }
 
+// ── Mobile "Mapa de costos" (spec 402×874) ────────────────────────────────────
+const isMobile = ref(false)
+let   _mmResizeObs = null
+
+function _checkMobile() { isMobile.value = window.innerWidth < 768 }
+
+// Cover gradients cycling (spec palette)
+const MM_COVERS = [
+  { from: '#2E4F3E', to: '#0B3744' },  // teal-green
+  { from: '#3A5A3A', to: '#1A3A1A' },  // dark green
+  { from: '#7B4A2B', to: '#3B2415' },  // warm brown
+  { from: '#2E2E5A', to: '#1A1A3A' },  // purple
+  { from: '#0B3744', to: '#062D3A' },  // deep navy
+  { from: '#5A3E2E', to: '#3A2415' },  // rust
+]
+
+// Type → chip display
+const MM_TIPO_CONF = {
+  venta: { label: 'INGRESO',   color: '#0DCFA8', icon: 'u-ventas' },
+  gasto: { label: 'GASTO',     color: '#F4D26B', icon: 'u-config' },
+}
+
+const mmMesLabel = computed(() =>
+  new Date(filtroMes.value + '-01').toLocaleDateString('es-CL', { month: 'long' })
+)
+
+const mobileMapProyectos = computed(() => {
+  const tipoMap = proyectoTipoMap.value
+  return trabajadoresPorProyecto.value
+    .slice()
+    .sort((a, b) => b.total_costo - a.total_costo)
+    .slice(0, 6)
+    .map((g, i) => {
+      const tipo  = tipoMap[g.negocio_id] || 'venta'
+      const conf  = MM_TIPO_CONF[tipo] || MM_TIPO_CONF['venta']
+      const cover = MM_COVERS[i % MM_COVERS.length]
+      return { ...g, _mmIdx: i, tipo, conf, cover }
+    })
+})
+
+const mmRows = computed(() => {
+  const p = mobileMapProyectos.value
+  return [
+    { key: 'r0', flex: 50, items: p.slice(0, 2), size: 'lg' },
+    { key: 'r1', flex: 30, items: p.slice(2, 4), size: 'md' },
+    { key: 'r2', flex: 20, items: p.slice(4, 6), size: 'sm' },
+  ].filter(r => r.items.length > 0)
+})
+
+const mmTotalPersonas = computed(() =>
+  mobileMapProyectos.value.reduce((s, g) => s + g.trabajadores.length, 0)
+)
+const mmTotalCosto = computed(() =>
+  trabajadoresPorProyecto.value.reduce((s, g) => s + (g.total_costo || 0), 0)
+)
+const mmKpiLiquido   = computed(() => trabajadoresPorProyecto.value.reduce((s, g) => s + (g.total_liquido || 0), 0))
+const mmKpiEmpresa   = computed(() => trabajadoresPorProyecto.value.reduce((s, g) => s + (g.total_costo || 0), 0))
+const mmKpiImpuestos = computed(() => trabajadoresPorProyecto.value.reduce((s, g) => s + (g.total_imposiciones || 0), 0))
+
+function fmtShort(n) {
+  if (!n) return '$ 0'
+  const abs = Math.abs(n)
+  if (abs >= 10_000_000) return `$ ${Math.round(n / 1_000_000)}M`
+  if (abs >= 1_000_000)  return `$ ${(n / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000)      return `$ ${Math.round(n / 1_000)}k`
+  return `$ ${n}`
+}
+
 // ── Sprint 2: contrato vigente, estado doble, labels contextuales ─────────────
 
 // Map: trabajador_id → contrato vigente
@@ -634,6 +702,8 @@ const trabajadoresFiltradosProyecto = computed(() =>
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  _checkMobile()
+  window.addEventListener('resize', _checkMobile)
   try {
     const saved = localStorage.getItem('rrhh_fotos_proyectos');
     if (saved) fotoProyecto.value = JSON.parse(saved);
@@ -661,7 +731,10 @@ onMounted(async () => {
     treemapSize.value = { w: cr.width || 900, h: cr.height || 480 }
   }
 });
-onUnmounted(() => { _tmRO?.disconnect() });
+onUnmounted(() => {
+  _tmRO?.disconnect()
+  window.removeEventListener('resize', _checkMobile)
+});
 
 // Cuando el usuario cambia a vista treemap, conectar ResizeObserver
 watch(vistaActual, async (val) => {
@@ -683,7 +756,7 @@ watch(vistaActual, async (val) => {
 </script>
 
 <template>
-  <div class="rrhhPage">
+  <div class="rrhhPage" :class="{ 'mm-mode': vistaActual === 'proyectos' && isMobile }">
 
     <!-- Header -->
     <div class="rrhhPage__header">
@@ -777,8 +850,112 @@ watch(vistaActual, async (val) => {
       </div>
     </div>
 
-    <!-- ── Vista Treemap "Centro de costo" ───────────────────────────────── -->
-    <div v-if="vistaActual === 'proyectos'" class="treemap-wrap">
+    <!-- ── Vista Proyectos ────────────────────────────────────────────────── -->
+    <!-- Mobile: Mapa de costos hi-fi -->
+    <div v-if="vistaActual === 'proyectos' && isMobile" class="mapa-movil">
+
+      <!-- Title block -->
+      <div class="mm-title">
+        <div class="mm-crumb">
+          <span class="mm-crumb-base">CENTRO DE COSTO</span>
+          <span class="mm-crumb-sep">/</span>
+          <span class="mm-crumb-active">MAPA</span>
+        </div>
+        <h1 class="mm-h1">Mapa de {{ mmMesLabel }}</h1>
+        <div class="mm-subrow">
+          <span class="mm-total-val">{{ fmtShort(mmTotalCosto) }}</span>
+          <span class="mm-meta-txt">
+            · {{ mobileMapProyectos.length }} proyecto{{ mobileMapProyectos.length !== 1 ? 's' : '' }}
+            · {{ mmTotalPersonas }} persona{{ mmTotalPersonas !== 1 ? 's' : '' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- View switcher -->
+      <div class="mm-switcher">
+        <button class="mm-pill mm-pill--active">Mapa</button>
+        <button class="mm-pill" disabled>Flujo</button>
+        <button class="mm-pill" disabled>Salud</button>
+        <button class="mm-pill" disabled>Calendario</button>
+      </div>
+
+      <!-- Estado vacío -->
+      <div v-if="!mobileMapProyectos.length" class="mm-empty">
+        <span class="u u-grid" style="font-size:28px;opacity:.18"></span>
+        <p>Sin proyectos con costo en {{ filtroMes }}</p>
+      </div>
+
+      <!-- Grid 3 filas: 50 / 30 / 20 -->
+      <div v-else class="mm-grid">
+        <div
+          v-for="row in mmRows"
+          :key="row.key"
+          class="mm-row"
+          :style="`flex: ${row.flex}`"
+        >
+          <div
+            v-for="p in row.items"
+            :key="p.key"
+            class="mm-cell"
+            :style="{
+              flex: p.total_costo,
+              background: `linear-gradient(135deg, ${p.cover.from} 0%, ${p.cover.to} 100%)`,
+            }"
+            @click="$router.push(`/rrhh/trabajadores/${p.trabajadores[0]?._id || ''}`)"
+          >
+            <!-- Type chip -->
+            <div class="mm-chip">
+              <span class="mm-chip-dot" :style="{ background: p.conf.color }"></span>
+              <span v-if="row.size === 'lg'" class="mm-chip-lbl" :style="{ color: p.conf.color }">{{ p.conf.label }}</span>
+            </div>
+
+            <!-- Name + cost -->
+            <div class="mm-cell-inner">
+              <div :class="['mm-cell-name', `mm-cell-name--${row.size}`]">{{ p.nombre }}</div>
+              <div class="mm-cell-bottom">
+                <div :class="['mm-cell-cost', `mm-cell-cost--${row.size}`]">
+                  {{ fmtShort(p.total_costo) }}
+                </div>
+                <div v-if="row.size !== 'sm'" class="mm-cell-sub">
+                  {{ p.trabajadores.length }}p
+                </div>
+              </div>
+            </div>
+
+            <!-- Watermark icon -->
+            <span :class="['u', p.conf.icon, 'mm-watermark', `mm-watermark--${row.size}`]"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="mm-kpi-strip">
+        <div class="mm-kpi-item">
+          <div class="mm-kpi-swatch" style="background:#0DCFA8"></div>
+          <div class="mm-kpi-col">
+            <div class="mm-kpi-label">LÍQUIDO</div>
+            <div class="mm-kpi-val">{{ fmtShort(mmKpiLiquido) }}</div>
+          </div>
+        </div>
+        <div class="mm-kpi-item">
+          <div class="mm-kpi-swatch" style="background:#F4D26B"></div>
+          <div class="mm-kpi-col">
+            <div class="mm-kpi-label">EMPRESA</div>
+            <div class="mm-kpi-val">{{ fmtShort(mmKpiEmpresa) }}</div>
+          </div>
+        </div>
+        <div class="mm-kpi-item">
+          <div class="mm-kpi-swatch" style="background:#E07856"></div>
+          <div class="mm-kpi-col">
+            <div class="mm-kpi-label">IMPUESTOS</div>
+            <div class="mm-kpi-val">{{ fmtShort(mmKpiImpuestos) }}</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /mapa-movil -->
+
+    <!-- Desktop: Treemap "Centro de costo" ───────────────────────────────── -->
+    <div v-else-if="vistaActual === 'proyectos'" class="treemap-wrap">
 
       <!-- Título del mapa -->
       <div class="treemap-header">
@@ -1994,5 +2171,304 @@ watch(vistaActual, async (val) => {
   }
   .footer-kpi { padding: 0 14px; min-width: 100px; }
   .footer-kpi__val { font-size: 16px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE MAP "Centro de costo · Mapa de mayo"
+   Spec: 402×874, dark #031A22, Space Grotesk + Inter Tight
+   ══════════════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600&display=swap');
+
+/* mm-mode: ocultar chrome estándar cuando el mapa está activo en móvil */
+@media (max-width: 767px) {
+  .rrhhPage.mm-mode {
+    padding: 0 !important;
+    gap: 0 !important;
+    background: #031A22 !important;
+    overflow: hidden;
+  }
+  .rrhhPage.mm-mode > .rrhhPage__header,
+  .rrhhPage.mm-mode > .orphan-banner,
+  .rrhhPage.mm-mode > .rrhhPage__filters,
+  .rrhhPage.mm-mode > .footer-kpis {
+    display: none !important;
+  }
+}
+
+/* ── Contenedor principal del mapa móvil ── */
+.mapa-movil {
+  display: none;           /* hidden on desktop — JS sets isMobile */
+  flex-direction: column;
+  background: #031A22;
+  color: #F5F0E6;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  font-family: 'Inter Tight', 'Nunito', sans-serif;
+}
+@media (max-width: 767px) {
+  .mapa-movil { display: flex; }
+}
+
+/* ── Title block ── */
+.mm-title {
+  padding: 6px 20px 10px;
+  flex-shrink: 0;
+}
+.mm-crumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.mm-crumb-base { color: rgba(245,240,230,0.45); }
+.mm-crumb-sep  { color: rgba(245,240,230,0.25); }
+.mm-crumb-active { color: #0DCFA8; }
+
+.mm-h1 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #F5F0E6;
+  margin: 0 0 4px;
+  line-height: 1.15;
+}
+
+.mm-subrow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.mm-total-val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0DCFA8;
+  font-variant-numeric: tabular-nums;
+}
+.mm-meta-txt {
+  font-size: 11.5px;
+  color: rgba(245,240,230,0.55);
+  font-family: 'Inter Tight', sans-serif;
+}
+
+/* ── View switcher ── */
+.mm-switcher {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin: 0 16px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(245,240,230,0.06);
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+.mm-pill {
+  flex: 1;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgba(245,240,230,0.6);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.mm-pill--active {
+  background: rgba(13,207,168,0.15);
+  color: #0DCFA8;
+  font-weight: 600;
+}
+.mm-pill:disabled { cursor: default; opacity: .7; }
+
+/* ── Grid: 3 rows flex ── */
+.mm-grid {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+  margin: 0 16px;
+  overflow: hidden;
+}
+.mm-row {
+  display: flex;
+  gap: 6px;
+  min-height: 0;
+  /* flex value set inline (50 / 30 / 20) */
+}
+
+/* ── Cell ── */
+.mm-cell {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid rgba(245,240,230,0.06);
+  padding: 10px 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  /* flex value set inline (proportional to cost) */
+  min-width: 0;
+  transition: filter .15s;
+}
+.mm-cell:hover { filter: brightness(1.1); }
+
+/* Type chip */
+.mm-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(6,45,58,0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 100px;
+  padding: 2px 7px 2px 5px;
+  width: fit-content;
+  position: relative; z-index: 1;
+  flex-shrink: 0;
+}
+.mm-chip-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mm-chip-lbl {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* Inner body: pushes cost to bottom */
+.mm-cell-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  position: relative; z-index: 1;
+}
+
+.mm-cell-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  color: #F5F0E6;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+}
+.mm-cell-name--lg { font-size: 17px; -webkit-line-clamp: 2; }
+.mm-cell-name--md { font-size: 13px; -webkit-line-clamp: 2; }
+.mm-cell-name--sm { font-size: 11px; -webkit-line-clamp: 1; }
+
+.mm-cell-bottom {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mm-cell-cost {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  color: #F5F0E6;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.mm-cell-cost--lg { font-size: 22px; }
+.mm-cell-cost--md { font-size: 15px; }
+.mm-cell-cost--sm { font-size: 12px; }
+
+.mm-cell-sub {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 10.5px;
+  color: rgba(245,240,230,0.5);
+  white-space: nowrap;
+}
+
+/* Watermark icon */
+.mm-watermark {
+  position: absolute !important;
+  z-index: 0 !important;
+  right: -8px; bottom: -8px;
+  opacity: 0.18;
+  pointer-events: none;
+  color: rgba(245,240,230,0.9);
+  line-height: 1;
+}
+.mm-watermark--lg { font-size: 90px; }
+.mm-watermark--md { font-size: 56px; }
+.mm-watermark--sm { font-size: 40px; }
+
+/* ── Empty state ── */
+.mm-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(245,240,230,0.2);
+  font-size: 14px;
+  font-family: 'Inter Tight', sans-serif;
+}
+.mm-empty p { margin: 0; }
+
+/* ── KPI strip ── */
+.mm-kpi-strip {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px 56px; /* 56px = home indicator space */
+  border-top: 1px solid rgba(245,240,230,0.06);
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+.mm-kpi-item {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px 8px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(245,240,230,0.06);
+  border-radius: 9px;
+}
+.mm-kpi-swatch {
+  width: 6px; height: 6px;
+  border-radius: 1px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.mm-kpi-col { display: flex; flex-direction: column; gap: 2px; }
+.mm-kpi-label {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(245,240,230,0.55);
+  white-space: nowrap;
+}
+.mm-kpi-val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #F5F0E6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 </style>
