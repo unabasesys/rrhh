@@ -1263,7 +1263,9 @@ onUnmounted(() => {
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.70);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 9998;
 }
 
@@ -1320,32 +1322,42 @@ onUnmounted(() => {
   }
 
   /* Textos del sidebar visibles en móvil */
-  .brand-name__una  { color: #e2e8f0 !important; }
+  .brand-name__una  { color: #f1f5f9 !important; }
   .brand-name__base { color: #06CCB4 !important; }
   .brand-name__module {
-    color: rgba(255,255,255,0.5) !important;
+    color: rgba(255,255,255,0.65) !important;
     background: rgba(6,204,180,0.15) !important;
     border-color: rgba(6,204,180,0.25) !important;
   }
+  /* Nav items: buen contraste sobre fondo oscuro */
   .nav-item {
-    color: #cbd5e1 !important;
+    color: #e2e8f0 !important;        /* antes #cbd5e1 — ahora más legible */
+    font-weight: 500 !important;
   }
   .nav-item.active {
     color: #3ac7a5 !important;
     background: rgba(58,199,165,0.15) !important;
+    font-weight: 700 !important;
   }
   .nav-item:hover {
-    background: rgba(255,255,255,0.07) !important;
-    color: #f1f5f9 !important;
+    background: rgba(255,255,255,0.09) !important;
+    color: #ffffff !important;
   }
+  .nav-icon {
+    color: inherit !important;
+    opacity: 0.85;
+  }
+  .nav-item.active .nav-icon { opacity: 1; }
   .nav-section-label {
-    color: rgba(255,255,255,0.35) !important;
+    color: rgba(255,255,255,0.5) !important;   /* antes .35 — más visible */
+    font-size: 9px !important;
+    letter-spacing: 0.12em !important;
   }
   .collapse-btn {
     color: #94a3b8 !important;
   }
   .sidebar-footer {
-    border-top-color: rgba(255,255,255,0.1) !important;
+    border-top-color: rgba(255,255,255,0.12) !important;
   }
 
   /* Siempre expandido en móvil */

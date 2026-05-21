@@ -1941,14 +1941,17 @@ watch(vistaActual, async (val) => {
 .mobile-card__pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .mobile-card__sueldo { font-size: 12px; font-weight: 700; color: #3ac7a5; flex-shrink: 0; text-align: right; }
 
+/* ── Mobile: hasta 1023px para cubrir phablets y tablets portrait ── */
+@media (max-width: 1023px) {
+  /* Cards vs tabla — ocultar tabla, mostrar tarjetas */
+  .mobile-cards  { display: flex; }
+  .desktop-table { display: none; }
+}
+
 @media (max-width: 767px) {
   /* Filters */
   .desktop-only { display: none !important; }
   .mobile-filters { display: flex; width: 100%; }
-
-  /* Cards vs tabla */
-  .mobile-cards  { display: flex; }
-  .desktop-table { display: none; }
 
   /* Header compacto */
   .rrhhPage__header { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -1956,14 +1959,29 @@ watch(vistaActual, async (val) => {
   .rrhhPage__header-right .btn { flex: 1; justify-content: center; font-size: 12px; padding: 8px 10px; }
 
   /* Filtros en columna en 2 filas */
-  .rrhhPage__filters {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
+  .rrhhPage__filters { flex-wrap: wrap; gap: 8px; }
   .filterInput { flex: 1; min-width: 0; }
   .filterInput--mes { flex: 0 0 auto; }
   .view-toggle { width: 100%; }
   .view-btn { flex: 1; justify-content: center; }
+
+  /* ── Treemap en móvil: canvas ocupa ~70% del viewport ── */
+  .treemap-wrap {
+    flex: 1;
+    min-height: 0;
+    gap: 8px;
+  }
+  .treemap-header {
+    flex-shrink: 0;
+  }
+  .treemap-header__title { font-size: 12px; }
+  .treemap-header__sub   { font-size: 11px; }
+  .treemap-canvas {
+    /* Altura explícita para que el ResizeObserver tenga dimensiones reales */
+    min-height: max(260px, 58vh);
+    height: max(260px, 58vh);
+    flex: none;
+  }
 
   /* KPIs pie: scroll horizontal */
   .footer-kpis {

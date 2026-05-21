@@ -5383,12 +5383,45 @@ onMounted(async () => {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
-  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 1023px) {
+  /* Reduce padding general en tablet/móvil */
+  .ficha-trabajador { padding: 16px; }
+
+  /* Header: apilado en columna */
+  .ficha-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .header-actions { width: 100%; flex-wrap: wrap; }
+  .header-actions .btn { flex: 1; min-width: 120px; justify-content: center; font-size: 12px; padding: 8px 10px; }
+
+  /* Avatar más pequeño en móvil */
+  .trabajador-hero { gap: 14px; }
+  .avatar-lg { width: 58px; height: 58px; font-size: 20px; }
+  .hero-info h1 { font-size: 18px; }
+  .hero-info .cargo { font-size: 13px; margin-bottom: 6px; }
+
+  /* KPIs: 2 columnas en lugar de 4 */
+  .kpi-row { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+  .kpi-card { padding: 14px 16px; }
+  .kpi-value { font-size: 17px; }
+
+  /* Tabs: scroll horizontal si no caben */
+  .tabs-bar { overflow-x: auto; gap: 0; padding-bottom: 2px; }
+  .tab-btn  { white-space: nowrap; flex-shrink: 0; padding: 8px 14px; font-size: 13px; }
+
+  /* Contrato card: diseño en columna en móvil */
+  .contrato-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .contrato-horas { min-width: 100%; flex-shrink: 1; }
+
+  /* Info grid en una columna */
   .info-grid { grid-template-columns: 1fr; }
+
+  /* Liquidaciones */
   .liq-cols { grid-template-columns: 1fr; }
   .liq-form-grid { grid-template-columns: repeat(2, 1fr); }
-  .ficha-header { flex-direction: column; }
 }
 
 /* ── Selector contrato en liquidación ───────────────────────────────────── */
