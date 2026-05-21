@@ -76,6 +76,16 @@
               <i class="u u-user" style="font-size:12px"></i>
               {{ org.representanteLegal.nombre }}
             </div>
+
+            <!-- Badge personas -->
+            <button
+              class="people-badge"
+              :title="`Ver personas de ${org.nombre}`"
+              @click="goToWorkers(org.id)"
+            >
+              <i class="u u-user" style="font-size:11px"></i>
+              {{ workerCounts[org.id] ?? 0 }} persona{{ (workerCounts[org.id] ?? 0) !== 1 ? 's' : '' }}
+            </button>
           </div>
 
           <div class="org-card__actions">
@@ -223,6 +233,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 definePageMeta({ layout: 'rrhh' })
 useHead({ title: 'Organizaciones · RRHH' })
 
+const router = useRouter()
+
 const { useAuthStore }   = await import('@/stores/auth')
 const { useOrgStore }    = await import('@/stores/org')
 
@@ -235,12 +247,31 @@ const authLoading = ref(true)
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 const orgs = computed(() => orgStore.orgs)
 
+// Conteo de trabajadores por org
+const workerCounts = ref({})
+
+async function fetchWorkerCounts() {
+  try {
+    const counts = await $fetch('/api/rrhh/trabajadores/counts')
+    workerCounts.value = counts
+  } catch {
+    // si falla, simplemente no mostramos conteos
+  }
+}
+
 onMounted(async () => {
   // init() restaura la sesión desde localStorage (necesario tras SSR)
   await authStore.init()
   authLoading.value = false
   orgStore.init()
+  fetchWorkerCounts()
 })
+
+// ── Ir a trabajadores de una org ───────────────────────────────────────────
+function goToWorkers(orgId) {
+  authStore.switchOrg(orgId)
+  router.push('/rrhh/trabajadores')
+}
 
 // ── Switch org activa ──────────────────────────────────────────────────────
 function switchToOrg(orgId) {
@@ -489,6 +520,29 @@ function showToast(msg, type = 'success') {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+/* People badge */
+.people-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(42,157,143,0.25);
+  background: rgba(42,157,143,0.08);
+  color: #2a9d8f;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+  align-self: flex-start;
+}
+.people-badge:hover {
+  background: rgba(42,157,143,0.18);
+  border-color: rgba(42,157,143,0.45);
 }
 
 /* Actions */
