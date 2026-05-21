@@ -315,7 +315,7 @@ onUnmounted(() => {
         <transition name="fade-label">
           <div v-if="sidebarExpanded || isMobile" class="brand-name">
             <span class="brand-name__una">una</span><span class="brand-name__base">base</span>
-            <span class="brand-name__module">RRHH</span>
+            <span class="brand-name__module">Personas</span>
           </div>
         </transition>
         <button
@@ -363,7 +363,7 @@ onUnmounted(() => {
       <div class="sidebar-footer">
         <div class="module-version">
           <transition name="fade-label">
-            <span v-if="sidebarExpanded || isMobile" style="font-size:10px;font-weight:600;letter-spacing:0.05em">RRHH · v1.1</span>
+            <span v-if="sidebarExpanded || isMobile" style="font-size:10px;font-weight:600;letter-spacing:0.05em">Personas · v1.1</span>
           </transition>
           <span v-if="!sidebarExpanded && !isMobile" style="font-size:9px">v1.1</span>
         </div>

@@ -15,7 +15,7 @@
         <div class="login-brand">
           <span class="login-brand__name">unabase</span>
         </div>
-        <p class="login-subtitle">Módulo de Recursos Humanos</p>
+        <p class="login-subtitle">Módulo de Personas</p>
       </div>
 
       <!-- Form -->
@@ -76,7 +76,7 @@
       <!-- Footer -->
       <div class="login-footer">
         <img src="/img/isotipo-dark.svg" alt="" width="14" height="14" style="opacity:0.4;vertical-align:middle;margin-right:4px" />
-        <span>unabase · RRHH v1.1</span>
+        <span>unabase · Personas v1.1</span>
       </div>
     </div>
   </div>
