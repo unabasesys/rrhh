@@ -133,6 +133,14 @@ const navSections = computed(() => [
         badge:   null,
         badgeColor: null,
       },
+      {
+        label:   'Proyectos y Líneas',
+        icon:    'u u-ventas',
+        path:    '/rrhh/admin/proyectos',
+        matches: (p) => p.startsWith('/rrhh/admin/proyectos'),
+        badge:   null,
+        badgeColor: null,
+      },
     ],
   }] : []),
   {

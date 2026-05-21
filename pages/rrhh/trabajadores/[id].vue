@@ -833,6 +833,13 @@
                         @keyup.esc="cancelarCrearProyecto"
                       />
                     </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                      <label style="font-size:11px">Tipo</label>
+                      <select v-model="crearProyectoForm.tipo" class="form-input form-input-sm" style="margin-top:6px">
+                        <option value="venta">Proyecto (venta)</option>
+                        <option value="gasto">Presupuesto de gasto</option>
+                      </select>
+                    </div>
                     <p v-if="crearProyectoError" class="cpf-error">{{ crearProyectoError }}</p>
                     <div class="cpf-hint">
                       <i class="u u-informacion" style="font-size:12px; opacity:.6"></i>
@@ -2107,75 +2114,20 @@ const showUploadDoc = ref(false)
 const showGenContrato = ref(false)
 const showFiniquito = ref(false)
 
-// ── Mock Negocios / Proyectos Unabase ─────────────────────────────────────────
-// ── Líneas presupuestales estándar (compartidas por todos los proyectos en mock)
-// Cuando se conecte a Unabase, esto vendrá de la API por proyecto
-const MOCK_LINEAS_PRESUPUESTALES = [
-  // Producers
-  { codigo: '1201-0001', nombre: 'Executive Producer',               categoria: 'Producers'  },
-  { codigo: '1202-0001', nombre: 'Producer / Productora Ejecutiva',  categoria: 'Producers'  },
-  { codigo: '1203-0001', nombre: 'Line Producer',                    categoria: 'Producers'  },
-  { codigo: '1204-0001', nombre: 'Production Supervisor',            categoria: 'Producers'  },
-  { codigo: '1205-0001', nombre: 'Producers Assistant',              categoria: 'Producers'  },
-  // Direction
-  { codigo: '1301-0001', nombre: 'Director',                         categoria: 'Direction'  },
-  { codigo: '1302-0001', nombre: 'Assistant Director',               categoria: 'Direction'  },
-  { codigo: '1303-0001', nombre: 'Script Supervisor',                categoria: 'Direction'  },
-  // Camera
-  { codigo: '1401-0001', nombre: 'Director of Photography',          categoria: 'Camera'     },
-  { codigo: '1402-0001', nombre: 'Camera Operator',                  categoria: 'Camera'     },
-  { codigo: '1403-0001', nombre: 'Camarógrafo / Camera Assistant',   categoria: 'Camera'     },
-  { codigo: '1404-0001', nombre: 'Data Manager / DIT',               categoria: 'Camera'     },
-  // Art
-  { codigo: '1501-0001', nombre: 'Art Director',                     categoria: 'Art'        },
-  { codigo: '1502-0001', nombre: 'Asistente de Arte',                categoria: 'Art'        },
-  { codigo: '1503-0001', nombre: 'Vestuario',                        categoria: 'Art'        },
-  { codigo: '1504-0001', nombre: 'Maquillaje / Caracterización',     categoria: 'Art'        },
-  // Sound
-  { codigo: '1601-0001', nombre: 'Sound Mixer / Sonidista',          categoria: 'Sound'      },
-  { codigo: '1602-0001', nombre: 'Boom Operator',                    categoria: 'Sound'      },
-  // Post
-  { codigo: '1701-0001', nombre: 'Editor',                           categoria: 'Post'       },
-  { codigo: '1702-0001', nombre: 'Asistente de Edición',             categoria: 'Post'       },
-  { codigo: '1703-0001', nombre: 'Colorista',                        categoria: 'Post'       },
-  { codigo: '1704-0001', nombre: 'VFX / Motion Graphics',            categoria: 'Post'       },
-  { codigo: '1705-0001', nombre: 'Sound Designer / Musicalización',  categoria: 'Post'       },
-  // Production
-  { codigo: '1801-0001', nombre: 'Jefe de Producción',               categoria: 'Production' },
-  { codigo: '1802-0001', nombre: 'Asistente de Producción',          categoria: 'Production' },
-  { codigo: '1803-0001', nombre: 'Runner',                           categoria: 'Production' },
-  { codigo: '1804-0001', nombre: 'Coordinador de Locaciones',        categoria: 'Production' },
-]
-
-const MOCK_NEGOCIOS = [
-  {
-    _id: 'neg_01', nombre: 'Serie Patagonia 2026', codigo: 'JUPE-V10-2025',
-    items: MOCK_LINEAS_PRESUPUESTALES,
-  },
-  {
-    _id: 'neg_02', nombre: 'Documental Norte Chico', codigo: 'NORTE-2026',
-    items: MOCK_LINEAS_PRESUPUESTALES,
-  },
-]
-
 // ── Proyectos / Negocios ──────────────────────────────────────────────────────
-// Lista reactiva: base (MOCK) + proyectos creados localmente (guardados en LS)
-// Cuando se conecte a Unabase, reemplazar la carga inicial con el fetch de la API
-const _cargarProyectosLocales = () => {
+const proyectosLocales = ref([])
+const proyectosLoading = ref(false)
+
+async function cargarProyectos() {
+  if (!import.meta.client) return
+  proyectosLoading.value = true
   try {
-    const guardados = JSON.parse(localStorage.getItem('rrhh_proyectos_locales') || '[]')
-    const idsBase = new Set(MOCK_NEGOCIOS.map(p => p._id))
-    // Proyectos locales: si no tienen items (creados antes del fix), asignar las líneas estándar
-    const locales = guardados
-      .filter(p => !idsBase.has(p._id))
-      .map(p => ({
-        ...p,
-        items: (p.items && p.items.length) ? p.items : MOCK_LINEAS_PRESUPUESTALES,
-      }))
-    return [...MOCK_NEGOCIOS, ...locales]
-  } catch { return [...MOCK_NEGOCIOS] }
+    const orgId = _authStore?.currentOrgId || null
+    const url   = orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos'
+    proyectosLocales.value = await $fetch(url)
+  } catch { proyectosLocales.value = [] }
+  finally { proyectosLoading.value = false }
 }
-const proyectosLocales = ref(_cargarProyectosLocales())
 
 const negocioBusqueda   = ref('')
 const negocioSeleccionado = ref(null)
@@ -2189,9 +2141,10 @@ const negociosFiltrados = computed(() => {
     n.nombre.toLowerCase().includes(q) || (n.codigo || '').toLowerCase().includes(q)
   )
 })
-const lineasNegocio = computed(() => negocioSeleccionado.value?.items || [])
+const lineasNegocioActual = ref([])
+const lineasNegocio = computed(() => lineasNegocioActual.value)
 
-function seleccionarNegocio(neg) {
+async function seleccionarNegocio(neg) {
   negocioSeleccionado.value = neg
   negocioBusqueda.value     = neg.nombre
   contratoForm.value.negocio_id     = neg._id
@@ -2200,17 +2153,23 @@ function seleccionarNegocio(neg) {
   contratoForm.value.linea_nombre   = ''
   showNegocioDropdown.value = false
   showCrearProyecto.value   = false
+  // Cargar líneas de este proyecto
+  try {
+    const lineas = await $fetch(`/api/rrhh/lineas?proyectoId=${neg._id}`)
+    lineasNegocioActual.value = lineas
+  } catch { lineasNegocioActual.value = [] }
 }
 
 // ── Crear proyecto inline ─────────────────────────────────────────────────────
 const showCrearProyecto   = ref(false)
-const crearProyectoForm   = ref({ nombre: '', codigo: '' })
+const crearProyectoForm   = ref({ nombre: '', codigo: '', tipo: 'venta' })
 const crearProyectoError  = ref('')
 
 function abrirCrearProyecto() {
   crearProyectoForm.value  = {
     nombre: negocioBusqueda.value.trim(),
     codigo: '',
+    tipo: 'venta',
   }
   crearProyectoError.value = ''
   showCrearProyecto.value  = true
@@ -2222,33 +2181,27 @@ function cancelarCrearProyecto() {
   crearProyectoError.value = ''
 }
 
-function confirmarCrearProyecto() {
+async function confirmarCrearProyecto() {
   const nombre = crearProyectoForm.value.nombre.trim()
   if (!nombre) { crearProyectoError.value = 'El nombre es requerido'; return }
 
   const _palabras = nombre.split(/\s+/).filter(Boolean)
   const _siglas   = _palabras.length === 1
-    ? nombre.slice(0, 4).toUpperCase()                              // "Wendys" → "WEND"
-    : _palabras.map(w => w[0]).join('').toUpperCase().slice(0, 6)   // "Serie Patagonia" → "SP"
+    ? nombre.slice(0, 4).toUpperCase()
+    : _palabras.map(w => w[0]).join('').toUpperCase().slice(0, 6)
   const codigo = crearProyectoForm.value.codigo.trim() || `${_siglas}-${new Date().getFullYear()}`
 
-  const nuevo = {
-    _id:    `proy_local_${Date.now()}`,
-    nombre,
-    codigo,
-    items:  MOCK_LINEAS_PRESUPUESTALES,  // líneas estándar del mockup
-    _local: true, // flag: creado localmente, pendiente de sync con Unabase
-  }
-
-  proyectosLocales.value = [...proyectosLocales.value, nuevo]
-
-  // Persistir solo los proyectos locales (no los MOCK)
+  const orgId = _authStore?.currentOrgId || null
   try {
-    const soloLocales = proyectosLocales.value.filter(p => p._local)
-    localStorage.setItem('rrhh_proyectos_locales', JSON.stringify(soloLocales))
-  } catch {}
-
-  seleccionarNegocio(nuevo)
+    const nuevo = await $fetch('/api/rrhh/proyectos', {
+      method: 'POST',
+      body: { nombre, codigo, tipo: crearProyectoForm.value.tipo || 'venta', orgId, _local: true },
+    })
+    proyectosLocales.value = [...proyectosLocales.value, nuevo]
+    seleccionarNegocio(nuevo)
+  } catch (e) {
+    crearProyectoError.value = e?.data?.message || 'Error al crear proyecto'
+  }
 }
 
 // ── Cláusulas opcionales del contrato ─────────────────────────────────────────
@@ -4062,6 +4015,8 @@ onMounted(async () => {
   asistenciaStore.init()
   // Cargar solicitudes de firma
   firmasStore.init()
+  // Cargar proyectos desde la API
+  await cargarProyectos()
   loading.value = false
 
   // Abrir modal de contrato si viene desde el módulo de contratos
