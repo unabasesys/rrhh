@@ -16,15 +16,21 @@
       </div>
     </div>
 
+    <!-- Cargando sesión (SSR → client) -->
+    <div v-if="authLoading" class="access-denied">
+      <div style="width:32px;height:32px;border:3px solid rgba(6,204,180,0.2);border-top-color:#06CCB4;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px"></div>
+      <p style="color:#6b7280;font-size:13px">Verificando acceso...</p>
+    </div>
+
     <!-- Acceso denegado -->
-    <div v-if="!isSuperAdmin" class="access-denied">
-      <i class="u u-lock" style="font-size:48px;color:#4b5563"></i>
+    <div v-else-if="!isSuperAdmin" class="access-denied">
+      <i class="u u-locked" style="font-size:48px;color:#4b5563"></i>
       <h3>Acceso restringido</h3>
       <p>Solo el super-administrador puede gestionar organizaciones.</p>
       <button class="btn btn--secondary" @click="$router.back()">Volver</button>
     </div>
 
-    <template v-else>
+    <template v-else-if="isSuperAdmin">
       <!-- Stats -->
       <div class="stats-row">
         <div class="stat-card">
@@ -223,12 +229,16 @@ const { useOrgStore }    = await import('@/stores/org')
 const authStore = useAuthStore()
 const orgStore  = useOrgStore()
 
-await authStore.init()
+// authLoading: true mientras no hemos corrido init() en el cliente
+const authLoading = ref(true)
 
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 const orgs = computed(() => orgStore.orgs)
 
-onMounted(() => {
+onMounted(async () => {
+  // init() restaura la sesión desde localStorage (necesario tras SSR)
+  await authStore.init()
+  authLoading.value = false
   orgStore.init()
 })
 

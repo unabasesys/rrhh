@@ -72,12 +72,19 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     /* ── Inicializar ───────────────────────────────────────────── */
     async init() {
-      if (this.initialized) return
-      this.initialized = true
+      // El seed solo se ejecuta una vez (idempotente)
+      if (!this.initialized) {
+        this.initialized = true
+        await this._seedAdminIfEmpty()
+      }
 
-      await this._seedAdminIfEmpty()
-
+      // En el servidor no hay localStorage — salir sin error
       if (!import.meta.client) return
+
+      // Si ya hay sesión activa en memoria, no necesitamos releer localStorage
+      if (this.user && this.token) return
+
+      // Restaurar sesión desde localStorage (necesario tras SSR + refresh de página)
       const raw = localStorage.getItem(LS_SESSION)
       if (!raw) return
       try {
