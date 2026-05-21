@@ -1,10 +1,9 @@
 /**
  * POST /api/auth/login
- * Autenticación via MongoDB (producción).
- * En modo sin DB, el store usa localStorage directamente.
+ * Autentica al usuario, guarda el token en MongoDB y lo devuelve al cliente.
  */
-import { requireDb } from '@/server/utils/db'
-import User from '@/server/models/User'
+import { requireDb } from '../../utils/db.js'
+import User from '../../models/User.js'
 
 async function hashPassword(password) {
   const msgBuffer = new TextEncoder().encode(password)
@@ -15,7 +14,7 @@ async function hashPassword(password) {
 }
 
 function generateToken() {
-  const arr = new Uint8Array(24)
+  const arr = new Uint8Array(32)
   crypto.getRandomValues(arr)
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
 }
@@ -30,7 +29,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Email y contraseña requeridos' })
   }
 
-  const user = await User.findOne({ email: email.toLowerCase().trim() }).lean()
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
   if (!user) {
     throw createError({ statusCode: 401, message: 'Email no encontrado' })
   }
@@ -43,15 +42,19 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'Contraseña incorrecta' })
   }
 
-  const token   = generateToken()
-  const expires = Date.now() + (remember ? 30 * 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000)
+  // Generar token y guardarlo en el usuario
+  const token        = generateToken()
+  const tokenExpires = new Date(Date.now() + (remember ? 30 * 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000))
 
-  // Retornar sesión al cliente
-  const { passwordHash: _, ...safeUser } = user
+  user.token        = token
+  user.tokenExpires = tokenExpires
+  await user.save()
+
+  const { passwordHash: _, token: _t, tokenExpires: _te, ...safeUser } = user.toObject()
   return {
     ok:      true,
     token,
-    expires,
+    expires: tokenExpires.getTime(),
     user:    safeUser,
   }
 })

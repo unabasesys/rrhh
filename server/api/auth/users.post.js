@@ -1,9 +1,10 @@
 /**
  * POST /api/auth/users
- * Crear nuevo usuario (solo Admin).
+ * Crear nuevo usuario — requiere ser admin.
  */
-import { requireDb, newId } from '@/server/utils/db'
-import User from '@/server/models/User'
+import { requireDb, newId } from '../../utils/db.js'
+import { requireAuth } from '../../utils/requireAuth.js'
+import User from '../../models/User.js'
 
 async function hashPassword(password) {
   const msgBuffer = new TextEncoder().encode(password)
@@ -15,8 +16,9 @@ async function hashPassword(password) {
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
+  await requireAuth(event, 'admin')
 
-  const { nombre, email, password, rol = 'viewer' } = await readBody(event)
+  const { nombre, email, password, rol = 'viewer', orgId = null } = await readBody(event)
 
   if (!nombre || !email || !password) {
     throw createError({ statusCode: 400, message: 'Faltan campos requeridos' })
@@ -30,15 +32,17 @@ export default defineEventHandler(async (event) => {
   const passwordHash = await hashPassword(password)
   const user = new User({
     _id:  newId('u'),
-    nombre: nombre.trim(),
-    email:  email.toLowerCase().trim(),
+    nombre:       nombre.trim(),
+    email:        email.toLowerCase().trim(),
     passwordHash,
     rol,
-    activo: true,
+    orgId:        orgId || null,
+    esSuperAdmin: false,
+    activo:       true,
   })
 
   await user.save()
 
-  const { passwordHash: _, ...safeUser } = user.toObject()
+  const { passwordHash: _, token: _t, tokenExpires: _te, ...safeUser } = user.toObject()
   return { ok: true, user: safeUser }
 })

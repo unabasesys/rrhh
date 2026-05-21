@@ -10,6 +10,9 @@ const UserSchema = new mongoose.Schema(
     orgId:        { type: String, default: null, ref: 'Organization' }, // null = super-admin
     esSuperAdmin: { type: Boolean, default: false },
     activo:       { type: Boolean, default: true },
+    // Sesión activa
+    token:        { type: String, default: null },
+    tokenExpires: { type: Date,   default: null },
   },
   {
     _id:        false,
@@ -18,7 +21,7 @@ const UserSchema = new mongoose.Schema(
   }
 )
 
-// Índice para búsqueda rápida por email
 UserSchema.index({ email: 1 }, { unique: true })
+UserSchema.index({ token: 1 }, { sparse: true })
 
 export default mongoose.models.User || mongoose.model('User', UserSchema)
