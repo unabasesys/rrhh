@@ -81,57 +81,6 @@ function drawText(doc, text, x, y, opts = {}) {
   doc.restore()
 }
 
-// Dibuja un globo aerostático minimalista (línea, sin relleno)
-function drawHotAirBalloon(doc, x, y, size = 60) {
-  doc.save()
-  doc.lineWidth(1.5).strokeColor(C.DARK_TEXT)
-  // Globo (círculo achatado)
-  doc.ellipse(x + size / 2, y + size * 0.3, size * 0.4, size * 0.42).stroke()
-  // Cuerdas
-  doc.moveTo(x + size * 0.18, y + size * 0.55).lineTo(x + size * 0.38, y + size * 0.78).stroke()
-  doc.moveTo(x + size * 0.82, y + size * 0.55).lineTo(x + size * 0.62, y + size * 0.78).stroke()
-  // Canasta
-  doc.rect(x + size * 0.36, y + size * 0.78, size * 0.28, size * 0.16).stroke()
-  doc.restore()
-}
-
-// Patrón estilo QR — placeholder (cuadrícula de píxeles "ruidosos")
-function drawQrPlaceholder(doc, x, y, size = 70) {
-  doc.save()
-  doc.lineWidth(0.4).strokeColor(C.GRAY_BORDER)
-  doc.rect(x, y, size, size).stroke()
-  // Cuadrícula 9x9 con patrón pseudo-determinístico
-  const cells = 9
-  const s = size / cells
-  const grid = [
-    '111000101',
-    '101011010',
-    '101001110',
-    '000101000',
-    '110010111',
-    '100111001',
-    '011000101',
-    '101110010',
-    '110101100',
-  ]
-  for (let r = 0; r < cells; r++) {
-    for (let c = 0; c < cells; c++) {
-      if (grid[r][c] === '1') {
-        doc.rect(x + c * s, y + r * s, s, s).fill(C.DARK_TEXT)
-      }
-    }
-  }
-  // Las 3 marcas de orientación (esquinas)
-  const drawMarker = (mx, my) => {
-    doc.rect(mx, my, s * 3, s * 3).fillAndStroke(C.WHITE, C.DARK_TEXT)
-    doc.rect(mx + s, my + s, s, s).fill(C.DARK_TEXT)
-  }
-  drawMarker(x, y)
-  drawMarker(x + size - s * 3, y)
-  drawMarker(x, y + size - s * 3)
-  doc.restore()
-}
-
 // ── Handler ─────────────────────────────────────────────────────────────────
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -389,29 +338,25 @@ export default defineEventHandler(async (event) => {
   y += 36
 
   // ══════════════════════════════════════════════════════════════════════════
-  // RECIBO (globo + texto + V°B° + QR)
+  // RECIBO (texto certificación + V°B°)
   // ══════════════════════════════════════════════════════════════════════════
-  const recY = Math.max(y, doc.page.height - 160)
-  const balloonX = ML
-  const balloonY = recY
-  drawHotAirBalloon(doc, balloonX, balloonY, 70)
+  const recY = Math.max(y, doc.page.height - 130)
 
-  const certX = balloonX + 90
-  const certW = 260
-  // Texto certificación (con wrap automático — usamos doc.text directo para
-  // que respete lineBreak:true; drawText fuerza lineBreak:false).
+  // Texto certificación a la izquierda (ocupa ~60% del ancho)
+  const certX = ML
+  const certW = Math.round(CW * 0.58)
   doc.save()
   doc.font('Helvetica').fontSize(8.5).fillColor(C.DARK_TEXT)
   doc.text(
     `Certifico que he recibido a mi entera satisfacción la suma de ${fmtClp(liquido)} indicada en la presente liquidación, y no tengo cargo ni cobro posterior que hacer por los conceptos de esta liquidación.`,
-    certX, balloonY + 6, { width: certW, align: 'left', lineBreak: true, lineGap: 1.5 }
+    certX, recY, { width: certW, align: 'left', lineBreak: true, lineGap: 1.5 }
   )
   doc.restore()
 
-  // Línea para firma V°B°
-  const firmaX = certX + certW + 24
-  const firmaY = balloonY + 50
-  const firmaW = 100
+  // Línea de firma V°B° centrada en el lado derecho
+  const firmaW = 160
+  const firmaX = PW - MR - firmaW
+  const firmaY = recY + 38
   doc.save()
   doc.lineWidth(1).strokeColor(C.DARK_TEXT)
   doc.moveTo(firmaX, firmaY).lineTo(firmaX + firmaW, firmaY).stroke()
@@ -419,11 +364,6 @@ export default defineEventHandler(async (event) => {
   drawText(doc, 'V°.B°.', firmaX, firmaY + 6, {
     fontSize: 9, color: C.DARK_TEXT, width: firmaW, align: 'center',
   })
-
-  // QR placeholder
-  const qrX = PW - MR - 70
-  const qrY = balloonY
-  drawQrPlaceholder(doc, qrX, qrY, 70)
 
   // ── Fin ──────────────────────────────────────────────────────────────────
   doc.end()

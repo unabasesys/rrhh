@@ -951,8 +951,14 @@
                   <option value="30">30h/semana</option>
                   <option value="20">20h/semana (part time)</option>
                   <option value="diaria">Diaria (por día trabajado)</option>
+                  <option value="art22">Art. 22 inc. 2° — Libre de jornada</option>
                   <option value="custom">Otra...</option>
                 </select>
+                <span v-if="contratoForm.jornada_semanal === 'art22'" class="form-hint">
+                  Trabajador exento del límite de jornada (Art. 22 inc. 2° del Código del Trabajo).
+                  Aplica solo a gerentes/administradores con facultades generales, o cargos sin
+                  fiscalización superior inmediata. No marca asistencia ni genera horas extra.
+                </span>
               </div>
               <div class="form-group">
                 <label>Lugar de Trabajo</label>
@@ -1262,7 +1268,13 @@
             </div>
             <div class="cd-row" v-if="contratoDetalle.cargo"><span class="cd-label">Cargo</span><span>{{ contratoDetalle.cargo }}</span></div>
             <div class="cd-row" v-if="contratoDetalle.jornada_semanal"><span class="cd-label">Jornada</span>
-              <span>{{ contratoDetalle.jornada_semanal === 'diaria' ? 'Diaria' : `${contratoDetalle.horas_semana || contratoDetalle.jornada_semanal}h/semana` }}</span>
+              <span>
+                {{
+                  contratoDetalle.jornada_semanal === 'diaria'  ? 'Diaria'
+                  : contratoDetalle.jornada_semanal === 'art22' ? 'Libre de jornada (Art. 22 inc. 2°)'
+                  : `${contratoDetalle.horas_semana || contratoDetalle.jornada_semanal}h/semana`
+                }}
+              </span>
             </div>
             <div class="cd-row" v-if="contratoDetalle.lugar_trabajo"><span class="cd-label">Lugar</span><span>{{ contratoDetalle.lugar_trabajo }}</span></div>
             <div class="cd-row" v-if="contratoDetalle.direccion_trabajo"><span class="cd-label">Dirección</span><span>{{ contratoDetalle.direccion_trabajo }}</span></div>
@@ -3644,6 +3656,7 @@ async function generarContratoPDF() {
   const cf = contratoForm.value
   const horasSem = cf.jornada_semanal === 'custom' ? cf.horas_semana
     : cf.jornada_semanal === 'diaria' ? 'diaria'
+    : cf.jornada_semanal === 'art22'  ? 'art22'    // libre de jornada
     : parseInt(cf.jornada_semanal) || 45
 
   // 1. Guardar contrato en localStorage SIEMPRE (antes de intentar el PDF)
@@ -3702,7 +3715,9 @@ async function generarContratoPDF() {
       ? contratoForm.value.horas_semana
       : contratoForm.value.jornada_semanal === 'diaria'
         ? 'Jornada diaria (según faena)'
-        : parseInt(contratoForm.value.jornada_semanal) || 45
+        : contratoForm.value.jornada_semanal === 'art22'
+          ? 'Trabajador exento de jornada (Art. 22 inc. 2° del Código del Trabajo)'
+          : parseInt(contratoForm.value.jornada_semanal) || 45
 
     const turnoSeleccionado = contratoForm.value.turno_id
       ? asistenciaStore.turnos.find(tr => (tr.id || tr._id) === contratoForm.value.turno_id)
@@ -5276,6 +5291,17 @@ onMounted(async () => {
   transition: border-color 0.2s;
   width: 100%;
   box-sizing: border-box;
+}
+.form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.45;
+  background: rgba(13, 207, 168, 0.08);
+  border-left: 2px solid #0DCFA8;
+  padding: 6px 10px;
+  border-radius: 4px;
 }
 .form-input:focus {
   outline: none;
