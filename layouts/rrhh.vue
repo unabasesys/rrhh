@@ -228,12 +228,10 @@ onMounted(async () => {
     document.documentElement.classList.add('light-theme')
   }
   indicadores.initIfEmpty()
-  // Cargar datos necesarios para badges si no están en memoria
-  if (!rrhhStore.contratos?.length)   rrhhStore.getContratos?.()
-  if (!rrhhStore.trabajadores?.length) rrhhStore.getTrabajadores?.()
   asistencia.init?.()
 
-  // Cargar auth + org stores
+  // ── PRIMERO: cargar auth + org stores y fijar la org activa ──────────────
+  // (antes de cualquier fetch al backend, para que las queries respeten orgId)
   const { useAuthStore } = await import('@/stores/auth')
   const { useOrgStore }  = await import('@/stores/org')
   authStore = useAuthStore()
@@ -262,8 +260,13 @@ onMounted(async () => {
     orgName.value    = soloOrg.nombre
   }
 
-  // Sincronizar currentOrgId con el rrhh store
+  // Sincronizar currentOrgId con el rrhh store ANTES de fetch
   rrhhStore.setOrgId(authStore.currentOrgId)
+
+  // ── DESPUÉS: cargar datos (ya con orgId filtrando) ───────────────────────
+  // Forzamos refresh por si la página hija ya disparó fetch sin orgId
+  rrhhStore.getContratos?.()
+  rrhhStore.getTrabajadores?.()
 })
 
 function handleLogout() {

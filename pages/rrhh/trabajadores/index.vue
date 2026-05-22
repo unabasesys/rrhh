@@ -410,28 +410,21 @@ const trabajadoresPorProyecto = computed(() => {
   const contratos    = rrhhStore.contratos   || [];
   const trabajadores = rrhhStore.trabajadores || [];
 
-  // Contrato vigente por trabajador
-  const vigenteMap = {};
-  contratos.forEach(c => {
-    if (!c.trabajador_id) return;
-    const est = (c.estado_contrato || c.estado || '').toLowerCase();
-    if (est === 'activo' || est === 'vigente') {
-      if (!vigenteMap[c.trabajador_id]) vigenteMap[c.trabajador_id] = c;
-    }
-  });
+  // Mapa rápido trabajador_id → objeto trabajador
+  const trabajadorMap = {};
+  trabajadores.forEach(t => { trabajadorMap[t._id || t.id] = t; });
 
   const grupos = {};
-  trabajadores.forEach(t => {
-    const tid = t._id || t.id;
-    const c   = vigenteMap[tid];
-    const key = c?.negocio_nombre || c?.nombre_proyecto || '__sin_proyecto__';
 
+  // Helper: asegurar grupo
+  const ensureGrupo = (key, nombre, negocio_id) => {
     if (!grupos[key]) {
       grupos[key] = {
-        nombre:      key === '__sin_proyecto__' ? 'Sin proyecto asignado' : key,
+        nombre,
         key,
-        negocio_id:  c?.negocio_id || null,
+        negocio_id: negocio_id || null,
         trabajadores: [],
+        _trabIds: new Set(),
         contratos: [],
         fecha_inicio: null,
         fecha_termino: null,
@@ -440,47 +433,72 @@ const trabajadoresPorProyecto = computed(() => {
         total_imposiciones: 0,
       };
     }
-    grupos[key].trabajadores.push(t);
-    if (c) {
-      grupos[key].contratos.push(c);
-      const fi   = c.fecha_inicio || c.fecha_ingreso;
-      const ft   = c.fecha_termino;
-      if (fi && (!grupos[key].fecha_inicio  || fi < grupos[key].fecha_inicio))  grupos[key].fecha_inicio  = fi;
-      if (ft && (!grupos[key].fecha_termino || ft > grupos[key].fecha_termino)) grupos[key].fecha_termino = ft;
+    return grupos[key];
+  };
 
-      const tipo       = (c.tipo_contrato || '').toLowerCase();
-      const tipoSueldo = c.tipo_sueldo || 'bruto';
-      const sueldo = c.sueldo_base   || 0;
-      const mov    = c.movilizacion  || 0;
-      const col    = c.colacion      || 0;
-      const base   = sueldo + mov + col;
-      const esLiq  = tipo === 'proyecto' || tipoSueldo === 'liquido';
+  // Iteramos sobre TODOS los contratos vigentes (un trabajador puede tener
+  // múltiples contratos, en el mismo o en distintos proyectos)
+  contratos.forEach(c => {
+    if (!c.trabajador_id) return;
+    const est = (c.estado_contrato || c.estado || '').toLowerCase();
+    if (!['activo', 'vigente', 'borrador'].includes(est)) return;
 
-      // Líquido al trabajador
-      if (tipo === 'honorarios' || esLiq) {
-        grupos[key].total_liquido += base;                              // neto acordado
-      } else {
-        grupos[key].total_liquido += Math.round(sueldo * (1 - 0.1844) + mov + col);
-      }
+    const t = trabajadorMap[c.trabajador_id];
+    if (!t) return;
 
-      // Costo empresa
-      if (tipo === 'honorarios') {
-        grupos[key].total_costo += base;
-      } else if (esLiq) {
-        grupos[key].total_costo += Math.round(base * (1 + TASA_IMPOSICIONES));
-      } else {
-        grupos[key].total_costo += Math.round(base * 1.2);
-      }
+    const key = c.negocio_nombre || c.nombre_proyecto || '__sin_proyecto__';
+    const nombre = key === '__sin_proyecto__' ? 'Sin proyecto asignado' : key;
+    const g = ensureGrupo(key, nombre, c.negocio_id);
 
-      // Imposiciones a Previred
-      if (tipo !== 'honorarios') {
-        grupos[key].total_imposiciones += Math.round(sueldo * TASA_IMPOSICIONES);
-      }
+    // Trabajador único por grupo (un mismo trabajador con 2 contratos
+    // en el mismo proyecto cuenta como 1 persona)
+    const tid = t._id || t.id;
+    if (!g._trabIds.has(tid)) {
+      g._trabIds.add(tid);
+      g.trabajadores.push(t);
+    }
+    if (!g.negocio_id && c.negocio_id) g.negocio_id = c.negocio_id;
+
+    g.contratos.push(c);
+
+    const fi = c.fecha_inicio || c.fecha_ingreso;
+    const ft = c.fecha_termino;
+    if (fi && (!g.fecha_inicio  || fi < g.fecha_inicio))  g.fecha_inicio  = fi;
+    if (ft && (!g.fecha_termino || ft > g.fecha_termino)) g.fecha_termino = ft;
+
+    const tipo       = (c.tipo_contrato || '').toLowerCase();
+    const tipoSueldo = c.tipo_sueldo || 'bruto';
+    const sueldo = c.sueldo_base   || 0;
+    const mov    = c.movilizacion  || 0;
+    const col    = c.colacion      || 0;
+    const base   = sueldo + mov + col;
+    const esLiq  = tipo === 'proyecto' || tipoSueldo === 'liquido';
+
+    // Líquido al trabajador
+    if (tipo === 'honorarios' || esLiq) {
+      g.total_liquido += base;                              // neto acordado
+    } else {
+      g.total_liquido += Math.round(sueldo * (1 - 0.1844) + mov + col);
+    }
+
+    // Costo empresa
+    if (tipo === 'honorarios') {
+      g.total_costo += base;
+    } else if (esLiq) {
+      g.total_costo += Math.round(base * (1 + TASA_IMPOSICIONES));
+    } else {
+      g.total_costo += Math.round(base * 1.2);
+    }
+
+    // Imposiciones a Previred
+    if (tipo !== 'honorarios') {
+      g.total_imposiciones += Math.round(sueldo * TASA_IMPOSICIONES);
     }
   });
 
   return Object.values(grupos)
     .filter(g => g.key !== '__sin_proyecto__')
+    .map(({ _trabIds, ...g }) => g)   // limpiar el Set interno
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 });
 
@@ -711,6 +729,21 @@ const contratoVigenteMap = computed(() => {
 })
 function contratoVigente(tid) { return contratoVigenteMap.value[tid] || null }
 
+// Map: trabajador_id → array con TODOS los contratos vigentes (para sumar sueldos)
+const contratosVigentesMap = computed(() => {
+  const map = {}
+  ;(rrhhStore.contratos || []).forEach(c => {
+    if (!c.trabajador_id) return
+    const est = (c.estado_contrato || c.estado || '').toLowerCase()
+    if (['vigente', 'activo', 'borrador'].includes(est)) {
+      if (!map[c.trabajador_id]) map[c.trabajador_id] = []
+      map[c.trabajador_id].push(c)
+    }
+  })
+  return map
+})
+function contratosVigentes(tid) { return contratosVigentesMap.value[tid] || [] }
+
 // Semáforo de vigencia del contrato
 function estadoContratoInfo(c) {
   if (!c) return { label: 'Sin contrato', cls: 'sin-contrato' }
@@ -729,14 +762,33 @@ function estadoContratoInfo(c) {
 }
 
 // Mostrar sueldo sin $0 — etiqueta contextual según tipo
+// Suma sueldos de TODOS los contratos vigentes (igual que la vista de detalle)
 function sueldoDisplay(t) {
-  const c    = contratoVigente(t._id || t.id)
-  const tipo = (c?.tipo_contrato || t.tipo_contrato || '').toLowerCase()
-  const val  = c?.sueldo_base ?? t.sueldo_base ?? 0
-  if (tipo === 'honorarios') return { label: 'Variable',    cls: 'lbl-var' }
-  if (tipo === 'proyecto')   return { label: 'Por contrato', cls: 'lbl-var' }
-  if (!val)                  return { label: 'No definido',  cls: 'lbl-nd' }
-  return { label: fmtCLP(val), cls: '' }
+  const tid = t._id || t.id
+  const contratos = contratosVigentes(tid)
+
+  // Sin contratos vigentes: fallback al trabajador
+  if (!contratos.length) {
+    const tipo = (t.tipo_contrato || '').toLowerCase()
+    const val  = t.sueldo_base || 0
+    if (tipo === 'honorarios') return { label: 'Variable',    cls: 'lbl-var' }
+    if (tipo === 'proyecto')   return { label: 'Por contrato', cls: 'lbl-var' }
+    if (!val)                  return { label: 'No definido',  cls: 'lbl-nd' }
+    return { label: fmtCLP(val), cls: '' }
+  }
+
+  // Sumar sueldo_base de todos los contratos vigentes
+  const total = contratos.reduce((s, c) => s + (c.sueldo_base || 0), 0)
+
+  // Si la suma es 0, mostrar etiqueta contextual según tipos
+  if (!total) {
+    const tipos = contratos.map(c => (c.tipo_contrato || '').toLowerCase())
+    if (tipos.every(x => x === 'honorarios')) return { label: 'Variable',    cls: 'lbl-var' }
+    if (tipos.every(x => x === 'proyecto'))   return { label: 'Por contrato', cls: 'lbl-var' }
+    return { label: 'No definido', cls: 'lbl-nd' }
+  }
+
+  return { label: fmtCLP(total), cls: '' }
 }
 
 // Labels de tipo contrato
@@ -776,13 +828,25 @@ onMounted(async () => {
     const saved = localStorage.getItem('rrhh_fotos_proyectos');
     if (saved) fotoProyecto.value = JSON.parse(saved);
   } catch {}
+
+  // ── Asegurar org activa ANTES de fetch (refresh page bug) ────────────────
+  // En refresh, el layout padre aún no terminó su onMounted cuando este
+  // hijo monta. Inicializamos auth aquí para que getTrabajadores filtre
+  // por orgId desde la primera llamada.
+  const authStore = (await import('@/stores/auth')).useAuthStore()
+  if (!authStore.initialized) {
+    try { await authStore.init() } catch {}
+  }
+  if (authStore.currentOrgId && rrhhStore.currentOrgId !== authStore.currentOrgId) {
+    rrhhStore.setOrgId(authStore.currentOrgId)
+  }
+
   try {
     await Promise.all([rrhhStore.getTrabajadores(), rrhhStore.getContratos()]);
   } finally {
   }
   // Cargar proyectos para tipos de treemap y fotos
   try {
-    const authStore = (await import('@/stores/auth')).useAuthStore()
     const orgId = authStore?.currentOrgId || null
     proyectosDB.value = await $fetch(orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos')
     // Cargar fotos desde MongoDB (sobreescribe localStorage si hay foto en DB)
