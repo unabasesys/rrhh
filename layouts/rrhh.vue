@@ -111,28 +111,6 @@ const navSections = computed(() => [
         badge:   badgeAsistencia.value > 0 ? badgeAsistencia.value : null,
         badgeColor: 'red',
       },
-    ],
-  },
-  // Sección Admin (solo super-admin)
-  ...(authStore?.isSuperAdmin ? [{
-    label: 'Sistema',
-    items: [
-      {
-        label:   'Organizaciones',
-        icon:    'u u-empresa',
-        path:    '/rrhh/admin/organizaciones',
-        matches: (p) => p.startsWith('/rrhh/admin/organizaciones'),
-        badge:   null,
-        badgeColor: null,
-      },
-      {
-        label:   'Usuarios',
-        icon:    'u u-usuarios',
-        path:    '/rrhh/admin/usuarios',
-        matches: (p) => p.startsWith('/rrhh/admin/usuarios'),
-        badge:   null,
-        badgeColor: null,
-      },
       {
         label:   'Proyectos y Líneas',
         icon:    'u u-ventas',
@@ -141,16 +119,11 @@ const navSections = computed(() => [
         badge:   null,
         badgeColor: null,
       },
-      {
-        label:   'Facturación',
-        icon:    'u u-ventas',
-        path:    '/rrhh/admin/billing',
-        matches: (p) => p.startsWith('/rrhh/admin/billing'),
-        badge:   null,
-        badgeColor: null,
-      },
     ],
-  }] : []),
+  },
+  // Sección Sistema eliminada — sus items se movieron:
+  //   • Proyectos y Líneas → Principal
+  //   • Organizaciones / Usuarios / Facturación → menú de usuario (header)
   {
     label: 'Herramientas',
     items: [
@@ -523,6 +496,10 @@ onUnmounted(() => {
               <button v-if="authStore?.isAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/usuarios'); showUserMenu = false">
                 <i class="u u-usuarios"></i> Gestión de usuarios
               </button>
+              <button v-if="authStore?.isSuperAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/billing'); showUserMenu = false">
+                <i class="u u-ventas"></i> Facturación
+              </button>
+              <div class="user-dropdown__divider"></div>
               <button class="user-dropdown__item user-dropdown__item--danger" @click="handleLogout">
                 <i class="u u-logout"></i> Cerrar sesión
               </button>
