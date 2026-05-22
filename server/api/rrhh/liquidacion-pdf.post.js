@@ -1,449 +1,437 @@
-import PDFDocument from "pdfkit";
-import { PassThrough } from "stream";
+/**
+ * POST /api/rrhh/liquidacion-pdf
+ * Genera un PDF de Liquidación de Remuneraciones con diseño Unabase (teal).
+ *
+ * Body: {
+ *   organizacion: { nombre, rut, direccion, logo_base64 },
+ *   trabajador:   { nombre, rut, cargo, fecha_ingreso, centro_costo },
+ *   liquidacion: {
+ *     periodo,            // "marzo de 2026"
+ *     mes, anio,
+ *     dias_trabajados, dias_licencia, dias_ausencia, horas_base,
+ *     haberes: [{ concepto, monto }],
+ *     descuentos_legales: [{ concepto, detalle?, monto }],
+ *     otros_descuentos:   [{ concepto, monto }],
+ *     totales: { haberes, descuentos },
+ *     liquido_a_pagar,
+ *     renta_imponible,
+ *   }
+ * }
+ */
+import PDFDocument from 'pdfkit'
+import { PassThrough } from 'stream'
 
-// ── Palette ──────────────────────────────────────────────────────────────────
+// ── Paleta Unabase ──────────────────────────────────────────────────────────
 const C = {
-  TEAL:       "#2a9d8f",
-  TEAL_LIGHT: "#e8f7f5",
-  TEAL_MID:   "#c5ede9",
-  DARK:       "#0f1923",
-  DARK2:      "#1e2d3a",
-  GRAY_TEXT:  "#6b7280",
-  GRAY_BG:    "#f3f4f6",
-  WHITE:      "#ffffff",
-  BLACK:      "#111827",
-};
+  TEAL:        '#0DCFA8',
+  TEAL_LIGHT:  '#e6faf5',
+  TEAL_MID:    '#cdf5ec',
+  TEAL_DARK:   '#0aa688',
+  DARK:        '#062D3A',
+  DARK_TEXT:   '#0f1923',
+  GRAY_TEXT:   '#6b7280',
+  GRAY_BORDER: '#e5e7eb',
+  GRAY_ROW:    '#f3f4f6',
+  WHITE:       '#ffffff',
+}
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
 function fmtClp(value) {
-  if (!value && value !== 0) return "$0";
+  if (value === null || value === undefined || value === '') return '$0'
+  const n = Math.round(Number(value))
+  if (Number.isNaN(n)) return String(value)
+  return (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('es-CL')
+}
+
+function formatRut(rut) {
+  if (!rut) return '—'
+  const clean = String(rut).replace(/[^0-9kK]/g, '').toUpperCase()
+  if (clean.length < 2) return rut
+  const dv = clean.slice(-1)
+  const num = clean.slice(0, -1)
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + '-' + dv
+}
+
+function formatFecha(f) {
+  if (!f) return ''
   try {
-    const n = Math.round(Number(value));
-    const s = Math.abs(n).toLocaleString("es-CL");
-    return n < 0 ? `-$${s}` : `$${s}`;
-  } catch {
-    return String(value);
-  }
+    const s = String(f)
+    const d = new Date(s + (s.includes('T') ? '' : 'T12:00:00'))
+    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
+  } catch { return String(f) }
 }
 
-// Helper: draw a filled rectangle (pdfkit uses bottom-left origin, but we work
-// top-to-bottom so we accept (x, y_top, w, h) and convert internally)
-function fillRect(doc, x, yTop, w, h, fillColor, strokeColor = null, lineWidth = 0.5) {
-  doc.save();
-  if (strokeColor) {
-    doc.lineWidth(lineWidth).rect(x, yTop, w, h).fillAndStroke(fillColor, strokeColor);
-  } else {
-    doc.rect(x, yTop, w, h).fill(fillColor);
-  }
-  doc.restore();
-}
-
-// Draw a single text cell in the table
-function tableCell(doc, text, x, yTop, w, h, opts = {}) {
-  const {
-    font = "Helvetica",
-    fontSize = 8,
-    color = C.BLACK,
-    align = "left",
-    paddingX = 5,
-    paddingY = 3.5,
-  } = opts;
-
-  doc.save();
-  doc.font(font).fontSize(fontSize).fillColor(color);
-
-  const textY = yTop + paddingY;
-  const textW = w - paddingX * 2;
-
-  if (align === "right") {
-    doc.text(text, x + paddingX, textY, { width: textW, align: "right", lineBreak: false });
-  } else if (align === "center") {
-    doc.text(text, x + paddingX, textY, { width: textW, align: "center", lineBreak: false });
-  } else {
-    doc.text(text, x + paddingX, textY, { width: textW, align: "left", lineBreak: false });
-  }
-  doc.restore();
-}
-
-export default defineEventHandler(async (event) => {
-  const body = await readBody(event);
-
-  // ── Extract data ────────────────────────────────────────────────────────────
-  const org      = body.organizacion || {};
-  const trab     = body.trabajador   || {};
-  const liq      = body.liquidacion  || {};
-
-  const haberes      = liq.haberes             || body.haberes            || [];
-  const descLeg      = liq.descuentos_legales  || body.descuentos_legales || [];
-  const otrosDesc    = liq.otros_descuentos    || body.otros_descuentos   || [];
-  const aportes      = liq.aportes             || [];
-  const totales      = liq.totales             || {};
-  const pago         = liq.pago                || {};
-  const logoB64      = body.logo_base64        || liq.logo_base64         || null;
-
-  const liquido      = liq.liquido_a_pagar  || 0;
-  const periodo      = liq.periodo          || "";
-  const rentaImp     = liq.renta_imponible  || 0;
-  const costoEmp     = liq.costo_empresa    || 0;
-  const nombreTrab   = trab.nombre          || trab.nombre_completo || "";
-  const rut          = trab.rut             || "doc";
-
-  // ── Build PDF ───────────────────────────────────────────────────────────────
-  const doc = new PDFDocument({
-    size: "A4",
-    margins: { top: 40, bottom: 40, left: 50, right: 50 },
-    bufferPages: true,
-    autoFirstPage: true,
-  });
-
-  const pass = new PassThrough();
-  const chunks = [];
-  pass.on("data", (chunk) => chunks.push(chunk));
-
-  doc.pipe(pass);
-
-  const PAGE_W = doc.page.width;   // 595.28
-  const PAGE_H = doc.page.height;  // 841.89
-  const ML = 50;
-  const MR = 50;
-  const CW = PAGE_W - ML - MR;     // ~495
-
-  let y = 0; // current top-of-cursor (we go downward)
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // HEADER
-  // ══════════════════════════════════════════════════════════════════════════
-  const headerH = 62; // ~22mm
-  // Dark background
-  fillRect(doc, 0, 0, PAGE_W, headerH, C.DARK);
-  // Teal left bar
-  fillRect(doc, 0, 0, 11, headerH, C.TEAL);
-
-  // Title
-  const htY = 22;
+function fillRect(doc, x, y, w, h, fill, stroke = null, lw = 0.5) {
   doc.save()
-    .font("Helvetica-Bold").fontSize(13).fillColor(C.WHITE)
-    .text("Liquidación de Remuneraciones", ML, htY, { lineBreak: false });
-  doc.font("Helvetica").fontSize(9).fillColor(C.TEAL)
-    .text(periodo, ML, htY + 16, { lineBreak: false });
-  doc.restore();
+  if (stroke) doc.lineWidth(lw).rect(x, y, w, h).fillAndStroke(fill, stroke)
+  else        doc.rect(x, y, w, h).fill(fill)
+  doc.restore()
+}
 
-  // Company name (right side)
-  const orgName = org.nombre || "";
-  if (orgName) {
-    doc.save()
-      .font("Helvetica-Bold").fontSize(9).fillColor(C.WHITE)
-      .text(orgName, ML, htY, { width: CW, align: "right", lineBreak: false });
-    doc.font("Helvetica").fontSize(8).fillColor(C.TEAL)
-      .text(org.rut || "", ML, htY + 16, { width: CW, align: "right", lineBreak: false });
-    doc.restore();
+function drawText(doc, text, x, y, opts = {}) {
+  const {
+    font = 'Helvetica', fontSize = 9, color = C.DARK_TEXT,
+    width = null, align = 'left',
+  } = opts
+  doc.save()
+  doc.font(font).fontSize(fontSize).fillColor(color)
+  const args = { lineBreak: false }
+  if (width) { args.width = width; args.align = align }
+  doc.text(text, x, y, args)
+  doc.restore()
+}
+
+// Dibuja un globo aerostático minimalista (línea, sin relleno)
+function drawHotAirBalloon(doc, x, y, size = 60) {
+  doc.save()
+  doc.lineWidth(1.5).strokeColor(C.DARK_TEXT)
+  // Globo (círculo achatado)
+  doc.ellipse(x + size / 2, y + size * 0.3, size * 0.4, size * 0.42).stroke()
+  // Cuerdas
+  doc.moveTo(x + size * 0.18, y + size * 0.55).lineTo(x + size * 0.38, y + size * 0.78).stroke()
+  doc.moveTo(x + size * 0.82, y + size * 0.55).lineTo(x + size * 0.62, y + size * 0.78).stroke()
+  // Canasta
+  doc.rect(x + size * 0.36, y + size * 0.78, size * 0.28, size * 0.16).stroke()
+  doc.restore()
+}
+
+// Patrón estilo QR — placeholder (cuadrícula de píxeles "ruidosos")
+function drawQrPlaceholder(doc, x, y, size = 70) {
+  doc.save()
+  doc.lineWidth(0.4).strokeColor(C.GRAY_BORDER)
+  doc.rect(x, y, size, size).stroke()
+  // Cuadrícula 9x9 con patrón pseudo-determinístico
+  const cells = 9
+  const s = size / cells
+  const grid = [
+    '111000101',
+    '101011010',
+    '101001110',
+    '000101000',
+    '110010111',
+    '100111001',
+    '011000101',
+    '101110010',
+    '110101100',
+  ]
+  for (let r = 0; r < cells; r++) {
+    for (let c = 0; c < cells; c++) {
+      if (grid[r][c] === '1') {
+        doc.rect(x + c * s, y + r * s, s, s).fill(C.DARK_TEXT)
+      }
+    }
   }
+  // Las 3 marcas de orientación (esquinas)
+  const drawMarker = (mx, my) => {
+    doc.rect(mx, my, s * 3, s * 3).fillAndStroke(C.WHITE, C.DARK_TEXT)
+    doc.rect(mx + s, my + s, s, s).fill(C.DARK_TEXT)
+  }
+  drawMarker(x, y)
+  drawMarker(x + size - s * 3, y)
+  drawMarker(x, y + size - s * 3)
+  doc.restore()
+}
 
-  // Logo
+// ── Handler ─────────────────────────────────────────────────────────────────
+export default defineEventHandler(async (event) => {
+  const body = await readBody(event)
+  const org  = body.organizacion || {}
+  const trab = body.trabajador   || {}
+  const liq  = body.liquidacion  || {}
+
+  // Datos extraídos
+  const haberes   = liq.haberes             || body.haberes            || []
+  const descLeg   = liq.descuentos_legales  || body.descuentos_legales || []
+  const otrosDesc = liq.otros_descuentos    || body.otros_descuentos   || []
+  const totales   = liq.totales || {
+    haberes:    haberes.reduce((s, h) => s + (Number(h.monto) || 0), 0),
+    descuentos: [...descLeg, ...otrosDesc].reduce((s, d) => s + (Number(d.monto) || 0), 0),
+  }
+  const liquido = liq.liquido_a_pagar
+    ?? Math.max(0, (totales.haberes || 0) - (totales.descuentos || 0))
+
+  const logoB64 = body.logo_base64 || org.logo_base64 || org.logo || null
+  const nombreTrab = (trab.nombre || trab.nombre_completo || '').toUpperCase()
+  const rut    = trab.rut || ''
+
+  // ── PDF setup ─────────────────────────────────────────────────────────────
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: 36, bottom: 36, left: 40, right: 40 },
+    bufferPages: true,
+  })
+  const pass = new PassThrough()
+  const chunks = []
+  pass.on('data', (c) => chunks.push(c))
+  doc.pipe(pass)
+
+  const PW = doc.page.width     // 595.28
+  const ML = 40
+  const MR = 40
+  const CW = PW - ML - MR       // 515
+
+  let y = 40
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TÍTULO
+  // ══════════════════════════════════════════════════════════════════════════
+  drawText(doc, 'Liquidación de Remuneraciones', ML, y, {
+    font: 'Helvetica-Bold', fontSize: 22, color: C.DARK_TEXT,
+  })
+  // Logo en la esquina superior derecha si viene en base64
   if (logoB64) {
     try {
-      const logoBuffer = Buffer.from(logoB64, "base64");
-      const logoW = 91; // ~32mm
-      const logoH = 28; // ~10mm
-      doc.image(logoBuffer, PAGE_W - MR - logoW, 8, {
-        width: logoW,
-        height: logoH,
-        fit: [logoW, logoH],
-      });
-    } catch {
-      // ignore logo errors
-    }
+      const cleanB64 = String(logoB64).replace(/^data:image\/\w+;base64,/, '')
+      const buf = Buffer.from(cleanB64, 'base64')
+      const lw = 90, lh = 32
+      doc.image(buf, PW - MR - lw, y - 4, { fit: [lw, lh], align: 'right' })
+    } catch { /* ignore */ }
   }
 
-  y = headerH + 17; // ~6mm gap
+  y += 32
+  drawText(doc, `Mes: ${liq.periodo || ''}`, ML, y, {
+    font: 'Helvetica-Bold', fontSize: 12, color: C.DARK_TEXT,
+  })
+
+  y += 28
 
   // ══════════════════════════════════════════════════════════════════════════
-  // WORKER BLOCK
+  // DOS BLOQUES: TRABAJADOR (IZQ) + EMPRESA (DER)
   // ══════════════════════════════════════════════════════════════════════════
-  const blkH = 68; // ~24mm
-  fillRect(doc, ML, y, CW, blkH, C.TEAL_LIGHT, C.TEAL_MID, 0.5);
-  // Teal left stripe
-  fillRect(doc, ML, y, 7, blkH, C.TEAL);
+  const blkW = (CW - 14) / 2
+  const blkH = 105
+  const blkY = y
 
-  const pad = 11; // ~4mm
-  const col1W = CW * 0.55;
+  // ── Izquierdo: Trabajador ────────────────────────────────────────────────
+  // Barra teal vertical
+  fillRect(doc, ML, blkY, 4, blkH, C.TEAL)
 
-  // Left column: name, cargo, AFP/salud
-  let ty = y + 15;
-  doc.save()
-    .font("Helvetica-Bold").fontSize(10.5).fillColor(C.DARK)
-    .text(nombreTrab.toUpperCase(), ML + pad, ty, { lineBreak: false });
-  doc.restore();
+  drawText(doc, nombreTrab, ML + 14, blkY + 8, {
+    font: 'Helvetica-Bold', fontSize: 11, color: C.DARK_TEXT,
+    width: blkW - 18,
+  })
+  const labelLeft = ML + 14
+  let ly = blkY + 26
+  const lineH = 16
 
-  ty += 14;
-  if (trab.cargo) {
-    doc.save()
-      .font("Helvetica").fontSize(8.5).fillColor(C.GRAY_TEXT)
-      .text(trab.cargo, ML + pad, ty, { lineBreak: false });
-    doc.restore();
-  }
-
-  ty += 14;
-  doc.save()
-    .font("Helvetica").fontSize(8).fillColor(C.GRAY_TEXT)
-    .text(
-      `AFP: ${trab.afp || ""}   |   Salud: ${trab.sistema_salud || "FONASA"}`,
-      ML + pad, ty, { lineBreak: false }
-    );
-  doc.restore();
-
-  // Right column: RUT, días, período
-  const rx = ML + col1W;
-  const labelW = 34; // ~12mm label offset
-  let ry = y + 15;
-
-  const rightPairs = [
-    ["RUT",     trab.rut            || ""],
-    ["Días",    String(trab.dias_trabajados ?? 30)],
-    ["Período", periodo],
-  ];
-  for (const [label, val] of rightPairs) {
-    doc.save()
-      .font("Helvetica-Bold").fontSize(8.5).fillColor(C.GRAY_TEXT)
-      .text(label, rx, ry, { lineBreak: false });
-    doc.font("Helvetica").fontSize(8.5).fillColor(C.DARK)
-      .text(val, rx + labelW, ry, { lineBreak: false });
-    doc.restore();
-    ry += 14;
-  }
-
-  y += blkH + 14; // ~5mm gap
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // TABLE: Detalle / Aportes / Haberes / Descuentos
-  // ══════════════════════════════════════════════════════════════════════════
-  const colWidths = [CW * 0.52, CW * 0.16, CW * 0.16, CW * 0.16];
-  const ROW_H = 20; // row height in pts
-
-  // Build row data
-  // type: "header" | "section" | "item" | "total"
-  const rows = [];
-
-  rows.push({ type: "header", cells: ["Detalle", "Aportes", "Haberes", "Descuentos"] });
-
-  rows.push({ type: "section", cells: ["Haberes", "", "", ""] });
-  for (const h of haberes) {
-    let label = `  ${h.nombre || ""}`;
-    if (h.detalle) label += `  —  ${h.detalle}`;
-    rows.push({ type: "item", cells: [label, "", fmtClp(h.monto), ""] });
-  }
-
-  rows.push({ type: "section", cells: ["Descuentos Legales", "", "", ""] });
-  for (const d of descLeg) {
-    rows.push({ type: "item", cells: [`  ${d.nombre || ""}`, "", "", fmtClp(d.monto)] });
-  }
-
-  if (otrosDesc.length > 0) {
-    rows.push({ type: "section", cells: ["Otros Descuentos", "", "", ""] });
-    for (const d of otrosDesc) {
-      rows.push({ type: "item", cells: [`  ${d.nombre || ""}`, "", "", fmtClp(d.monto)] });
-    }
-  }
-
-  if (aportes.length > 0) {
-    rows.push({ type: "section", cells: ["Aportes Empleador", "", "", ""] });
-    for (const a of aportes) {
-      rows.push({ type: "item", cells: [`  ${a.nombre || ""}`, fmtClp(a.monto), "", ""] });
-    }
-  }
-
-  rows.push({
-    type: "total",
-    cells: [
-      "Totales:",
-      fmtClp(totales.aportes || 0),
-      fmtClp(totales.haberes || 0),
-      fmtClp(totales.descuentos || 0),
-    ],
-  });
-
-  // Draw table rows
-  for (const row of rows) {
-    const { type, cells } = row;
-
-    // Choose background
-    let bg = null;
-    if (type === "header") bg = C.DARK2;
-    else if (type === "section") bg = C.TEAL_LIGHT;
-    else if (type === "total") bg = C.DARK2;
-
-    if (bg) fillRect(doc, ML, y, CW, ROW_H, bg);
-
-    // Outer border (box)
-    doc.save()
-      .rect(ML, y, CW, ROW_H)
-      .lineWidth(0.5)
-      .stroke(C.TEAL_MID);
-    doc.restore();
-
-    // Draw cells
-    let cx = ML;
-    for (let ci = 0; ci < cells.length; ci++) {
-      const cellW = colWidths[ci];
-      const text = cells[ci];
-
-      // Cell divider (inner grid)
-      if (ci > 0) {
-        doc.save()
-          .moveTo(cx, y).lineTo(cx, y + ROW_H)
-          .lineWidth(0.25).stroke(C.GRAY_BG);
-        doc.restore();
-      }
-
-      // Cell text style
-      let font      = "Helvetica";
-      let fontSize  = 8;
-      let color     = C.BLACK;
-      let align     = ci === 0 ? "left" : "right";
-
-      if (type === "header") {
-        font  = "Helvetica-Bold";
-        color = C.TEAL;
-        align = ci === 0 ? "left" : "center";
-      } else if (type === "section") {
-        font  = "Helvetica-Bold";
-        color = C.TEAL;
-        align = "left";
-      } else if (type === "total") {
-        font  = "Helvetica-Bold";
-        color = C.WHITE;
-        align = ci === 0 ? "right" : "right";
-      }
-
-      tableCell(doc, text, cx, y, cellW, ROW_H, {
-        font, fontSize, color, align, paddingX: 5, paddingY: 4,
-      });
-
-      cx += cellW;
-    }
-
-    y += ROW_H;
-  }
-
-  y += 11; // ~4mm
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // RENTA IMPONIBLE + COSTO EMPRESA
-  // ══════════════════════════════════════════════════════════════════════════
-  if (rentaImp || costoEmp) {
-    const rowH = 17; // ~6mm
-    fillRect(doc, ML, y, CW, rowH, C.GRAY_BG, C.TEAL_MID, 0.4);
-
-    doc.save()
-      .font("Helvetica").fontSize(7.5).fillColor(C.GRAY_TEXT)
-      .text(`Renta Imponible: ${fmtClp(rentaImp)}`, ML + pad, y + 4, { lineBreak: false });
-    doc.restore();
-
-    if (costoEmp) {
-      doc.save()
-        .font("Helvetica").fontSize(7.5).fillColor(C.GRAY_TEXT)
-        .text(`Costo Empresa: ${fmtClp(costoEmp)}`, ML, y + 4, {
-          width: CW - pad,
-          align: "right",
-          lineBreak: false,
-        });
-      doc.restore();
-    }
-    y += rowH + 11;
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // LÍQUIDO A PAGAR
-  // ══════════════════════════════════════════════════════════════════════════
-  const liqH = 31; // ~11mm
-  fillRect(doc, ML, y, CW, liqH, C.TEAL);
-
-  doc.save()
-    .font("Helvetica-Bold").fontSize(11).fillColor(C.WHITE)
-    .text("Líquido a Pagar", ML + pad, y + 9, { lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(11).fillColor(C.WHITE)
-    .text(fmtClp(liquido), ML, y + 9, { width: CW - pad, align: "right", lineBreak: false });
-  doc.restore();
-
-  y += liqH + 17; // ~6mm
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // PAYMENT INFO + SIGNATURE BLOCK
-  // ══════════════════════════════════════════════════════════════════════════
-  const pagoH = 74; // ~26mm
-  const col1PagoW = CW * 0.5;
-
-  fillRect(doc, ML, y, CW, pagoH, C.GRAY_BG, C.TEAL_MID, 0.5);
-  // Divider between payment and signature
-  doc.save()
-    .moveTo(ML + col1PagoW, y)
-    .lineTo(ML + col1PagoW, y + pagoH)
-    .lineWidth(0.5).stroke(C.TEAL_MID);
-  doc.restore();
-
-  // Payment data (left side)
-  const labelP = 68; // ~24mm offset for value
-  let yp = y + 14;
-  const pagoFields = [
-    ["Fecha de pago:", pago.fecha_pago    || ""],
-    ["Banco:",         pago.banco         || ""],
-    ["Tipo cuenta:",   pago.tipo_cuenta   || ""],
-    ["Nº cuenta:",     pago.numero_cuenta || ""],
-  ];
-  for (const [label, val] of pagoFields) {
-    doc.save()
-      .font("Helvetica-Bold").fontSize(8).fillColor(C.GRAY_TEXT)
-      .text(label, ML + pad, yp, { lineBreak: false });
-    doc.font("Helvetica").fontSize(8).fillColor(C.BLACK)
-      .text(val, ML + pad + labelP, yp, { lineBreak: false });
-    doc.restore();
-    yp += 15.5;
-  }
-
-  // Signature (right side)
-  const sigLeft  = ML + col1PagoW + pad + 22;
-  const sigRight = ML + CW - pad;
-  const sigY     = y + 37; // ~13mm from top of block
-
-  doc.save()
-    .moveTo(sigLeft, sigY).lineTo(sigRight, sigY)
-    .lineWidth(0.7).stroke(C.DARK2);
-  doc.restore();
-
-  const sigCX = (sigLeft + sigRight) / 2;
-  doc.save()
-    .font("Helvetica-Bold").fontSize(8).fillColor(C.DARK)
-    .text("Firma Trabajador", sigLeft, sigY + 7, {
-      width: sigRight - sigLeft,
-      align: "center",
-      lineBreak: false,
-    });
-  doc.font("Helvetica").fontSize(7.5).fillColor(C.GRAY_TEXT)
-    .text("Declaro recibir conforme y sin reclamo", sigLeft, sigY + 19, {
-      width: sigRight - sigLeft,
-      align: "center",
-      lineBreak: false,
+  const drawKV = (label, value) => {
+    drawText(doc, label, labelLeft, ly, {
+      font: 'Helvetica-Bold', fontSize: 9, color: C.DARK_TEXT,
     })
-    .text("alguno mi remuneración mensual", sigLeft, sigY + 29, {
-      width: sigRight - sigLeft,
-      align: "center",
-      lineBreak: false,
-    });
-  doc.restore();
+    const labelW = doc.widthOfString(label) + 4
+    drawText(doc, value || '—', labelLeft + labelW, ly, {
+      font: 'Helvetica', fontSize: 9, color: C.DARK_TEXT,
+      width: blkW - 18 - labelW, align: 'left',
+    })
+    ly += lineH
+  }
+  drawKV('Rut:', formatRut(rut))
+  drawKV('Fecha de Ingreso:', formatFecha(trab.fecha_ingreso))
+  drawKV('Cargo:', trab.cargo || '')
+  drawKV('C. Costo:', trab.centro_costo || trab.cc || '')
 
-  // ── Finalize ─────────────────────────────────────────────────────────────
-  doc.end();
+  // ── Derecho: Empresa ─────────────────────────────────────────────────────
+  const rightX = ML + blkW + 14
+  // Banner teal con título
+  const bannerH = 26
+  fillRect(doc, rightX, blkY, blkW, bannerH, C.TEAL_LIGHT)
+  drawText(doc, 'INFORMACIÓN EMPRESA', rightX + 12, blkY + 9, {
+    font: 'Helvetica-Bold', fontSize: 10, color: C.DARK,
+  })
 
-  const buffer = await new Promise((resolve, reject) => {
-    pass.on("end", () => resolve(Buffer.concat(chunks)));
-    pass.on("error", reject);
-  });
+  let ry = blkY + bannerH + 12
+  const drawKVRight = (label, value) => {
+    drawText(doc, label, rightX + 12, ry, {
+      font: 'Helvetica-Bold', fontSize: 9, color: C.DARK_TEXT,
+    })
+    const lw = doc.widthOfString(label) + 4
+    drawText(doc, value || '—', rightX + 12 + lw, ry, {
+      font: 'Helvetica', fontSize: 9, color: C.DARK_TEXT,
+      width: blkW - 24 - lw, align: 'left',
+    })
+    ry += lineH
+  }
+  drawKVRight('Razón Social:', org.nombre || org.razon_social || '—')
+  drawKVRight('Rut:',          formatRut(org.rut))
+  drawKVRight('Dirección:',    org.direccion || '—')
 
-  const periodoSafe = periodo.replace(/\s+/g, "-");
-  setResponseHeaders(event, {
-    "Content-Type": "application/pdf",
-    "Content-Disposition": `attachment; filename="liquidacion-${rut}-${periodoSafe}.pdf"`,
-    "Content-Length": buffer.length,
-  });
+  y = blkY + blkH + 24
 
-  return buffer;
-});
+  // ══════════════════════════════════════════════════════════════════════════
+  // KPI ROW: Días Trabajados | Días Licencia | Días Ausencia | Horas Base
+  // ══════════════════════════════════════════════════════════════════════════
+  const kpis = [
+    { label: 'Días Trabajados:', value: String(liq.dias_trabajados ?? 30) },
+    { label: 'Días Licencia',    value: String(liq.dias_licencia   ?? 0) },
+    { label: 'Días Ausencia',    value: String(liq.dias_ausencia   ?? 0) },
+    { label: 'Horas Base',       value: liq.horas_base ? String(liq.horas_base).replace('.', ',') : '45,0' },
+  ]
+  const kpiW = (CW - 3 * 8) / 4
+  const kpiH = 56
+  kpis.forEach((k, i) => {
+    const kx = ML + i * (kpiW + 8)
+    // Label superior con fondo teal claro
+    fillRect(doc, kx, y, kpiW, 22, C.TEAL_LIGHT)
+    drawText(doc, k.label, kx, y + 7, {
+      fontSize: 9, color: C.DARK, font: 'Helvetica-Bold',
+      width: kpiW, align: 'center',
+    })
+    drawText(doc, k.value, kx, y + 32, {
+      fontSize: 13, color: C.DARK_TEXT, font: 'Helvetica',
+      width: kpiW, align: 'center',
+    })
+  })
+  y += kpiH + 16
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TABLA DETALLE
+  // ══════════════════════════════════════════════════════════════════════════
+  const tblX = ML
+  const tblW = CW
+  // Anchos columnas: Detalle (60%), Haberes (20%), Descuentos (20%)
+  const colDet = Math.round(tblW * 0.60)
+  const colHab = Math.round(tblW * 0.20)
+  const colDes = tblW - colDet - colHab
+
+  // Header
+  const headerH2 = 26
+  fillRect(doc, tblX, y, tblW, headerH2, C.TEAL_LIGHT)
+  drawText(doc, 'Detalle',     tblX + 12,           y + 9, { font: 'Helvetica-Bold', fontSize: 10, color: C.DARK })
+  drawText(doc, 'Haberes',     tblX + colDet,       y + 9, { font: 'Helvetica-Bold', fontSize: 10, color: C.DARK, width: colHab - 12, align: 'right' })
+  drawText(doc, 'Descuentos',  tblX + colDet + colHab, y + 9, { font: 'Helvetica-Bold', fontSize: 10, color: C.DARK, width: colDes - 12, align: 'right' })
+  y += headerH2
+
+  const rowH = 20
+  function drawSectionHeader(label) {
+    fillRect(doc, tblX, y, tblW, rowH, C.GRAY_ROW, C.GRAY_BORDER, 0.5)
+    drawText(doc, label, tblX + 12, y + 6, {
+      font: 'Helvetica-Bold', fontSize: 9.5, color: C.DARK_TEXT,
+    })
+    y += rowH
+  }
+  function drawRow(concepto, haberMonto, descMonto, detalle = '') {
+    fillRect(doc, tblX, y, tblW, rowH, C.WHITE, C.GRAY_BORDER, 0.5)
+    let label = concepto
+    if (detalle) label += ` ( ${detalle} )`
+    drawText(doc, label, tblX + 24, y + 6, {
+      fontSize: 9, color: C.DARK_TEXT,
+      width: colDet - 24, align: 'left',
+    })
+    if (haberMonto) {
+      drawText(doc, fmtClp(haberMonto), tblX + colDet, y + 6, {
+        fontSize: 9, color: C.DARK_TEXT,
+        width: colHab - 12, align: 'right',
+      })
+    }
+    if (descMonto) {
+      drawText(doc, fmtClp(descMonto), tblX + colDet + colHab, y + 6, {
+        fontSize: 9, color: C.DARK_TEXT,
+        width: colDes - 12, align: 'right',
+      })
+    }
+    y += rowH
+  }
+
+  // ── Haberes ──────────────────────────────────────────────────────────────
+  drawSectionHeader('Haberes')
+  if (haberes.length === 0) {
+    // Default: Sueldo Base si no se mandan
+    drawRow('Sueldo Base', totales.haberes || 0, 0)
+  } else {
+    haberes.forEach(h => drawRow(h.concepto || h.nombre, Number(h.monto) || 0, 0, h.detalle))
+  }
+
+  // ── Descuentos legales ───────────────────────────────────────────────────
+  if (descLeg.length) {
+    drawSectionHeader('Descuentos Legales')
+    descLeg.forEach(d => drawRow(d.concepto || d.nombre, 0, Number(d.monto) || 0, d.detalle))
+  }
+
+  // ── Otros descuentos ─────────────────────────────────────────────────────
+  drawSectionHeader('Otros Descuentos')
+  if (otrosDesc.length) {
+    otrosDesc.forEach(d => drawRow(d.concepto || d.nombre, 0, Number(d.monto) || 0, d.detalle))
+  }
+
+  // ── Totales ──────────────────────────────────────────────────────────────
+  fillRect(doc, tblX, y, tblW, rowH + 2, C.WHITE, C.GRAY_BORDER, 0.5)
+  drawText(doc, 'Totales:', tblX + 12, y + 6, {
+    font: 'Helvetica-Bold', fontSize: 10, color: C.DARK_TEXT,
+    width: colDet - 12, align: 'right',
+  })
+  drawText(doc, fmtClp(totales.haberes), tblX + colDet, y + 6, {
+    font: 'Helvetica-Bold', fontSize: 10, color: C.DARK_TEXT,
+    width: colHab - 12, align: 'right',
+  })
+  drawText(doc, fmtClp(totales.descuentos), tblX + colDet + colHab, y + 6, {
+    font: 'Helvetica-Bold', fontSize: 10, color: C.DARK_TEXT,
+    width: colDes - 12, align: 'right',
+  })
+  y += rowH + 2
+
+  // ── ALCANCE LÍQUIDO ──────────────────────────────────────────────────────
+  fillRect(doc, tblX, y, tblW, rowH + 6, C.TEAL_LIGHT)
+  drawText(doc, 'ALCANCE LÍQUIDO:', tblX + 12, y + 9, {
+    font: 'Helvetica-Bold', fontSize: 11, color: C.DARK,
+    width: colDet + colHab - 12, align: 'right',
+  })
+  drawText(doc, fmtClp(liquido), tblX + colDet + colHab, y + 9, {
+    font: 'Helvetica-Bold', fontSize: 12, color: C.DARK,
+    width: colDes - 12, align: 'right',
+  })
+  y += rowH + 16
+
+  // ── Pie pequeño ──────────────────────────────────────────────────────────
+  drawText(doc,
+    'Liquidación generada automáticamente por Unabase',
+    ML, y, { fontSize: 8.5, color: C.GRAY_TEXT, font: 'Helvetica-Bold' })
+
+  y += 36
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RECIBO (globo + texto + V°B° + QR)
+  // ══════════════════════════════════════════════════════════════════════════
+  const recY = Math.max(y, doc.page.height - 160)
+  const balloonX = ML
+  const balloonY = recY
+  drawHotAirBalloon(doc, balloonX, balloonY, 70)
+
+  const certX = balloonX + 90
+  const certW = 260
+  // Texto certificación (con wrap automático — usamos doc.text directo para
+  // que respete lineBreak:true; drawText fuerza lineBreak:false).
+  doc.save()
+  doc.font('Helvetica').fontSize(8.5).fillColor(C.DARK_TEXT)
+  doc.text(
+    `Certifico que he recibido a mi entera satisfacción la suma de ${fmtClp(liquido)} indicada en la presente liquidación, y no tengo cargo ni cobro posterior que hacer por los conceptos de esta liquidación.`,
+    certX, balloonY + 6, { width: certW, align: 'left', lineBreak: true, lineGap: 1.5 }
+  )
+  doc.restore()
+
+  // Línea para firma V°B°
+  const firmaX = certX + certW + 24
+  const firmaY = balloonY + 50
+  const firmaW = 100
+  doc.save()
+  doc.lineWidth(1).strokeColor(C.DARK_TEXT)
+  doc.moveTo(firmaX, firmaY).lineTo(firmaX + firmaW, firmaY).stroke()
+  doc.restore()
+  drawText(doc, 'V°.B°.', firmaX, firmaY + 6, {
+    fontSize: 9, color: C.DARK_TEXT, width: firmaW, align: 'center',
+  })
+
+  // QR placeholder
+  const qrX = PW - MR - 70
+  const qrY = balloonY
+  drawQrPlaceholder(doc, qrX, qrY, 70)
+
+  // ── Fin ──────────────────────────────────────────────────────────────────
+  doc.end()
+  await new Promise((resolve) => pass.on('end', resolve))
+  const buffer = Buffer.concat(chunks)
+
+  const filename = `liquidacion_${(rut || 'doc').replace(/[^0-9kK]/g, '')}_${liq.mes || ''}_${liq.anio || ''}.pdf`
+  setResponseHeader(event, 'content-type', 'application/pdf')
+  setResponseHeader(event, 'content-disposition', `attachment; filename="${filename}"`)
+  return buffer
+})

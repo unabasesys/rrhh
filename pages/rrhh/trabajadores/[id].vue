@@ -944,8 +944,10 @@
               <div class="form-group">
                 <label>Jornada</label>
                 <select v-model="contratoForm.jornada_semanal" class="form-input">
-                  <option value="45">45h/semana (completa)</option>
-                  <option value="40">40h/semana</option>
+                  <option value="45">45h/semana (jornada anterior)</option>
+                  <option value="44">44h/semana (transición 2024)</option>
+                  <option value="42">42h/semana (transición 2026)</option>
+                  <option value="40">40h/semana (completa Ley 21.561)</option>
                   <option value="30">30h/semana</option>
                   <option value="20">20h/semana (part time)</option>
                   <option value="diaria">Diaria (por día trabajado)</option>
