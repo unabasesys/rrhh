@@ -127,22 +127,27 @@ const trabajadoresFiltrados = computed(() => {
 
 // ── KPIs pie de página ────────────────────────────────────────────────────────
 
-// Devuelve el contrato que estaba activo para un trabajador en un mes dado
+// Devuelve el primer contrato que estaba activo para un trabajador en un mes dado
 function contratoEnMes(tid, mes) {
+  return contratosEnMes(tid, mes)[0] || null;
+}
+
+// Devuelve TODOS los contratos que estaban activos para un trabajador en un mes
+function contratosEnMes(tid, mes) {
   const contratos = contratosPortrabajador.value[tid];
-  if (!contratos?.length) return null;
+  if (!contratos?.length) return [];
   const primerDia = new Date(mes + '-01T00:00:00');
   const ultimoDia = new Date(primerDia);
   ultimoDia.setMonth(ultimoDia.getMonth() + 1);
   ultimoDia.setDate(ultimoDia.getDate() - 1);
   ultimoDia.setHours(23, 59, 59);
-  return contratos.find(c => {
+  return contratos.filter(c => {
     const inicio   = c.fecha_inicio || c.fecha_ingreso;
     const fin      = c.fecha_termino;
     const inicioOk = !inicio || new Date(inicio + 'T12:00:00') <= ultimoDia;
     const finOk    = !fin    || new Date(fin    + 'T12:00:00') >= primerDia;
     return inicioOk && finOk;
-  }) || null;
+  });
 }
 
 // Mes anterior en formato YYYY-MM (para calcular imposiciones 13→13)
@@ -162,23 +167,23 @@ const trabajadoresMesAnterior = computed(() =>
 // KPI 1: Líquido a pagar a fin del mes seleccionado
 // - honorarios / proyecto / tipo_sueldo='liquido': sueldo_base ES el neto acordado
 // - indefinido / plazo_fijo / part_time (bruto): descontar AFP (11.44%) + salud (7%)
+// NOTA: itera TODOS los contratos activos del mes (un trabajador puede tener varios)
 const kpiLiquido = computed(() => {
   let total = 0;
   trabajadoresFiltrados.value.forEach(t => {
-    const c = contratoEnMes(t._id || t.id, filtroMes.value);
-    if (!c) return;
-    const tipo       = (c.tipo_contrato || '').toLowerCase();
-    const tipoSueldo = c.tipo_sueldo || 'bruto';
-    const sueldo = c.sueldo_base  || 0;
-    const mov    = c.movilizacion || 0;
-    const col    = c.colacion     || 0;
-    if (tipo === 'honorarios' || tipo === 'proyecto' || tipoSueldo === 'liquido') {
-      // Monto acordado = neto, se transfiere sin descuentos por parte de la empresa
-      total += sueldo + mov + col;
-    } else {
-      // Contrato permanente bruto: descontar cotizaciones obligatorias del trabajador
-      total += Math.round(sueldo * (1 - 0.1844) + mov + col);
-    }
+    const contratosMes = contratosEnMes(t._id || t.id, filtroMes.value);
+    contratosMes.forEach(c => {
+      const tipo       = (c.tipo_contrato || '').toLowerCase();
+      const tipoSueldo = c.tipo_sueldo || 'bruto';
+      const sueldo = c.sueldo_base  || 0;
+      const mov    = c.movilizacion || 0;
+      const col    = c.colacion     || 0;
+      if (tipo === 'honorarios' || tipo === 'proyecto' || tipoSueldo === 'liquido') {
+        total += sueldo + mov + col;
+      } else {
+        total += Math.round(sueldo * (1 - 0.1844) + mov + col);
+      }
+    });
   });
   return total;
 });
@@ -194,23 +199,22 @@ const TASA_IMPOSICIONES = 0.1144 + 0.07 + 0.024 + 0.0093 + 0.015; // = 0.2327
 const kpiCostoEmpresa = computed(() => {
   let total = 0;
   trabajadoresFiltrados.value.forEach(t => {
-    const c = contratoEnMes(t._id || t.id, filtroMes.value);
-    if (!c) return;
-    const tipo       = (c.tipo_contrato || '').toLowerCase();
-    const tipoSueldo = c.tipo_sueldo || 'bruto';
-    const sueldo = c.sueldo_base  || 0;
-    const mov    = c.movilizacion || 0;
-    const col    = c.colacion     || 0;
-    const base   = sueldo + mov + col;
-    if (tipo === 'honorarios') {
-      total += base; // sin carga empresa
-    } else if (tipo === 'proyecto' || tipoSueldo === 'liquido') {
-      // Empresa absorbe todas las cotizaciones encima del neto acordado (gross-up)
-      total += Math.round(base * (1 + TASA_IMPOSICIONES));
-    } else {
-      // Indefinido / plazo_fijo / part_time bruto: bruto + cargas patronales + gratificación
-      total += Math.round(base * 1.2);
-    }
+    const contratosMes = contratosEnMes(t._id || t.id, filtroMes.value);
+    contratosMes.forEach(c => {
+      const tipo       = (c.tipo_contrato || '').toLowerCase();
+      const tipoSueldo = c.tipo_sueldo || 'bruto';
+      const sueldo = c.sueldo_base  || 0;
+      const mov    = c.movilizacion || 0;
+      const col    = c.colacion     || 0;
+      const base   = sueldo + mov + col;
+      if (tipo === 'honorarios') {
+        total += base; // sin carga empresa
+      } else if (tipo === 'proyecto' || tipoSueldo === 'liquido') {
+        total += Math.round(base * (1 + TASA_IMPOSICIONES));
+      } else {
+        total += Math.round(base * 1.2);
+      }
+    });
   });
   return total;
 });
@@ -222,12 +226,13 @@ const kpiCostoEmpresa = computed(() => {
 const kpiImposiciones = computed(() => {
   let total = 0;
   trabajadoresFiltrados.value.forEach(t => {
-    const c = contratoEnMes(t._id || t.id, filtroMes.value);
-    if (!c) return;
-    const tipo   = (c.tipo_contrato || '').toLowerCase();
-    if (tipo === 'honorarios') return; // sin imposiciones previsionales
-    const sueldo = c.sueldo_base || 0;
-    total += Math.round(sueldo * TASA_IMPOSICIONES);
+    const contratosMes = contratosEnMes(t._id || t.id, filtroMes.value);
+    contratosMes.forEach(c => {
+      const tipo   = (c.tipo_contrato || '').toLowerCase();
+      if (tipo === 'honorarios') return; // sin imposiciones previsionales
+      const sueldo = c.sueldo_base || 0;
+      total += Math.round(sueldo * TASA_IMPOSICIONES);
+    });
   });
   return total;
 });
