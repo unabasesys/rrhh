@@ -19,6 +19,15 @@ const OrganizationSchema = new mongoose.Schema(
     ciudad:             { type: String, trim: true, default: '' },
     representanteLegal: { type: RepresentanteSchema, default: null },
     activo:             { type: Boolean, default: true },
+
+    // ── Billing ─────────────────────────────────────────────────────
+    plan:              { type: String, enum: ['free', 'paid'], default: 'free' },
+    planPrecioUSD:     { type: Number, default: 40 },   // USD por trabajador/mes
+    billingEmail:      { type: String, default: '' },
+    stripeCustomerId:  { type: String, default: null },
+    mpCustomerId:      { type: String, default: null },
+    billingStatus:     { type: String, enum: ['active', 'past_due', 'canceled', 'trialing'], default: 'active' },
+    billingRenovacion: { type: Date, default: null },    // próxima fecha de facturación
   },
   {
     _id:        false,

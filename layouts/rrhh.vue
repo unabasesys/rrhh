@@ -141,6 +141,14 @@ const navSections = computed(() => [
         badge:   null,
         badgeColor: null,
       },
+      {
+        label:   'Facturación',
+        icon:    'u u-ventas',
+        path:    '/rrhh/admin/billing',
+        matches: (p) => p.startsWith('/rrhh/admin/billing'),
+        badge:   null,
+        badgeColor: null,
+      },
     ],
   }] : []),
   {
