@@ -29,12 +29,66 @@ async function seedAdminIfEmpty() {
       passwordHash,
       rol:          'admin',
       orgId:        null,
-      esSuperAdmin: true,
+      orgIds:       [],     // admin global = acceso a todas las orgs
+      esSuperAdmin: true,   // legacy compat
       activo:       true,
     })
     console.log('[RRHH] Admin semilla creado: admin@rrhh.cl / Admin1234!')
   } catch (err) {
     console.error('[RRHH] Error creando admin semilla:', err.message)
+  }
+}
+
+// Migración idempotente: corre en cada boot, solo modifica usuarios que lo necesitan.
+//   1) Llena `orgIds` desde `orgId` si está vacío.
+//   2) Reclasifica roles:
+//      - admin con orgId (no super) → manager
+//      - admin sin orgId / esSuperAdmin → admin global con orgIds=[]
+async function migrateUserRoles() {
+  try {
+    const { default: User } = await import('../models/User.js')
+    const all = await User.find({}).lean()
+    let migrated = 0
+
+    for (const u of all) {
+      const updates = {}
+      const isLegacySuperAdmin = u.esSuperAdmin === true || (u.rol === 'admin' && !u.orgId)
+
+      // 1) Reclasificar: admin con orgId pero no super → manager
+      if (u.rol === 'admin' && u.orgId && !isLegacySuperAdmin) {
+        updates.rol = 'manager'
+      }
+
+      // 2) Construir orgIds si falta o está vacío
+      const currentOrgIds = Array.isArray(u.orgIds) ? u.orgIds : []
+      if (currentOrgIds.length === 0) {
+        const targetRol = updates.rol || u.rol
+        if (targetRol === 'admin' || isLegacySuperAdmin) {
+          updates.orgIds = []  // admin global
+        } else if (u.orgId) {
+          updates.orgIds = [u.orgId]
+        }
+      }
+
+      // 3) Asegurar esSuperAdmin coherente con rol final
+      const finalRol = updates.rol || u.rol
+      const finalOrgIds = updates.orgIds ?? currentOrgIds
+      const shouldBeSuper = finalRol === 'admin' && finalOrgIds.length === 0
+      if (Boolean(u.esSuperAdmin) !== shouldBeSuper) {
+        updates.esSuperAdmin = shouldBeSuper
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await User.updateOne({ _id: u._id }, { $set: updates })
+        migrated++
+      }
+    }
+
+    if (migrated > 0) {
+      console.log(`[RRHH] Migración roles/orgIds: ${migrated} usuarios actualizados`)
+    }
+  } catch (err) {
+    console.error('[RRHH] Error migrando usuarios:', err.message)
   }
 }
 
@@ -55,6 +109,7 @@ export default defineNitroPlugin(async () => {
     isConnected = true
     console.log('[RRHH] MongoDB conectado ✓')
     await seedAdminIfEmpty()
+    await migrateUserRoles()
   } catch (err) {
     console.error('[RRHH] Error conectando a MongoDB:', err.message)
   }

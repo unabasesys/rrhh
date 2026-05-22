@@ -7,7 +7,18 @@ const UserSchema = new mongoose.Schema(
     email:        { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     rol:          { type: String, enum: ['admin', 'manager', 'viewer'], default: 'viewer' },
-    orgId:        { type: String, default: null, ref: 'Organization' }, // null = super-admin
+    // orgId: legacy / "org primaria". Se mantiene por compat pero la fuente de
+    // verdad para acceso es orgIds. Para admin global, ambos son nulos/vacíos.
+    orgId:        { type: String, default: null, ref: 'Organization' },
+    // orgIds: organizaciones a las que el usuario tiene acceso.
+    //   - admin:   [] (vacío = acceso global a TODAS las orgs)
+    //   - manager: 1 o más orgs (puede administrar varias)
+    //   - viewer:  exactamente 1 (su empresa empleadora)
+    orgIds:       { type: [String], default: [] },
+    // Solo aplica a viewer: vínculo con su ficha de trabajador
+    trabajador_id:{ type: String, default: null },
+    // DEPRECATED: ahora se deriva de (rol === 'admin' && orgIds.length === 0).
+    // Se conserva por compat con sesiones/usuarios antiguos.
     esSuperAdmin: { type: Boolean, default: false },
     activo:       { type: Boolean, default: true },
     // Sesión activa

@@ -5,17 +5,12 @@
  * Body: { plan, billingEmail, billingStatus, billingRenovacion, planPrecioUSD }
  */
 import Organization from '../../../models/Organization.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAdmin } from '../../../utils/requireAuth.js'
 import { requireDb }   from '../../../utils/db.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  const user = await requireAuth(event)
-
-  const isSuperAdmin = user.esSuperAdmin === true || (user.rol === 'admin' && !user.orgId)
-  if (!isSuperAdmin) {
-    throw createError({ statusCode: 403, message: 'Solo el super-administrador puede modificar facturación' })
-  }
+  await requireAdmin(event)   // solo admin global puede modificar facturación
 
   const orgId = getRouterParam(event, 'orgId')
   if (!orgId) throw createError({ statusCode: 400, message: 'orgId requerido' })

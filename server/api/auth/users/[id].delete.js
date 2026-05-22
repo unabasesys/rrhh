@@ -1,14 +1,15 @@
 /**
  * DELETE /api/auth/users/:id
- * Eliminar usuario — requiere admin. No puedes eliminar al último admin.
+ *   - admin   → puede eliminar a cualquiera (excepto a sí mismo y al último admin).
+ *   - manager → solo a usuarios no-admin dentro de sus orgIds.
  */
 import { requireDb } from '../../../utils/db.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireManager } from '../../../utils/requireAuth.js'
 import User from '../../../models/User.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  const me = await requireAuth(event, 'admin')
+  const me = await requireManager(event)
 
   const id   = getRouterParam(event, 'id')
   const user = await User.findById(id)
@@ -17,6 +18,18 @@ export default defineEventHandler(async (event) => {
   // No puedes eliminarte a ti mismo
   if (user._id === me._id) {
     throw createError({ statusCode: 400, message: 'No puedes eliminarte a ti mismo' })
+  }
+
+  if (me.rol === 'manager') {
+    if (user.rol === 'admin') {
+      throw createError({ statusCode: 403, message: 'No puedes eliminar a un administrador' })
+    }
+    const myOrgs = Array.isArray(me.orgIds) ? me.orgIds : (me.orgId ? [me.orgId] : [])
+    const userOrgs = Array.isArray(user.orgIds) ? user.orgIds : (user.orgId ? [user.orgId] : [])
+    const overlap = userOrgs.some(o => myOrgs.includes(o))
+    if (!overlap) {
+      throw createError({ statusCode: 403, message: 'Sin acceso a este usuario' })
+    }
   }
 
   // Proteger al último admin

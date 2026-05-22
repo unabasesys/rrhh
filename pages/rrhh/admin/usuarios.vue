@@ -23,10 +23,10 @@
     </div>
 
     <!-- Acceso denegado -->
-    <div v-else-if="!isSuperAdmin" class="access-denied">
+    <div v-else-if="!canManageUsers" class="access-denied">
       <i class="u u-locked" style="font-size:48px;color:#4b5563"></i>
       <h3>Acceso restringido</h3>
-      <p>Solo el administrador puede gestionar usuarios.</p>
+      <p>No tienes permisos para gestionar usuarios.</p>
       <button class="btn btn--secondary" @click="$router.back()">Volver</button>
     </div>
 
@@ -88,7 +88,7 @@
                 </span>
               </td>
               <td>
-                <span class="org-label">{{ orgName(user.orgId) }}</span>
+                <span class="org-label">{{ orgsLabel(user) }}</span>
               </td>
               <td>
                 <span class="status-badge" :class="user.activo ? 'status-badge--active' : 'status-badge--inactive'">
@@ -156,19 +156,41 @@
           <div class="field">
             <label>Rol</label>
             <select v-model="form.rol">
-              <option value="viewer">Visualizador</option>
+              <option value="viewer">Visualizador (trabajador)</option>
               <option value="manager">Manager</option>
-              <option value="admin">Administrador</option>
+              <option v-if="canManageAdmins" value="admin">Administrador (Soporte Unabase)</option>
             </select>
+            <span class="field-hint">
+              <template v-if="form.rol === 'admin'">Acceso global a todas las organizaciones.</template>
+              <template v-else-if="form.rol === 'manager'">Administra una o más organizaciones.</template>
+              <template v-else>Solo accede a su propio perfil y portal de trabajador.</template>
+            </span>
           </div>
-          <div class="field">
-            <label>Organización</label>
-            <select v-model="form.orgId">
-              <option :value="null">— Sin organización (super-admin) —</option>
-              <option v-for="org in orgs" :key="org._id || org.id" :value="org._id || org.id">
+          <div v-if="form.rol !== 'admin'" class="field">
+            <label>
+              {{ form.rol === 'viewer' ? 'Organización' : 'Organizaciones (puede tener varias)' }}
+            </label>
+            <select
+              v-if="form.rol === 'viewer'"
+              v-model="formSingleOrg"
+            >
+              <option :value="null">— Selecciona organización —</option>
+              <option v-for="org in assignableOrgs" :key="org._id || org.id" :value="org._id || org.id">
                 {{ org.nombre }}
               </option>
             </select>
+            <select
+              v-else
+              v-model="form.orgIds"
+              multiple
+              size="5"
+              style="min-height:120px"
+            >
+              <option v-for="org in assignableOrgs" :key="org._id || org.id" :value="org._id || org.id">
+                {{ org.nombre }}
+              </option>
+            </select>
+            <span v-if="form.rol === 'manager'" class="field-hint">Cmd/Ctrl+click para seleccionar varias.</span>
           </div>
           <div v-if="modal.error" class="modal-error">
             <i class="u u-warning"></i> {{ modal.error }}
@@ -247,7 +269,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { ROLE_LABELS, ROLE_COLORS } from '@/stores/auth'
 
 definePageMeta({ layout: 'rrhh', middleware: 'auth' })
@@ -255,12 +277,22 @@ definePageMeta({ layout: 'rrhh', middleware: 'auth' })
 let authStore = null
 let orgStore  = null
 
-const authLoading   = ref(true)
-const isSuperAdmin  = ref(false)
-const users         = ref([])
-const orgs          = ref([])
-const loading       = ref(false)
-const actionLoading = ref(null)
+const authLoading     = ref(true)
+const canManageUsers  = ref(false)
+const canManageAdmins = ref(false)
+const myOrgIds        = ref([])      // orgs accesibles del usuario logueado
+const users           = ref([])
+const orgs            = ref([])
+const loading         = ref(false)
+const actionLoading   = ref(null)
+
+// Orgs que el usuario logueado puede asignar a otros usuarios.
+// admin → todas; manager → solo las suyas.
+const assignableOrgs = computed(() => {
+  if (canManageAdmins.value) return orgs.value
+  const allowed = new Set(myOrgIds.value)
+  return orgs.value.filter(o => allowed.has(o._id || o.id))
+})
 
 onMounted(async () => {
   const { useAuthStore } = await import('@/stores/auth')
@@ -269,10 +301,12 @@ onMounted(async () => {
   orgStore  = useOrgStore()
 
   await authStore.init()
-  authLoading.value  = false
-  isSuperAdmin.value = authStore.isSuperAdmin
+  authLoading.value     = false
+  canManageUsers.value  = authStore.canManageUsers
+  canManageAdmins.value = authStore.canManageAdmins
+  myOrgIds.value        = authStore.accessibleOrgIds || []
 
-  if (!isSuperAdmin.value) return
+  if (!canManageUsers.value) return
 
   await orgStore.init()
   orgs.value = orgStore.orgs || []
@@ -306,6 +340,22 @@ function orgName(orgId) {
   const org = (orgs.value || []).find(o => (o._id || o.id) === orgId)
   return org?.nombre || orgId
 }
+
+// Texto para la columna Organización en la tabla.
+// admin → "— Global —"; varias orgs → "Org A, Org B (+1)"; una sola → nombre.
+function orgsLabel(user) {
+  if (user.rol === 'admin') return '— Global —'
+  const ids = Array.isArray(user.orgIds) && user.orgIds.length
+    ? user.orgIds
+    : (user.orgId ? [user.orgId] : [])
+  if (!ids.length) return '—'
+  const names = ids.map(id => {
+    const o = (orgs.value || []).find(x => (x._id || x.id) === id)
+    return o?.nombre || id
+  })
+  if (names.length <= 2) return names.join(', ')
+  return `${names[0]}, ${names[1]} (+${names.length - 2})`
+}
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -313,16 +363,31 @@ function formatDate(iso) {
 
 /* Modal Crear / Editar */
 const modal    = reactive({ open: false, mode: 'create', userId: null, saving: false, error: '' })
-const form     = reactive({ nombre: '', email: '', password: '', rol: 'viewer', orgId: null })
+const form     = reactive({ nombre: '', email: '', password: '', rol: 'viewer', orgIds: [] })
 const showPass = ref(false)
 
+// Helper para viewer: como solo puede tener 1 org, mapeamos a un select simple.
+const formSingleOrg = computed({
+  get: () => form.orgIds[0] || null,
+  set: (v) => { form.orgIds = v ? [v] : [] },
+})
+
 function openCreate() {
-  Object.assign(form, { nombre: '', email: '', password: '', rol: 'viewer', orgId: null })
+  Object.assign(form, { nombre: '', email: '', password: '', rol: 'viewer', orgIds: [] })
   Object.assign(modal, { open: true, mode: 'create', userId: null, error: '' })
   showPass.value = false
 }
 function openEdit(user) {
-  Object.assign(form, { nombre: user.nombre, email: user.email, password: '', rol: user.rol, orgId: user.orgId || null })
+  const existing = Array.isArray(user.orgIds) && user.orgIds.length
+    ? [...user.orgIds]
+    : (user.orgId ? [user.orgId] : [])
+  Object.assign(form, {
+    nombre: user.nombre,
+    email:  user.email,
+    password: '',
+    rol:    user.rol,
+    orgIds: existing,
+  })
   Object.assign(modal, { open: true, mode: 'edit', userId: user._id, error: '' })
 }
 function closeModal() { modal.open = false }
@@ -332,11 +397,30 @@ async function handleSave() {
   if (!form.email.trim())  { modal.error = 'El email es requerido'; return }
   if (modal.mode === 'create' && !form.password.trim()) { modal.error = 'La contraseña es requerida'; return }
 
+  // Validación cruzada rol ↔ orgIds (lo replica el backend igual)
+  if (form.rol === 'admin') {
+    if (!canManageAdmins.value) { modal.error = 'No puedes crear administradores'; return }
+    form.orgIds = []
+  } else if (form.rol === 'manager' && !form.orgIds.length) {
+    modal.error = 'Selecciona al menos una organización'; return
+  } else if (form.rol === 'viewer' && form.orgIds.length !== 1) {
+    modal.error = 'Un viewer debe tener exactamente una organización'; return
+  }
+
   modal.saving = true
   modal.error  = ''
+  const payload = {
+    nombre: form.nombre,
+    email:  form.email,
+    rol:    form.rol,
+    orgIds: form.orgIds,
+    orgId:  form.orgIds[0] || null,  // compat
+  }
+  if (modal.mode === 'create') payload.password = form.password
+
   const result = modal.mode === 'create'
-    ? await authStore.createUser({ ...form })
-    : await authStore.updateUser(modal.userId, { nombre: form.nombre, rol: form.rol, orgId: form.orgId })
+    ? await authStore.createUser(payload)
+    : await authStore.updateUser(modal.userId, payload)
   modal.saving = false
 
   if (result?.ok) { closeModal(); await loadUsers() }
@@ -535,6 +619,7 @@ async function handleDelete() {
 }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
+.field-hint { font-size: 11px; color: #9ca3af; line-height: 1.4; }
 .field label {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.6px; color: #9ca3af;

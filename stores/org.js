@@ -6,6 +6,17 @@ function normalize(org) {
   return { ...org, id: org._id || org.id }
 }
 
+/* ── Token Bearer desde localStorage (compat con auth store) ───────────── */
+function authHeaders() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    if (!raw) return {}
+    const session = JSON.parse(raw)
+    return session?.token ? { Authorization: `Bearer ${session.token}` } : {}
+  } catch { return {} }
+}
+
 /* ── Store ─────────────────────────────────────────────────────────────── */
 export const useOrgStore = defineStore('org', {
   state: () => ({
@@ -31,7 +42,7 @@ export const useOrgStore = defineStore('org', {
     async fetchOrgs() {
       try {
         this.loading = true
-        const data = await $fetch('/api/orgs')
+        const data = await $fetch('/api/orgs', { headers: authHeaders() })
         this.orgs = (data || []).map(normalize)
       } catch {
         this.orgs = []
@@ -58,7 +69,7 @@ export const useOrgStore = defineStore('org', {
         activo: true,
       }
       try {
-        const created = await $fetch('/api/orgs', { method: 'POST', body: payload })
+        const created = await $fetch('/api/orgs', { method: 'POST', body: payload, headers: authHeaders() })
         const org = normalize(created)
         this.orgs.push(org)
         return { ok: true, org }
@@ -69,7 +80,7 @@ export const useOrgStore = defineStore('org', {
 
     async updateOrg(id, cambios) {
       try {
-        const updated = await $fetch(`/api/orgs/${id}`, { method: 'PUT', body: cambios })
+        const updated = await $fetch(`/api/orgs/${id}`, { method: 'PUT', body: cambios, headers: authHeaders() })
         const org = normalize(updated)
         const idx = this.orgs.findIndex(o => o.id === id)
         if (idx !== -1) this.orgs[idx] = org
@@ -84,7 +95,7 @@ export const useOrgStore = defineStore('org', {
       if (!org) return { ok: false }
       const nuevoActivo = !org.activo
       try {
-        await $fetch(`/api/orgs/${id}`, { method: 'PUT', body: { activo: nuevoActivo } })
+        await $fetch(`/api/orgs/${id}`, { method: 'PUT', body: { activo: nuevoActivo }, headers: authHeaders() })
         org.activo = nuevoActivo
         return { ok: true, activo: nuevoActivo }
       } catch (err) {
@@ -94,7 +105,7 @@ export const useOrgStore = defineStore('org', {
 
     async deleteOrg(id) {
       try {
-        await $fetch(`/api/orgs/${id}`, { method: 'DELETE' })
+        await $fetch(`/api/orgs/${id}`, { method: 'DELETE', headers: authHeaders() })
         this.orgs = this.orgs.filter(o => o.id !== id)
         return { ok: true }
       } catch (err) {

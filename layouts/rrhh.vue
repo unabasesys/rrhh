@@ -411,8 +411,8 @@ onUnmounted(() => {
             <span v-if="isDark">☀️</span>
             <span v-else>🌙</span>
           </button>
-          <!-- Selector de org activa (super-admin con múltiples orgs) -->
-          <div v-if="authStore?.isSuperAdmin && allOrgs.length > 0" class="org-selector-wrap">
+          <!-- Selector de org activa (admin siempre, manager con más de 1 org) -->
+          <div v-if="authStore?.canSwitchOrg && allOrgs.length > 0" class="org-selector-wrap">
             <button class="org-chip org-chip--btn" @click="showOrgMenu = !showOrgMenu">
               <span v-if="currentOrg?.logo" class="org-chip-logo">
                 <img :src="currentOrg.logo" alt="" />
@@ -459,8 +459,8 @@ onUnmounted(() => {
                   </svg>
                 </button>
               </div>
-              <div class="org-dropdown__divider"></div>
-              <button class="org-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showOrgMenu = false">
+              <div v-if="authStore?.canManageOrgs" class="org-dropdown__divider"></div>
+              <button v-if="authStore?.canManageOrgs" class="org-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showOrgMenu = false">
                 <i class="u u-settings" style="font-size:15px;width:28px;text-align:center"></i>
                 <span>Gestionar organizaciones</span>
               </button>
@@ -490,13 +490,13 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="user-dropdown__divider"></div>
-              <button v-if="authStore?.isSuperAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showUserMenu = false">
+              <button v-if="authStore?.canManageOrgs" class="user-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showUserMenu = false">
                 <i class="u u-empresa"></i> Organizaciones
               </button>
-              <button v-if="authStore?.isAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/usuarios'); showUserMenu = false">
+              <button v-if="authStore?.canManageUsers" class="user-dropdown__item" @click="router.push('/rrhh/admin/usuarios'); showUserMenu = false">
                 <i class="u u-usuarios"></i> Gestión de usuarios
               </button>
-              <button v-if="authStore?.isSuperAdmin" class="user-dropdown__item" @click="router.push('/rrhh/admin/billing'); showUserMenu = false">
+              <button v-if="authStore?.canManageBilling" class="user-dropdown__item" @click="router.push('/rrhh/admin/billing'); showUserMenu = false">
                 <i class="u u-ventas"></i> Facturación
               </button>
               <div class="user-dropdown__divider"></div>

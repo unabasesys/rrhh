@@ -5,17 +5,12 @@
  */
 import Organization from '../../../models/Organization.js'
 import Trabajador   from '../../../models/Trabajador.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAdmin } from '../../../utils/requireAuth.js'
 import { requireDb }   from '../../../utils/db.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  const user = await requireAuth(event)
-
-  const isSuperAdmin = user.esSuperAdmin === true || (user.rol === 'admin' && !user.orgId)
-  if (!isSuperAdmin) {
-    throw createError({ statusCode: 403, message: 'Solo el super-administrador puede acceder a facturación' })
-  }
+  await requireAdmin(event)   // solo admin global puede ver facturación
 
   // Obtener todas las organizaciones con campos de billing
   const orgs = await Organization.find({}).lean()

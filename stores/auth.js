@@ -19,8 +19,11 @@ export const ROLE_COLORS = {
 }
 
 const PERMISSIONS = {
-  admin:   ['ver', 'editar', 'crear', 'eliminar', 'usuarios', 'configuracion'],
-  manager: ['ver', 'editar', 'crear'],
+  // admin = Soporte Unabase ("dios"). Acceso multi-org global.
+  admin:   ['ver', 'editar', 'crear', 'eliminar', 'usuarios', 'configuracion', 'orgs', 'billing', 'admin_users'],
+  // manager = administrador de una o más organizaciones del cliente.
+  manager: ['ver', 'editar', 'crear', 'eliminar', 'usuarios'],
+  // viewer = trabajador. Solo ve lo suyo en el portal.
   viewer:  ['ver'],
 }
 
@@ -39,9 +42,47 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (s) => !!s.user && !!s.token,
-    isAdmin:         (s) => s.user?.rol === ROLES.ADMIN,
-    isSuperAdmin:    (s) => s.user?.esSuperAdmin === true || (s.user?.rol === ROLES.ADMIN && !s.user?.orgId),
-    can:             (s) => (permission) => (PERMISSIONS[s.user?.rol] || []).includes(permission),
+
+    // ── Roles canónicos ──────────────────────────────────────────────────
+    // admin   = Soporte Unabase. Acceso global. orgIds vacío = todas las orgs.
+    // manager = Cliente que administra 1+ orgs.
+    // viewer  = Trabajador. Solo ve sus datos en el portal.
+    isAdmin:    (s) => s.user?.rol === ROLES.ADMIN,
+    isManager:  (s) => s.user?.rol === ROLES.MANAGER,
+    isViewer:   (s) => s.user?.rol === ROLES.VIEWER,
+
+    // Compat: super-admin == admin global (multi-org). Se mantiene por
+    // retrocompatibilidad con código que aún lo usa.
+    isSuperAdmin: (s) => s.user?.rol === ROLES.ADMIN,
+
+    // Lista de orgs a las que el usuario tiene acceso.
+    //   - admin   → [] (vacío = TODAS, sin restricción)
+    //   - manager → 1 o más
+    //   - viewer  → exactamente 1
+    accessibleOrgIds: (s) => {
+      const u = s.user
+      if (!u) return []
+      if (Array.isArray(u.orgIds) && u.orgIds.length > 0) return u.orgIds
+      // Fallback a orgId si orgIds no está cargado (sesiones viejas)
+      return u.orgId ? [u.orgId] : []
+    },
+
+    // ── Capacidades específicas ──────────────────────────────────────────
+    canManageOrgs:    (s) => s.user?.rol === ROLES.ADMIN,
+    canManageBilling: (s) => s.user?.rol === ROLES.ADMIN,
+    // Manager y admin pueden gestionar usuarios; viewer no.
+    canManageUsers:   (s) => s.user?.rol === ROLES.ADMIN || s.user?.rol === ROLES.MANAGER,
+    // Solo admin puede crear/editar otros admins.
+    canManageAdmins:  (s) => s.user?.rol === ROLES.ADMIN,
+    // Muestra el selector de org si el usuario tiene acceso a más de una
+    // (o si es admin que puede saltar a cualquiera).
+    canSwitchOrg: (s) => {
+      if (s.user?.rol === ROLES.ADMIN) return true
+      const list = Array.isArray(s.user?.orgIds) ? s.user.orgIds : []
+      return list.length > 1
+    },
+
+    can: (s) => (permission) => (PERMISSIONS[s.user?.rol] || []).includes(permission),
   },
 
   actions: {
@@ -100,12 +141,14 @@ export const useAuthStore = defineStore('auth', {
 
         this.user         = data.user
         this.token        = data.token
-        this.currentOrgId = data.user.orgId || null
+        this.currentOrgId = data.user.orgId || (Array.isArray(data.user.orgIds) ? data.user.orgIds[0] : null)
 
         localStorage.setItem(LS_SESSION, JSON.stringify({
-          token:        data.token,
-          expires:      data.expires,
-          currentOrgId: data.user.orgId || null,
+          token:         data.token,
+          expires:       data.expires,
+          currentOrgId:  this.currentOrgId,
+          rol:           data.user.rol,             // cache para middleware
+          trabajador_id: data.user.trabajador_id || null,
         }))
 
         return { ok: true }
@@ -115,9 +158,19 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    /* ── Cambiar org activa (super-admin) ─────────────────────── */
+    /* ── Cambiar org activa ─────────────────────────────────────
+     * admin   → puede saltar a cualquier org.
+     * manager → solo entre las orgs en user.orgIds.
+     * viewer  → no puede switch.
+     */
     switchOrg(orgId) {
-      if (!this.isSuperAdmin) return { ok: false, message: 'Sin permiso' }
+      if (this.isViewer) return { ok: false, message: 'Sin permiso' }
+      if (this.isManager) {
+        const list = Array.isArray(this.user?.orgIds) ? this.user.orgIds : []
+        if (orgId && !list.includes(orgId)) {
+          return { ok: false, message: 'No tienes acceso a esta organización' }
+        }
+      }
       this.currentOrgId = orgId
       if (typeof localStorage !== 'undefined') {
         try {
@@ -157,12 +210,13 @@ export const useAuthStore = defineStore('auth', {
       } catch { return [] }
     },
 
-    async createUser({ nombre, email, password, rol, orgId = null }) {
+    async createUser(payload) {
+      // payload puede incluir: nombre, email, password, rol, orgId, orgIds, trabajador_id
       try {
         return await $fetch('/api/auth/users', {
           method:  'POST',
           headers: { Authorization: `Bearer ${this.token}` },
-          body:    { nombre, email, password, rol, orgId },
+          body:    payload,
         })
       } catch (err) {
         return { ok: false, message: err?.data?.message || 'Error al crear usuario' }

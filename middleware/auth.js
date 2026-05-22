@@ -2,6 +2,10 @@
  * middleware/auth.js
  * Protege todas las rutas /rrhh/* y redirige al login si no hay sesión activa.
  * Solo corre en el cliente (la sesión vive en localStorage).
+ *
+ * Reglas de rol:
+ *   - viewer: no puede entrar a /rrhh/*. Se redirige a su portal personal.
+ *   - admin/manager: acceso normal.
  */
 export default defineNuxtRouteMiddleware(async (to) => {
   // Redirigir raíz a la vista principal
@@ -26,8 +30,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
       localStorage.removeItem('rrhh_session')
       return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
     }
-    // Sesión válida en localStorage — dejar pasar.
-    // El authStore.init() en el layout restaurará el usuario desde /api/auth/me.
+
+    // Viewer (trabajador): no entra al módulo admin. Se manda al portal personal.
+    if (session.rol === 'viewer') {
+      return navigateTo('/portal/mi-perfil')
+    }
+
+    // Sesión válida — dejar pasar.
   } catch {
     localStorage.removeItem('rrhh_session')
     return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
