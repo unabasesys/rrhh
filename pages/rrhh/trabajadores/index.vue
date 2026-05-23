@@ -2301,6 +2301,29 @@ watch(vistaActual, async (val) => {
 }
 
 @media (max-width: 767px) {
+  /* ── Scroll: en mobile el contenedor se extiende y scrollea ──
+     (en desktop tiene height:100% + overflow:hidden para que la tabla
+     interna haga su propio scroll, pero eso rompe en mobile donde el
+     contenido vertical excede el viewport). Excluimos el modo mapa
+     que SÍ debe ser fullscreen sin scroll. */
+  .rrhhPage:not(.mm-mode) {
+    height: auto !important;
+    min-height: 100%;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    gap: 12px;
+  }
+  /* El wrap de la tabla en mobile NO debe ocupar flex:1 sino crecer
+     según contenido (las mobile-cards) */
+  .rrhhPage__table-wrap {
+    flex: none !important;
+    overflow-y: visible !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
   /* Filters */
   .desktop-only { display: none !important; }
   .mobile-filters { display: flex; width: 100%; }
