@@ -3,7 +3,7 @@
     <!-- ─── Header ─────────────────────────────────────────────────────── -->
     <header class="portal-header">
       <div class="portal-header__brand">
-        <img src="/img/logo-dark.svg" alt="Unabase" class="portal-logo" />
+        <img src="/img/logo-unabase-white.png" alt="Unabase" class="portal-logo" />
       </div>
       <div class="portal-header__user">
         <div class="portal-user-name" v-if="trabajador">

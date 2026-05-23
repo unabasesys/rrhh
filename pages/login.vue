@@ -5,9 +5,9 @@
     <div class="form-panel">
       <div class="form-inner">
 
-        <!-- Logo Unabase estándar (versión clara para fondo oscuro) -->
+        <!-- Logo Unabase oficial (versión blanca para fondo oscuro) -->
         <div class="brand-row">
-          <img src="/img/logo-dark.svg" alt="Unabase" class="brand-personas-logo" />
+          <img src="/img/logo-unabase-white.png" alt="Unabase" class="brand-personas-logo" />
         </div>
 
         <!-- Kicker + Headline -->

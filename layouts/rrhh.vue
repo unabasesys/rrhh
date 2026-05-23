@@ -384,12 +384,12 @@ onUnmounted(() => {
       <div class="sidebar-brand">
         <!-- Collapsed: show only isotipo -->
         <div v-if="!sidebarExpanded && !isMobile" class="brand-icon">
-          <img src="/img/isotipo-dark.svg" alt="Unabase" width="26" height="26" />
+          <img src="/img/isotipo-white.png" alt="Unabase" width="26" height="26" />
         </div>
-        <!-- Expanded: wordmark Unabase estándar (versión clara para fondo oscuro) -->
+        <!-- Expanded: wordmark Unabase oficial (versión blanca para fondo oscuro) -->
         <transition name="fade-label">
           <div v-if="sidebarExpanded || isMobile" class="sidebar-personas-lockup">
-            <img src="/img/logo-dark.svg" alt="Unabase" class="spl-logo" />
+            <img src="/img/logo-unabase-white.png" alt="Unabase" class="spl-logo" />
           </div>
         </transition>
         <button
