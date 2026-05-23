@@ -240,6 +240,9 @@ onMounted(async () => {
   // Forzamos refresh por si la página hija ya disparó fetch sin orgId
   rrhhStore.getContratos?.()
   rrhhStore.getTrabajadores?.()
+
+  // Banner de pago pendiente (admin/manager con orgs impagas)
+  loadBillingStatus()
 })
 
 function handleLogout() {
@@ -270,6 +273,66 @@ function setDefaultOrg(orgId) {
   } else {
     defaultOrgId.value = orgId
     localStorage.setItem('rrhh_default_org', orgId)
+  }
+}
+
+// ─── Billing alerts ─────────────────────────────────────────────────────────
+const overdueOrgs   = ref([])
+const showPayModal  = ref(false)
+const payOrgId      = ref(null)
+const paying        = ref(false)
+const payError      = ref('')
+
+const overdueTotalCLP = computed(() =>
+  overdueOrgs.value.reduce((s, o) => s + (o.monthlyCLP || 0), 0)
+)
+const payingOrg = computed(() =>
+  overdueOrgs.value.find(o => o._id === payOrgId.value) || overdueOrgs.value[0] || null
+)
+
+function formatCLPNoSym(n) {
+  return Math.round(Number(n) || 0).toLocaleString('es-CL')
+}
+
+async function loadBillingStatus() {
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    const token = raw ? (JSON.parse(raw).token || null) : null
+    if (!token) return
+    const data = await $fetch('/api/rrhh/billing/status', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    overdueOrgs.value = data?.overdueOrgs || []
+    if (overdueOrgs.value.length) {
+      payOrgId.value = overdueOrgs.value[0]._id
+    }
+  } catch {
+    overdueOrgs.value = []
+  }
+}
+
+async function iniciarPago(gateway) {
+  if (!payingOrg.value) return
+  paying.value = true
+  payError.value = ''
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    const token = raw ? (JSON.parse(raw).token || null) : null
+    const r = await $fetch(`/api/rrhh/billing/checkout/${gateway}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: { orgId: payingOrg.value._id },
+    })
+    const url = r?.checkout_url || r?.init_point || r?.url
+    if (url) {
+      window.location.href = url
+    } else {
+      payError.value = r?.message || `La pasarela ${gateway} aún no está configurada. Contacta a soporte de Unabase.`
+    }
+  } catch (e) {
+    payError.value = e?.data?.message || e?.message || 'No se pudo iniciar el pago'
+  } finally {
+    paying.value = false
   }
 }
 
@@ -323,10 +386,10 @@ onUnmounted(() => {
         <div v-if="!sidebarExpanded && !isMobile" class="brand-icon">
           <img src="/img/isotipo-dark.svg" alt="Unabase" width="26" height="26" />
         </div>
-        <!-- Expanded: personas lockup -->
+        <!-- Expanded: wordmark Unabase estándar (versión clara para fondo oscuro) -->
         <transition name="fade-label">
           <div v-if="sidebarExpanded || isMobile" class="sidebar-personas-lockup">
-            <img src="/img/unabase-personas-logo.png" alt="unabase personas" class="spl-logo" />
+            <img src="/img/logo-dark.svg" alt="Unabase" class="spl-logo" />
           </div>
         </transition>
         <button
@@ -507,6 +570,72 @@ onUnmounted(() => {
           </div>
         </div>
       </header>
+
+      <!-- ── Banner de pago pendiente (admin / manager) ─────────────────── -->
+      <div v-if="overdueOrgs.length" class="billing-banner">
+        <div class="billing-banner__icon">
+          <i class="u u-warning"></i>
+        </div>
+        <div class="billing-banner__text">
+          <strong>
+            {{ overdueOrgs.length === 1
+              ? `Pago pendiente: ${overdueOrgs[0].nombre}`
+              : `${overdueOrgs.length} organizaciones con pago pendiente` }}
+          </strong>
+          <span v-if="overdueOrgs.length === 1">
+            ${{ formatCLPNoSym(overdueOrgs[0].monthlyCLP) }} CLP
+            <template v-if="overdueOrgs[0].diasVencido != null && overdueOrgs[0].diasVencido > 0">
+              · vencido hace {{ overdueOrgs[0].diasVencido }} día{{ overdueOrgs[0].diasVencido === 1 ? '' : 's' }}
+            </template>
+          </span>
+          <span v-else>
+            Total: ${{ formatCLPNoSym(overdueTotalCLP) }} CLP
+          </span>
+        </div>
+        <button class="billing-banner__btn" @click="showPayModal = true">
+          <i class="u u-cobros-y-pagos"></i> Pagar ahora
+        </button>
+      </div>
+
+      <!-- ── Modal de pago ────────────────────────────────────────────────── -->
+      <div v-if="showPayModal" class="pay-modal-overlay" @click.self="showPayModal = false">
+        <div class="pay-modal">
+          <div class="pay-modal__header">
+            <h3>Elige tu método de pago</h3>
+            <button class="btn-icon" @click="showPayModal = false"><i class="u u-close"></i></button>
+          </div>
+          <div class="pay-modal__body">
+            <div v-if="overdueOrgs.length > 1" class="form-group">
+              <label>Organización a pagar</label>
+              <select v-model="payOrgId" class="form-input">
+                <option v-for="o in overdueOrgs" :key="o._id" :value="o._id">
+                  {{ o.nombre }} — ${{ formatCLPNoSym(o.monthlyCLP) }} CLP
+                </option>
+              </select>
+            </div>
+            <p class="pay-modal__summary">
+              <strong>{{ payingOrg?.nombre }}</strong><br />
+              <span>{{ payingOrg?.workers || 0 }} trabajadores × ${{ payingOrg?.monthlyUSD || 0 }} USD</span><br />
+              <span class="pay-modal__amount">${{ formatCLPNoSym(payingOrg?.monthlyCLP || 0) }} CLP</span>
+            </p>
+            <div class="pay-modal__gateways">
+              <button class="gateway-btn" @click="iniciarPago('mercadopago')" :disabled="paying">
+                <span class="gateway-name">Mercado Pago</span>
+                <span class="gateway-desc">Tarjeta CLP · más usado en Chile</span>
+              </button>
+              <button class="gateway-btn" @click="iniciarPago('transbank')" :disabled="paying">
+                <span class="gateway-name">Webpay Plus</span>
+                <span class="gateway-desc">Transbank · tarjetas chilenas CLP</span>
+              </button>
+              <button class="gateway-btn" @click="iniciarPago('stripe')" :disabled="paying">
+                <span class="gateway-name">Stripe</span>
+                <span class="gateway-desc">Tarjetas internacionales USD</span>
+              </button>
+            </div>
+            <div v-if="payError" class="error-msg">{{ payError }}</div>
+          </div>
+        </div>
+      </div>
 
       <!-- Page content -->
       <main class="rrhh-content">
@@ -1109,6 +1238,113 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
+
+/* ── Billing alert banner ────────────────────────────────────────────── */
+.billing-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+  color: #fff;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.billing-banner__icon {
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.2);
+  border-radius: 10px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.billing-banner__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.billing-banner__text strong { font-weight: 700; font-size: 14px; }
+.billing-banner__text span { opacity: 0.92; }
+.billing-banner__btn {
+  background: #fff;
+  color: #062D3A;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+.billing-banner__btn:hover { opacity: 0.9; }
+
+/* ── Pay modal ───────────────────────────────────────────────────────── */
+.pay-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(6, 45, 58, 0.7);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.pay-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 460px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  color: #1f2937;
+}
+.pay-modal__header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.pay-modal__header h3 { margin: 0; font-size: 16px; }
+.pay-modal__body { padding: 18px 20px 22px; }
+.pay-modal__summary {
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 14px;
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.pay-modal__amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0DCFA8;
+  display: block;
+  margin-top: 4px;
+  letter-spacing: -0.5px;
+}
+.pay-modal__gateways {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.gateway-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.gateway-btn:hover:not(:disabled) {
+  border-color: #0DCFA8;
+  background: #f0fbf8;
+}
+.gateway-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.gateway-name { font-weight: 700; color: #1f2937; font-size: 14px; }
+.gateway-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
 
 /* ── Transitions ─────────────────────────────────────────────────────────── */
 .fade-label-enter-active { transition: opacity 0.2s ease, width 0.2s ease; }

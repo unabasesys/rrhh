@@ -1,86 +1,451 @@
 <template>
-  <div class="mi-perfil-page">
-    <div class="card">
-      <div class="card-header">
-        <i class="u u-usuarios" style="font-size:32px;color:#0DCFA8"></i>
-        <h1>Hola{{ userName ? `, ${userName}` : '' }}</h1>
+  <div class="portal-page">
+    <!-- ─── Header ─────────────────────────────────────────────────────── -->
+    <header class="portal-header">
+      <div class="portal-header__brand">
+        <img src="/img/logo-dark.svg" alt="Unabase" class="portal-logo" />
+      </div>
+      <div class="portal-header__user">
+        <div class="portal-user-name" v-if="trabajador">
+          {{ trabajador.nombre }} {{ trabajador.apellido_paterno || trabajador.apellido || '' }}
+        </div>
+        <div class="portal-user-org" v-if="organizacion">
+          {{ organizacion.nombre }}
+        </div>
+        <button class="portal-logout" @click="handleLogout">
+          <i class="u u-logout"></i> Salir
+        </button>
+      </div>
+    </header>
+
+    <main class="portal-main">
+      <!-- ─── Alerta de pago pendiente (informativa) ────────────────────── -->
+      <div v-if="orgPagoPendiente" class="portal-billing-alert">
+        <i class="u u-warning" style="font-size:18px"></i>
+        <div>
+          <strong>Tu empresa tiene un pago pendiente con Unabase.</strong>
+          <span>
+            Algunas funciones podrían dejar de estar disponibles. Por favor, avisa a tu administrador.
+          </span>
+        </div>
       </div>
 
-      <p class="lead">
-        Tu acceso es como <strong>trabajador</strong>. Aquí podrás ver tu perfil,
-        liquidaciones, marcaciones y documentos personales.
-      </p>
+      <!-- ─── Sin vínculo ─────────────────────────────────────────────── -->
+      <div v-if="!loading && !trabajador" class="empty-state">
+        <i class="u u-warning" style="font-size:32px;color:#f59e0b"></i>
+        <h2>Tu cuenta no está vinculada a un trabajador</h2>
+        <p>Pide a tu empleador que vincule esta cuenta a tu ficha de trabajador.</p>
+      </div>
 
-      <div v-if="loadingTrabajador" class="state">
+      <!-- ─── Loading ─────────────────────────────────────────────────── -->
+      <div v-else-if="loading" class="empty-state">
         <div class="spinner"></div>
-        <p>Cargando tus datos…</p>
+        <p>Cargando tu portal…</p>
       </div>
 
-      <div v-else-if="trabajadorToken" class="state">
-        <p>Tu portal de marcaciones está listo:</p>
-        <a class="btn btn--primary" :href="`/portal/trabajador/${trabajadorToken}`">
-          <i class="u u-check"></i> Ir a mi portal de marcaciones
-        </a>
-      </div>
+      <!-- ─── Tabs ─────────────────────────────────────────────────────── -->
+      <template v-else>
+        <nav class="portal-tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="portal-tab"
+            :class="{ active: activeTab === tab.id }"
+            @click="activeTab = tab.id"
+          >
+            <i :class="tab.icon"></i> {{ tab.label }}
+          </button>
+        </nav>
 
-      <div v-else class="state state--info">
-        <i class="u u-warning" style="font-size:24px;color:#f59e0b"></i>
-        <p>
-          Tu cuenta aún no está vinculada a una ficha de trabajador.
-          Solicita a tu empleador que te envíe el link de tu portal personal.
-        </p>
-      </div>
+        <!-- ═══════ Tab: Marcar entrada/salida ═══════ -->
+        <section v-if="activeTab === 'marcar'" class="tab-section">
+          <div class="marcar-card">
+            <div class="marcar-clock">{{ horaActualStr }}</div>
+            <div class="marcar-date">{{ fechaActualStr }}</div>
 
-      <button class="btn btn--secondary" @click="handleLogout">
-        <i class="u u-logout"></i> Cerrar sesión
-      </button>
-    </div>
+            <div v-if="marcacionHoy" class="marcar-status">
+              <div class="marcar-status__row">
+                <span>Entrada:</span>
+                <strong>{{ marcacionHoy.entrada || '—' }}</strong>
+              </div>
+              <div class="marcar-status__row">
+                <span>Salida:</span>
+                <strong>{{ marcacionHoy.salida || '—' }}</strong>
+              </div>
+              <div v-if="marcacionHoy.horas" class="marcar-status__row">
+                <span>Horas trabajadas:</span>
+                <strong>{{ marcacionHoy.horas }} h</strong>
+              </div>
+            </div>
+
+            <div class="marcar-actions">
+              <button
+                class="btn btn--marcar btn--entrada"
+                :disabled="marking || (marcacionHoy && marcacionHoy.entrada)"
+                @click="marcar('entrada')"
+              >
+                <i class="u u-check"></i>
+                {{ marcacionHoy && marcacionHoy.entrada ? 'Entrada marcada' : 'Marcar entrada' }}
+              </button>
+              <button
+                class="btn btn--marcar btn--salida"
+                :disabled="marking || !marcacionHoy?.entrada || marcacionHoy?.salida"
+                @click="marcar('salida')"
+              >
+                <i class="u u-clock"></i>
+                {{ marcacionHoy && marcacionHoy.salida ? 'Salida marcada' : 'Marcar salida' }}
+              </button>
+            </div>
+
+            <div v-if="marcarError" class="error-msg">
+              {{ marcarError }}
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════ Tab: Mis Datos ═══════ -->
+        <section v-else-if="activeTab === 'datos'" class="tab-section">
+          <div class="data-grid">
+            <div class="data-card">
+              <h3>Datos Personales</h3>
+              <div class="data-rows">
+                <div class="data-row"><span>Nombre</span><strong>{{ trabajador.nombre }} {{ trabajador.apellido_paterno || trabajador.apellido || '' }} {{ trabajador.apellido_materno || '' }}</strong></div>
+                <div class="data-row"><span>RUT</span><strong>{{ formatRut(trabajador.rut) }}</strong></div>
+                <div class="data-row"><span>Email</span><strong>{{ trabajador.email || '—' }}</strong></div>
+                <div class="data-row"><span>Teléfono</span><strong>{{ trabajador.telefono || '—' }}</strong></div>
+                <div class="data-row"><span>Dirección</span><strong>{{ trabajador.direccion || '—' }}</strong></div>
+                <div class="data-row"><span>Nacionalidad</span><strong>{{ trabajador.nacionalidad || '—' }}</strong></div>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <h3>Datos Laborales</h3>
+              <div class="data-rows">
+                <div class="data-row"><span>Cargo</span><strong>{{ trabajador.cargo || '—' }}</strong></div>
+                <div class="data-row"><span>Departamento</span><strong>{{ trabajador.departamento || '—' }}</strong></div>
+                <div class="data-row"><span>Fecha ingreso</span><strong>{{ formatFecha(trabajador.fecha_ingreso) }}</strong></div>
+                <div class="data-row"><span>Empresa</span><strong>{{ organizacion?.nombre || '—' }}</strong></div>
+                <div class="data-row"><span>Estado</span>
+                  <strong :style="{ color: trabajador.estado === 'activo' ? '#0DCFA8' : '#ef4444' }">
+                    {{ trabajador.estado === 'activo' ? 'Activo' : 'Inactivo' }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <h3>Previsión</h3>
+              <div class="data-rows">
+                <div class="data-row"><span>AFP</span><strong>{{ trabajador.afp || '—' }}</strong></div>
+                <div class="data-row"><span>Sistema de salud</span><strong>{{ trabajador.sistema_salud || trabajador.isapre || 'FONASA' }}</strong></div>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <h3>Banco</h3>
+              <div class="data-rows">
+                <div class="data-row"><span>Banco</span><strong>{{ trabajador.banco || '—' }}</strong></div>
+                <div class="data-row"><span>Tipo de cuenta</span><strong>{{ trabajador.tipo_cuenta || '—' }}</strong></div>
+                <div class="data-row"><span>N° cuenta</span><strong>{{ trabajador.numero_cuenta || '—' }}</strong></div>
+              </div>
+            </div>
+
+            <div class="data-card data-card--wide">
+              <h3>Contratos</h3>
+              <div v-if="contratos.length" class="contratos-list">
+                <div v-for="c in contratos" :key="c._id" class="contrato-item">
+                  <div class="contrato-item__head">
+                    <strong>{{ labelContrato(c.tipo_contrato) }}</strong>
+                    <span class="contrato-badge" :class="estadoContratoCls(c)">{{ c.estado_contrato || c.estado || '—' }}</span>
+                  </div>
+                  <div class="contrato-item__body">
+                    <div><span>Inicio:</span> {{ formatFecha(c.fecha_inicio || c.fecha_ingreso) }}</div>
+                    <div><span>Término:</span> {{ c.fecha_termino ? formatFecha(c.fecha_termino) : 'Indefinido' }}</div>
+                    <div v-if="c.cargo"><span>Cargo:</span> {{ c.cargo }}</div>
+                    <div v-if="c.sueldo_base"><span>Sueldo base:</span> {{ formatCLP(c.sueldo_base) }}</div>
+                  </div>
+                </div>
+              </div>
+              <p v-else class="muted">No tienes contratos registrados.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════ Tab: Liquidaciones ═══════ -->
+        <section v-else-if="activeTab === 'liquidaciones'" class="tab-section">
+          <div v-if="liquidaciones.length" class="liq-grid">
+            <div v-for="liq in liquidaciones" :key="liq._id" class="liq-card">
+              <div class="liq-card__head">
+                <span class="liq-card__month">{{ mesNombre(liq.mes) }} {{ liq.anio }}</span>
+                <span class="liq-card__badge" :class="liq.estado">{{ liq.estado || '—' }}</span>
+              </div>
+              <div class="liq-card__amount">{{ formatCLP(liq.liquido_a_pagar) }}</div>
+              <div class="liq-card__sub">Líquido a pagar</div>
+              <button class="btn-link" @click="descargarLiquidacion(liq._id, liq.mes, liq.anio)">
+                <i class="u u-descargar"></i> Descargar PDF
+              </button>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            <i class="u u-folder-open" style="font-size:36px;color:#374151"></i>
+            <p>Aún no tienes liquidaciones registradas.</p>
+          </div>
+        </section>
+
+        <!-- ═══════ Tab: Marcaciones ═══════ -->
+        <section v-else-if="activeTab === 'marcaciones'" class="tab-section">
+          <div class="marc-toolbar">
+            <select v-model="marcMes" class="select-month">
+              <option v-for="(m, i) in MESES_NAMES" :key="i" :value="i + 1">{{ m }} {{ marcAnio }}</option>
+            </select>
+            <select v-model="marcAnio" class="select-month">
+              <option v-for="y in [marcAnio + 1, marcAnio, marcAnio - 1, marcAnio - 2]" :key="y" :value="y">{{ y }}</option>
+            </select>
+          </div>
+          <div v-if="marcaciones.length" class="marc-table-wrap">
+            <table class="marc-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Entrada</th>
+                  <th>Salida</th>
+                  <th>Horas</th>
+                  <th>Proyecto</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in marcaciones" :key="m._id">
+                  <td>{{ m.fecha }}</td>
+                  <td>{{ m.entrada || '—' }}</td>
+                  <td>{{ m.salida || '—' }}</td>
+                  <td>{{ m.horas || 0 }}</td>
+                  <td>{{ m.proyecto_nombre || '—' }}</td>
+                  <td>
+                    <span class="marc-state" :class="m.estado">{{ m.estado }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="empty-state">
+            <i class="u u-clock" style="font-size:36px;color:#374151"></i>
+            <p>Sin marcaciones en este período.</p>
+          </div>
+        </section>
+      </template>
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 definePageMeta({ layout: false })
 
-const userName         = ref('')
-const trabajadorToken  = ref(null)
-const loadingTrabajador = ref(false)
+const MESES_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
 
-onMounted(async () => {
+const loading = ref(true)
+const trabajador   = ref(null)
+const contratos    = ref([])
+const organizacion = ref(null)
+const orgPagoPendiente = ref(false)
+const liquidaciones = ref([])
+const marcaciones   = ref([])
+const marcacionHoy  = ref(null)
+const activeTab     = ref('marcar')
+const marking       = ref(false)
+const marcarError   = ref('')
+
+const now = new Date()
+const marcAnio = ref(now.getFullYear())
+const marcMes  = ref(now.getMonth() + 1)
+
+const tabs = [
+  { id: 'marcar',        label: 'Marcar',        icon: 'u u-check' },
+  { id: 'datos',         label: 'Mis datos',     icon: 'u u-usuarios' },
+  { id: 'liquidaciones', label: 'Liquidaciones', icon: 'u u-cobros-y-pagos' },
+  { id: 'marcaciones',   label: 'Marcaciones',   icon: 'u u-clock' },
+]
+
+// ── Reloj en vivo ──────────────────────────────────────────────────────────
+const horaActual = ref(new Date())
+let clockInterval = null
+const horaActualStr = computed(() => {
+  return horaActual.value.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+})
+const fechaActualStr = computed(() => {
+  return horaActual.value.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+})
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function authHeaders() {
+  if (typeof localStorage === 'undefined') return {}
   try {
-    const raw = localStorage.getItem('rrhh_session')
-    if (!raw) return navigateTo('/login')
-    const session = JSON.parse(raw)
-    if (!session.token) return navigateTo('/login')
+    const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+    return s.token ? { Authorization: `Bearer ${s.token}` } : {}
+  } catch { return {} }
+}
+function formatRut(rut) {
+  if (!rut) return '—'
+  const clean = String(rut).replace(/[^0-9kK]/g, '').toUpperCase()
+  if (clean.length < 2) return rut
+  const dv = clean.slice(-1)
+  const num = clean.slice(0, -1)
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + '-' + dv
+}
+function formatFecha(f) {
+  if (!f) return '—'
+  try {
+    const s = String(f)
+    const d = new Date(s + (s.includes('T') ? '' : 'T12:00:00'))
+    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
+  } catch { return String(f) }
+}
+function formatCLP(n) {
+  if (n == null) return '$0'
+  return '$' + Math.round(Number(n) || 0).toLocaleString('es-CL')
+}
+function mesNombre(m) { return MESES_NAMES[(Number(m) || 1) - 1] }
+function labelContrato(t) {
+  const labels = {
+    indefinido: 'Indefinido',
+    plazo_fijo: 'Plazo fijo',
+    proyecto:   'Por proyecto/obra',
+    honorarios: 'A honorarios',
+    part_time:  'Part-time',
+  }
+  return labels[t] || t || 'Contrato'
+}
+function estadoContratoCls(c) {
+  const est = (c.estado_contrato || c.estado || '').toLowerCase()
+  if (est === 'vigente' || est === 'activo') return 'ok'
+  if (est === 'vencido') return 'danger'
+  return 'muted'
+}
 
-    // Traer perfil para tener nombre y trabajador_id
-    loadingTrabajador.value = true
-    const me = await $fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${session.token}` },
-    }).catch(() => null)
-
-    if (me?.user) {
-      userName.value = me.user.nombre || ''
-      if (me.user.trabajador_id) {
-        // Pedir token del portal (si la API existe) — fallback: usar trabajador_id como token
-        trabajadorToken.value = me.user.trabajador_id
-      }
+// ── Mount ──────────────────────────────────────────────────────────────────
+onMounted(async () => {
+  // Verificar sesión
+  const raw = localStorage.getItem('rrhh_session')
+  if (!raw) return navigateTo('/login')
+  try {
+    const s = JSON.parse(raw)
+    if (!s.token || Date.now() > s.expires) {
+      localStorage.removeItem('rrhh_session')
+      return navigateTo('/login')
     }
+  } catch { return navigateTo('/login') }
+
+  // Reloj
+  clockInterval = setInterval(() => { horaActual.value = new Date() }, 1000)
+
+  // Cargar perfil + contratos + org
+  try {
+    const me = await $fetch('/api/portal/me', { headers: authHeaders() })
+    if (me?.ok) {
+      trabajador.value   = me.trabajador
+      contratos.value    = me.contratos || []
+      organizacion.value = me.organizacion
+    }
+  } catch (e) {
+    // No tiene trabajador_id vinculado o sin permisos
+    trabajador.value = null
   } finally {
-    loadingTrabajador.value = false
+    loading.value = false
+  }
+
+  if (trabajador.value) {
+    await Promise.all([loadLiquidaciones(), loadMarcaciones(), checkBillingStatus()])
+    detectarMarcacionHoy()
   }
 })
+
+async function checkBillingStatus() {
+  try {
+    const r = await $fetch('/api/rrhh/billing/status', { headers: authHeaders() })
+    orgPagoPendiente.value = (r?.overdueOrgs || []).length > 0
+  } catch {
+    orgPagoPendiente.value = false
+  }
+}
+
+onUnmounted(() => {
+  if (clockInterval) clearInterval(clockInterval)
+})
+
+watch([marcAnio, marcMes], () => { loadMarcaciones() })
+
+// ── Cargas async ───────────────────────────────────────────────────────────
+async function loadLiquidaciones() {
+  try {
+    const r = await $fetch('/api/portal/liquidaciones', { headers: authHeaders() })
+    liquidaciones.value = r?.liquidaciones || []
+  } catch { liquidaciones.value = [] }
+}
+
+async function loadMarcaciones() {
+  try {
+    const r = await $fetch(
+      `/api/portal/marcaciones?anio=${marcAnio.value}&mes=${marcMes.value}`,
+      { headers: authHeaders() }
+    )
+    marcaciones.value = r?.marcaciones || []
+    detectarMarcacionHoy()
+  } catch { marcaciones.value = [] }
+}
+
+function detectarMarcacionHoy() {
+  const today = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
+  marcacionHoy.value = marcaciones.value.find(m => m.fecha === today) || null
+}
+
+async function marcar(tipo) {
+  marking.value = true
+  marcarError.value = ''
+  try {
+    const r = await $fetch('/api/portal/marcar', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: { tipo },
+    })
+    if (r?.ok) {
+      await loadMarcaciones()
+    }
+  } catch (e) {
+    marcarError.value = e?.data?.message || e?.message || 'Error al marcar'
+  } finally {
+    marking.value = false
+  }
+}
+
+async function descargarLiquidacion(id, mes, anio) {
+  try {
+    const blob = await $fetch(`/api/portal/liquidacion-pdf?id=${id}`, {
+      headers: authHeaders(),
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `liquidacion_${anio}_${String(mes).padStart(2,'0')}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 100)
+  } catch (e) {
+    alert(e?.data?.message || 'No se pudo descargar el PDF')
+  }
+}
 
 async function handleLogout() {
   const raw = localStorage.getItem('rrhh_session')
   if (raw) {
     try {
-      const session = JSON.parse(raw)
-      await $fetch('/api/auth/logout', {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${session.token}` },
-      }).catch(() => {})
+      const s = JSON.parse(raw)
+      await $fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${s.token}` } }).catch(() => {})
     } catch {}
   }
   localStorage.removeItem('rrhh_session')
@@ -89,94 +454,320 @@ async function handleLogout() {
 </script>
 
 <style scoped>
-.mi-perfil-page {
+.portal-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #062D3A 0%, #0a3f52 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 480px;
-  width: 100%;
-  color: #e5e7eb;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-.card-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0;
-}
-.lead {
-  color: #cbd5e1;
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 24px;
-}
-.state {
-  padding: 20px;
-  border-radius: 10px;
-  background: rgba(13, 207, 168, 0.08);
-  border: 1px solid rgba(13, 207, 168, 0.2);
-  margin-bottom: 20px;
+  background: #f5f7f9;
   display: flex;
   flex-direction: column;
+  color: #1f2937;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────── */
+.portal-header {
+  background: #062D3A;
+  color: #fff;
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  text-align: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
-.state--info {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.25);
-}
-.state p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 11px 18px;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: 14px;
-  text-decoration: none;
+.portal-logo { height: 32px; width: auto; display: block; }
+.portal-header__user { display: flex; align-items: center; gap: 14px; }
+.portal-user-name  { font-weight: 700; }
+.portal-user-org   { color: #0DCFA8; font-size: 13px; }
+.portal-logout {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 13px;
   cursor: pointer;
+  font-size: 13px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.portal-logout:hover { background: rgba(255,255,255,0.14); }
+
+/* ─── Main ───────────────────────────────────────────────────────────── */
+.portal-main {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  flex: 1;
+}
+
+/* ─── Tabs ───────────────────────────────────────────────────────────── */
+.portal-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+.portal-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 11px 18px;
+  background: transparent;
   border: none;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.portal-tab:hover { color: #1f2937; }
+.portal-tab.active { color: #0DCFA8; border-bottom-color: #0DCFA8; }
+
+.portal-billing-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+  color: #92400e;
+  margin-bottom: 20px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.portal-billing-alert strong { display: block; margin-bottom: 2px; color: #78350f; }
+.portal-billing-alert span { opacity: 0.92; }
+
+.tab-section { animation: fadeIn 0.18s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ─── Marcar entrada/salida ─────────────────────────────────────────── */
+.marcar-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 36px 30px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  max-width: 540px;
+  margin: 0 auto;
+}
+.marcar-clock {
+  font-size: 64px;
+  font-weight: 700;
+  color: #062D3A;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+.marcar-date {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+.marcar-status {
+  margin: 22px auto 6px;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 14px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.marcar-status__row { display: flex; justify-content: space-between; font-size: 14px; }
+.marcar-actions {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.btn--marcar {
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   transition: opacity 0.15s ease;
 }
-.btn:hover { opacity: 0.9; }
-.btn--primary {
-  background: #0DCFA8;
-  color: #062D3A;
+.btn--marcar:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn--entrada { background: #0DCFA8; color: #062D3A; }
+.btn--salida  { background: #062D3A; color: #fff; }
+.error-msg {
+  margin-top: 14px;
+  color: #ef4444;
+  font-size: 13px;
 }
-.btn--secondary {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.06);
-  color: #e5e7eb;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+
+/* ─── Datos ──────────────────────────────────────────────────────────── */
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
 }
+.data-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.data-card--wide { grid-column: 1 / -1; }
+.data-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0DCFA8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 12px;
+}
+.data-rows { display: flex; flex-direction: column; gap: 9px; }
+.data-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+}
+.data-row span { color: #6b7280; }
+.data-row strong { color: #1f2937; font-weight: 600; }
+
+.contratos-list { display: flex; flex-direction: column; gap: 12px; }
+.contrato-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fafbfb;
+}
+.contrato-item__head { display: flex; justify-content: space-between; align-items: center; }
+.contrato-item__body { font-size: 13px; color: #4b5563; margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px; }
+.contrato-item__body span { color: #9ca3af; margin-right: 4px; }
+.contrato-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.contrato-badge.ok     { background: rgba(13,207,168,0.12);  color: #0DCFA8; }
+.contrato-badge.danger { background: rgba(239,68,68,0.12);   color: #ef4444; }
+.contrato-badge.muted  { background: rgba(107,114,128,0.12); color: #6b7280; }
+
+/* ─── Liquidaciones ──────────────────────────────────────────────────── */
+.liq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.liq-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.liq-card__head { display: flex; justify-content: space-between; align-items: center; }
+.liq-card__month {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  text-transform: capitalize;
+}
+.liq-card__badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-weight: 700;
+  background: rgba(107,114,128,0.12);
+  color: #6b7280;
+}
+.liq-card__badge.pagada { background: rgba(13,207,168,0.14); color: #0DCFA8; }
+.liq-card__amount {
+  margin-top: 14px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #0DCFA8;
+  letter-spacing: -1px;
+}
+.liq-card__sub { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
+.btn-link {
+  margin-top: 14px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  color: #1f2937;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-link:hover { background: #f3f4f6; }
+
+/* ─── Marcaciones ────────────────────────────────────────────────────── */
+.marc-toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+.select-month {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 13px;
+  color: #1f2937;
+}
+.marc-table-wrap {
+  background: #fff;
+  border-radius: 12px;
+  overflow: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.marc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.marc-table th {
+  background: #f9fafb;
+  color: #6b7280;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.marc-table td { padding: 9px 12px; border-bottom: 1px solid #f3f4f6; }
+.marc-state {
+  display: inline-block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(107,114,128,0.12);
+  color: #6b7280;
+}
+.marc-state.confirmada { background: rgba(13,207,168,0.14); color: #0DCFA8; }
+.marc-state.rechazada  { background: rgba(239,68,68,0.14);  color: #ef4444; }
+
+/* ─── Empty state ────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+.empty-state h2 { margin-top: 14px; font-size: 18px; color: #1f2937; }
+.empty-state p  { margin-top: 8px; font-size: 14px; }
+.muted { color: #9ca3af; }
 .spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(13, 207, 168, 0.2);
+  width: 32px; height: 32px;
+  border: 3px solid rgba(13,207,168,0.2);
   border-top-color: #0DCFA8;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  margin: 0 auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  .marcar-clock { font-size: 48px; }
+  .marcar-actions { grid-template-columns: 1fr; }
+  .data-row { grid-template-columns: 110px 1fr; font-size: 12.5px; }
+  .portal-main { padding: 16px; }
+}
 </style>

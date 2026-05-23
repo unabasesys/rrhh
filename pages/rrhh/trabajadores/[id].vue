@@ -374,6 +374,107 @@
               <span>El sueldo se define en el contrato — click para crear</span>
             </div>
           </div>
+
+          <!-- ── Acceso al Portal del Trabajador ─────────────────────────── -->
+          <div class="info-section">
+            <h3>Acceso al portal</h3>
+            <div v-if="loadingAccount" class="info-rows">
+              <div class="info-row"><span class="info-label">Cargando…</span></div>
+            </div>
+            <div v-else-if="linkedUser" class="info-rows">
+              <div class="info-row">
+                <span class="info-label">Email</span>
+                <span class="info-value">{{ linkedUser.email }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Rol</span>
+                <span class="info-value">
+                  {{ linkedUser.rol === 'viewer' ? 'Trabajador' : linkedUser.rol }}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Estado</span>
+                <span class="info-value" :style="{ color: linkedUser.activo ? '#0DCFA8' : '#ef4444' }">
+                  {{ linkedUser.activo ? 'Activo' : 'Desactivado' }}
+                </span>
+              </div>
+              <div class="account-actions">
+                <button class="btn btn-secondary btn-sm" @click="openResetPasswordModal">
+                  <i class="u u-key"></i> Cambiar contraseña
+                </button>
+                <button class="btn btn-danger btn-sm" @click="confirmUnlinkUser">
+                  <i class="u u-close"></i> Desvincular
+                </button>
+              </div>
+            </div>
+            <div v-else class="contrato-vigente-card empty-cv" style="margin-top:0" @click="openCreateAccountModal">
+              <i class="u u-key"></i>
+              <span>Crear cuenta de acceso al portal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Modal Crear cuenta de acceso ─────────────────────────────────── -->
+      <div v-if="showCreateAccount" class="modal-overlay" @click.self="showCreateAccount = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Crear cuenta de acceso</h3>
+            <button class="btn-icon" @click="showCreateAccount = false"><i class="u u-close"></i></button>
+          </div>
+          <div class="modal-body">
+            <p style="color:#9ca3af;font-size:13px;margin-bottom:14px">
+              El trabajador podrá iniciar sesión en
+              <code style="color:#0DCFA8">/login</code>
+              y acceder a su portal personal para ver liquidaciones, marcaciones y datos.
+            </p>
+            <div class="form-group">
+              <label>Email</label>
+              <input class="form-input" v-model="newAccount.email" type="email" placeholder="trabajador@empresa.cl" />
+            </div>
+            <div class="form-group">
+              <label>Contraseña inicial</label>
+              <input class="form-input" v-model="newAccount.password" type="text" placeholder="Mínimo 6 caracteres" />
+              <span class="form-hint">Compártela con el trabajador — puede cambiarla luego.</span>
+            </div>
+            <div v-if="newAccount.error" class="error-msg" style="color:#ef4444;margin-top:8px">
+              {{ newAccount.error }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="showCreateAccount = false">Cancelar</button>
+            <button class="btn btn-primary" :disabled="newAccount.saving" @click="handleCreateAccount">
+              {{ newAccount.saving ? 'Creando…' : 'Crear cuenta' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Modal Reset Password ─────────────────────────────────────────── -->
+      <div v-if="showResetPassword" class="modal-overlay" @click.self="showResetPassword = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Cambiar contraseña</h3>
+            <button class="btn-icon" @click="showResetPassword = false"><i class="u u-close"></i></button>
+          </div>
+          <div class="modal-body">
+            <p style="color:#9ca3af;font-size:13px;margin-bottom:14px">
+              Usuario: <strong>{{ linkedUser?.email }}</strong>
+            </p>
+            <div class="form-group">
+              <label>Nueva contraseña</label>
+              <input class="form-input" v-model="resetPwd.value" type="text" placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div v-if="resetPwd.error" class="error-msg" style="color:#ef4444;margin-top:8px">
+              {{ resetPwd.error }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="showResetPassword = false">Cancelar</button>
+            <button class="btn btn-primary" :disabled="resetPwd.saving" @click="handleResetPassword">
+              {{ resetPwd.saving ? 'Guardando…' : 'Cambiar' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2634,6 +2735,125 @@ const trabajador = computed(() => {
   return rrhhStore.trabajadores.find(t => t._id === id) || null
 })
 
+// ── Cuenta de acceso del trabajador (User vinculado) ────────────────────────
+const linkedUser     = ref(null)
+const loadingAccount = ref(false)
+const showCreateAccount = ref(false)
+const showResetPassword = ref(false)
+const newAccount = reactive({ email: '', password: '', saving: false, error: '' })
+const resetPwd   = reactive({ value: '', saving: false, error: '' })
+
+function authHeaders() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    if (!raw) return {}
+    const s = JSON.parse(raw)
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {}
+  } catch { return {} }
+}
+
+async function loadLinkedUser() {
+  const id = trabajador.value?._id || trabajador.value?.id
+  if (!id) return
+  loadingAccount.value = true
+  try {
+    const data = await $fetch(`/api/rrhh/trabajadores/${id}/user`, {
+      headers: authHeaders(),
+    })
+    linkedUser.value = data?.user || null
+  } catch { linkedUser.value = null }
+  finally { loadingAccount.value = false }
+}
+
+function openCreateAccountModal() {
+  const t = trabajador.value || {}
+  newAccount.email    = t.email || ''
+  newAccount.password = ''
+  newAccount.error    = ''
+  newAccount.saving   = false
+  showCreateAccount.value = true
+}
+
+async function handleCreateAccount() {
+  newAccount.error = ''
+  if (!newAccount.email.trim() || !newAccount.password.trim()) {
+    newAccount.error = 'Email y contraseña son obligatorios'
+    return
+  }
+  if (newAccount.password.length < 6) {
+    newAccount.error = 'La contraseña debe tener al menos 6 caracteres'
+    return
+  }
+  newAccount.saving = true
+  try {
+    const id = trabajador.value?._id || trabajador.value?.id
+    const t  = trabajador.value || {}
+    const nombre = [t.nombre, t.apellido_paterno || t.apellido].filter(Boolean).join(' ')
+    const res = await $fetch(`/api/rrhh/trabajadores/${id}/create-user`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: { email: newAccount.email.trim(), password: newAccount.password, nombre },
+    })
+    if (res?.ok) {
+      linkedUser.value = res.user
+      showCreateAccount.value = false
+    } else {
+      newAccount.error = res?.message || 'Error al crear cuenta'
+    }
+  } catch (e) {
+    newAccount.error = e?.data?.message || e?.message || 'Error inesperado'
+  } finally {
+    newAccount.saving = false
+  }
+}
+
+function openResetPasswordModal() {
+  resetPwd.value  = ''
+  resetPwd.error  = ''
+  resetPwd.saving = false
+  showResetPassword.value = true
+}
+
+async function handleResetPassword() {
+  resetPwd.error = ''
+  if (!resetPwd.value || resetPwd.value.length < 6) {
+    resetPwd.error = 'La contraseña debe tener al menos 6 caracteres'
+    return
+  }
+  resetPwd.saving = true
+  try {
+    const res = await $fetch(`/api/auth/users/${linkedUser.value._id}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: { action: 'password', password: resetPwd.value },
+    })
+    if (res?.ok) {
+      showResetPassword.value = false
+    } else {
+      resetPwd.error = res?.message || 'Error al cambiar contraseña'
+    }
+  } catch (e) {
+    resetPwd.error = e?.data?.message || e?.message || 'Error inesperado'
+  } finally {
+    resetPwd.saving = false
+  }
+}
+
+async function confirmUnlinkUser() {
+  if (!confirm('¿Desvincular esta cuenta del trabajador? El usuario seguirá existiendo pero perderá acceso al portal personal.')) return
+  try {
+    const id = trabajador.value?._id || trabajador.value?.id
+    await $fetch(`/api/rrhh/trabajadores/${id}/unlink-user`, {
+      method: 'POST',
+      headers: authHeaders(),
+    })
+    linkedUser.value = null
+  } catch (e) {
+    alert(e?.data?.message || 'No se pudo desvincular')
+  }
+}
+
 // ── Edición inline de Ficha Personal ─────────────────────────────────────────
 const fichaEdits = ref({})
 const fichaGuardando = ref(false)
@@ -2668,7 +2888,11 @@ function syncFichaEdits() {
   }
 }
 
-watch(trabajador, (val) => { if (val) syncFichaEdits() }, { immediate: true })
+watch(trabajador, (val) => {
+  if (!val) return
+  syncFichaEdits()
+  loadLinkedUser()
+}, { immediate: true })
 
 // Movilización y colación en 0 para contratos por proyecto/jornada/honorarios
 watch(() => contratoForm.value.tipo_contrato, (tipo) => {

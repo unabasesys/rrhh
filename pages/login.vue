@@ -5,9 +5,9 @@
     <div class="form-panel">
       <div class="form-inner">
 
-        <!-- Logo personas lockup -->
+        <!-- Logo Unabase estándar (versión clara para fondo oscuro) -->
         <div class="brand-row">
-          <img src="/img/unabase-personas-logo.png" alt="unabase personas" class="brand-personas-logo" />
+          <img src="/img/logo-dark.svg" alt="Unabase" class="brand-personas-logo" />
         </div>
 
         <!-- Kicker + Headline -->

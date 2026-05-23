@@ -192,6 +192,28 @@
             </select>
             <span v-if="form.rol === 'manager'" class="field-hint">Cmd/Ctrl+click para seleccionar varias.</span>
           </div>
+
+          <!-- Vínculo con ficha de trabajador (solo viewer) -->
+          <div v-if="form.rol === 'viewer'" class="field">
+            <label>Vincular con ficha de trabajador</label>
+            <select v-model="form.trabajador_id">
+              <option :value="null">— Sin vincular —</option>
+              <option
+                v-for="t in trabajadoresAsignables"
+                :key="t._id || t.id"
+                :value="t._id || t.id"
+              >
+                {{ t.nombre }} {{ t.apellido_paterno || t.apellido || '' }}
+                <template v-if="t.rut"> · {{ t.rut }}</template>
+                <template v-if="trabajadoresConCuenta[t._id || t.id] && (t._id || t.id) !== form.trabajador_id">
+                  · (ya tiene cuenta)
+                </template>
+              </option>
+            </select>
+            <span class="field-hint">
+              Esto permite que el trabajador inicie sesión y vea sus liquidaciones, marcaciones y datos.
+            </span>
+          </div>
           <div v-if="modal.error" class="modal-error">
             <i class="u u-warning"></i> {{ modal.error }}
           </div>
@@ -283,8 +305,24 @@ const canManageAdmins = ref(false)
 const myOrgIds        = ref([])      // orgs accesibles del usuario logueado
 const users           = ref([])
 const orgs            = ref([])
+const trabajadores    = ref([])      // para vincular viewers a fichas
 const loading         = ref(false)
 const actionLoading   = ref(null)
+
+// Trabajadores asignables: los que están en la org seleccionada para el viewer
+const trabajadoresAsignables = computed(() => {
+  const targetOrg = form.orgIds[0] || null
+  if (!targetOrg) return trabajadores.value
+  return trabajadores.value.filter(t => t.orgId === targetOrg)
+})
+// Mapa trabajador_id → user vinculado (para mostrar "ya tiene cuenta")
+const trabajadoresConCuenta = computed(() => {
+  const m = {}
+  for (const u of users.value) {
+    if (u.trabajador_id) m[u.trabajador_id] = u
+  }
+  return m
+})
 
 // Orgs que el usuario logueado puede asignar a otros usuarios.
 // admin → todas; manager → solo las suyas.
@@ -311,7 +349,20 @@ onMounted(async () => {
   await orgStore.init()
   orgs.value = orgStore.orgs || []
   await loadUsers()
+  await loadTrabajadores()
 })
+
+async function loadTrabajadores() {
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    const token = raw ? (JSON.parse(raw).token || null) : null
+    if (!token) return
+    const data = await $fetch('/api/rrhh/trabajadores', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    trabajadores.value = Array.isArray(data) ? data : []
+  } catch { trabajadores.value = [] }
+}
 
 async function loadUsers() {
   loading.value = true
@@ -363,7 +414,7 @@ function formatDate(iso) {
 
 /* Modal Crear / Editar */
 const modal    = reactive({ open: false, mode: 'create', userId: null, saving: false, error: '' })
-const form     = reactive({ nombre: '', email: '', password: '', rol: 'viewer', orgIds: [] })
+const form     = reactive({ nombre: '', email: '', password: '', rol: 'viewer', orgIds: [], trabajador_id: null })
 const showPass = ref(false)
 
 // Helper para viewer: como solo puede tener 1 org, mapeamos a un select simple.
@@ -373,7 +424,7 @@ const formSingleOrg = computed({
 })
 
 function openCreate() {
-  Object.assign(form, { nombre: '', email: '', password: '', rol: 'viewer', orgIds: [] })
+  Object.assign(form, { nombre: '', email: '', password: '', rol: 'viewer', orgIds: [], trabajador_id: null })
   Object.assign(modal, { open: true, mode: 'create', userId: null, error: '' })
   showPass.value = false
 }
@@ -387,6 +438,7 @@ function openEdit(user) {
     password: '',
     rol:    user.rol,
     orgIds: existing,
+    trabajador_id: user.trabajador_id || null,
   })
   Object.assign(modal, { open: true, mode: 'edit', userId: user._id, error: '' })
 }
@@ -415,6 +467,7 @@ async function handleSave() {
     rol:    form.rol,
     orgIds: form.orgIds,
     orgId:  form.orgIds[0] || null,  // compat
+    trabajador_id: form.rol === 'viewer' ? (form.trabajador_id || null) : null,
   }
   if (modal.mode === 'create') payload.password = form.password
 
