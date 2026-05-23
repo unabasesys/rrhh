@@ -2358,17 +2358,66 @@ watch(vistaActual, async (val) => {
     flex: none;
   }
 
-  /* KPIs pie: scroll horizontal */
+  /* ── KPIs pie de página en mobile: grid 3 columnas compactas ────────── */
   .footer-kpis {
-    overflow-x: auto;
-    padding: 0 16px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    align-items: start;
     gap: 0;
     height: auto;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding: 12px 10px 10px;
+    border-radius: 12px;
+    position: relative;
   }
-  .footer-kpi { padding: 0 14px; min-width: 100px; }
-  .footer-kpi__val { font-size: 16px; }
+  .footer-kpi {
+    flex: none;
+    padding: 0 6px;
+    gap: 2px;
+    min-width: 0;
+    text-align: center;
+    align-items: center;
+  }
+  .footer-kpi:first-child { padding-left: 6px; }
+  .footer-kpi__label {
+    font-size: 9px;
+    letter-spacing: .04em;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+  }
+  .footer-kpi__val {
+    font-size: 13.5px;
+    font-weight: 800;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    text-align: center;
+    letter-spacing: -0.5px;
+  }
+  .footer-kpi__sub {
+    font-size: 9px;
+    line-height: 1.2;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+  }
+  /* Las líneas separadoras verticales no ayudan en grid; las ocultamos */
+  .footer-kpi__sep { display: none; }
+  /* Badge "estimado": posicionado en esquina superior derecha del card */
+  .footer-kpi__badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 8.5px;
+    padding: 2px 6px;
+    letter-spacing: .04em;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
