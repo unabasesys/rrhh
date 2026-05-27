@@ -178,7 +178,11 @@ export default defineEventHandler(async (event) => {
   const scope = orgScopeFilter(me, q.orgId || null)
 
   // Cargar liquidaciones del período
-  const liqs = await Liquidacion.find({ ...scope, anio, mes }).lean()
+  // Excluir Sueldo Empresarial (Art. 31 N°6 LIR): el socio paga sus
+  // cotizaciones AFP/salud voluntarias en Previred con su RUT personal,
+  // no a través de la planilla de la empresa.
+  const liqsRaw = await Liquidacion.find({ ...scope, anio, mes }).lean()
+  const liqs    = liqsRaw.filter(l => !l.esSueldoEmpresarial)
   if (!liqs.length) {
     setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
     setResponseHeader(event, 'content-disposition',

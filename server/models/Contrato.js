@@ -5,7 +5,7 @@ const ContratoSchema = new mongoose.Schema({
   trabajador_id:     { type: String, required: true, index: true },
   trabajador_nombre: { type: String },
   // Tipo
-  tipo_contrato:     { type: String, required: true, enum: ['indefinido', 'plazo_fijo', 'proyecto', 'part_time'] },
+  tipo_contrato:     { type: String, required: true, enum: ['indefinido', 'plazo_fijo', 'proyecto', 'part_time', 'sueldo_empresarial'] },
   subtipo:           { type: String },   // 'proyecto_obra' | 'jornada'
   // Vigencia
   fecha_inicio:      { type: String, required: true },
@@ -36,6 +36,17 @@ const ContratoSchema = new mongoose.Schema({
   // Cláusulas
   clausulas:         { type: [String], default: [] },
   turno_id:          { type: String },
+  // ── Sueldo Empresarial (Art. 31 N°6 LIR) ──────────────────────────────────
+  // Aplica SOLO cuando tipo_contrato === 'sueldo_empresarial'. Es una figura
+  // tributaria (no laboral): el socio/dueño se asigna remuneración como gasto
+  // necesario. Sin subordinación, sin cesantía, sin gratificación legal. AFP
+  // y salud son voluntarias y se pagan por Previred con RUT personal.
+  rut_socio:               { type: String },
+  pct_participacion:       { type: Number, default: 0 },   // % participación societaria
+  cotiza_afp_voluntaria:   { type: Boolean, default: false },
+  cotiza_salud_voluntaria: { type: Boolean, default: false },
+  declara_trabajo_efectivo:{ type: Boolean, default: false }, // requisito SII
+  justificacion_monto:     { type: String },                // respaldo razonabilidad de mercado
   // Estado
   estado:            { type: String, default: 'vigente', enum: ['vigente', 'terminado', 'borrador'] },
   pdf_generado:      { type: Boolean, default: false },

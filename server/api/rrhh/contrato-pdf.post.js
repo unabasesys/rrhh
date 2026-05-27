@@ -117,11 +117,12 @@ function buildHeader(doc, data) {
   const tipo = data.tipo_contrato || "indefinido";
 
   const TIPO_LABELS = {
-    indefinido:  "CONTRATO DE TRABAJO\nDuración Indefinida",
-    plazo_fijo:  "CONTRATO DE TRABAJO\nPlazo Fijo",
-    proyecto:    "CONTRATO DE TRABAJO\nPor Proyecto / Obra",
-    honorarios:  "CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS",
-    part_time:   "CONTRATO DE TRABAJO\nJornada Parcial (Part Time)",
+    indefinido:         "CONTRATO DE TRABAJO\nDuración Indefinida",
+    plazo_fijo:         "CONTRATO DE TRABAJO\nPlazo Fijo",
+    proyecto:           "CONTRATO DE TRABAJO\nPor Proyecto / Obra",
+    honorarios:         "CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS",
+    part_time:          "CONTRATO DE TRABAJO\nJornada Parcial (Part Time)",
+    sueldo_empresarial: "ACTA DE ASIGNACIÓN DE SUELDO EMPRESARIAL\nArt. 31 N°6 Ley sobre Impuesto a la Renta",
   };
   const tituloLabel = TIPO_LABELS[tipo] || "CONTRATO DE TRABAJO";
 
@@ -563,6 +564,128 @@ function buildClausulasHonorarios(doc, data) {
   );
 }
 
+// ── CLAUSULAS: SUELDO EMPRESARIAL (Art. 31 N°6 LIR) ──────────────────────────
+// Acta de asignación de sueldo empresarial. NO es contrato de trabajo: el
+// socio/dueño se asigna remuneración como gasto necesario para producir la
+// renta. Documento de respaldo para el SII.
+function buildClausulasSueldoEmpresarial(doc, data) {
+  const trab = data.trabajador  || {};
+  const org  = data.organizacion || {};
+  const emp  = data.empleador   || {};
+
+  const nombreEmp    = org.nombre    || emp.nombre || "";
+  const rutEmp       = org.rut       || emp.rut    || "";
+  const repNombre    = emp.representante     || "";
+  const repRut       = emp.rut_representante || "";
+  const domicilioEmp = org.direccion || emp.domicilio || "";
+  const ciudadEmp    = org.ciudad    || "Santiago";
+
+  const nombreSocio  = trab.nombre || "";
+  const rutSocio     = data.rut_socio || trab.rut || "";
+  const pctParticip  = Number(data.pct_participacion) || 0;
+  const cargo        = data.cargo || "";
+  const sueldoMensual = data.sueldo_base || 0;
+  const fechaInicio  = fmtDate(data.fecha_inicio);
+  const fechaDoc     = fmtDate(data.fecha_documento || new Date().toISOString().slice(0, 10));
+  const justificacion = data.justificacion_monto || "";
+  const cotAfp       = !!data.cotiza_afp_voluntaria;
+  const cotSalud     = !!data.cotiza_salud_voluntaria;
+
+  // Intro
+  drawIntro(doc,
+    `En ${ciudadEmp}, a ${fechaDoc}, ${nombreEmp}, ` +
+    `rol único tributario número ${rutEmp}, representada por don/ña ${repNombre}, ` +
+    `cédula de identidad número ${repRut}, ambos domiciliados para estos efectos en ` +
+    `${domicilioEmp} (en adelante, la "Sociedad"); y don/ña ${nombreSocio}, ` +
+    `cédula de identidad número ${rutSocio}, socio/a de la Sociedad con una participación ` +
+    `del ${pctParticip}% del capital social, han acordado formalizar la siguiente ` +
+    `Acta de Asignación de Sueldo Empresarial conforme al Art. 31 N°6 de la Ley sobre ` +
+    `Impuesto a la Renta:`
+  );
+
+  // PRIMERA: Naturaleza
+  drawClauseTitle(doc, "PRIMERA: Naturaleza Jurídica del Acuerdo.");
+  drawBody(doc,
+    `El presente instrumento NO constituye un contrato de trabajo regido por el Código del ` +
+    `Trabajo, sino una figura tributaria contemplada en el Art. 31 N°6, inciso tercero, de ` +
+    `la Ley sobre Impuesto a la Renta (D.L. 824), conocida como "Sueldo Empresarial". ` +
+    `Entre las Partes NO existe relación de subordinación ni dependencia, por lo que no ` +
+    `aplican las normas del Código del Trabajo en materia de jornada, gratificación legal, ` +
+    `seguro de cesantía, ni indemnizaciones laborales.`
+  );
+
+  // SEGUNDA: Trabajo efectivo
+  drawClauseTitle(doc, "SEGUNDA: Trabajo Efectivo, Permanente y Personal.");
+  drawBody(doc,
+    `El/la socio/a declara que desempeña en la Sociedad la función de "${cargo}" de manera ` +
+    `efectiva, permanente y personal, dedicando su capacidad de trabajo a la generación de ` +
+    `los ingresos del negocio. Este requisito es esencial para que la asignación sea aceptada ` +
+    `como gasto necesario por el Servicio de Impuestos Internos.`
+  );
+
+  // TERCERA: Monto
+  drawClauseTitle(doc, "TERCERA: Monto de la Asignación.");
+  drawBody(doc,
+    `Uno. La Sociedad asignará al/la socio/a una remuneración mensual de ${fmtClp(sueldoMensual)} ` +
+    `(bruto), a partir del ${fechaInicio}. Este monto se pagará en la forma y oportunidad ` +
+    `que acuerden las Partes y se contabilizará como gasto del giro de la Sociedad.`
+  );
+  if (justificacion) {
+    drawBody(doc,
+      `Dos. Las Partes dejan constancia de la siguiente justificación del monto asignado: ` +
+      `${justificacion}`
+    );
+  }
+
+  // CUARTA: Tributación
+  drawClauseTitle(doc, "CUARTA: Tratamiento Tributario.");
+  drawBody(doc,
+    `Uno. La Sociedad retendrá mensualmente el Impuesto Único de Segunda Categoría que ` +
+    `corresponda según la tabla vigente, declarándolo en el Formulario 29.`
+  );
+  drawBody(doc,
+    `Dos. El monto se informará en el Libro de Remuneraciones Electrónico de la Dirección ` +
+    `del Trabajo y será incluido en la Declaración Jurada 1887 anual ante el SII.`
+  );
+  drawBody(doc,
+    `Tres. El/la socio/a tributará por estas rentas en su Declaración Anual de Impuesto a ` +
+    `la Renta (Formulario 22) como renta del trabajo dependiente.`
+  );
+
+  // QUINTA: Cotizaciones
+  drawClauseTitle(doc, "QUINTA: Cotizaciones Previsionales y de Salud.");
+  drawBody(doc,
+    `Las cotizaciones de AFP y de salud son de carácter VOLUNTARIO para el/la socio/a y ` +
+    `deberán ser pagadas directamente por éste/a en el portal Previred con su RUT personal, ` +
+    `bajo la modalidad de trabajador independiente, sin que la Sociedad efectúe descuento ni ` +
+    `entero alguno por tales conceptos.`
+  );
+  if (cotAfp || cotSalud) {
+    const items = [];
+    if (cotAfp)   items.push("AFP (10% + comisión)");
+    if (cotSalud) items.push("salud (7%)");
+    drawBody(doc,
+      `Las Partes declaran que el/la socio/a ha manifestado su intención de cotizar ` +
+      `voluntariamente en: ${items.join(" y ")}.`
+    );
+  }
+
+  // SEXTA: Vigencia
+  drawClauseTitle(doc, "SEXTA: Vigencia.");
+  drawBody(doc,
+    `La presente asignación regirá a partir del ${fechaInicio} y se mantendrá vigente ` +
+    `mientras subsista la calidad de socio/a y se cumplan los requisitos legales para su ` +
+    `procedencia, pudiendo ser modificada o dejada sin efecto por acuerdo de las Partes.`
+  );
+
+  // SÉPTIMA: Ejemplares
+  drawClauseTitle(doc, "SÉPTIMA: Ejemplares.");
+  drawBody(doc,
+    `Las Partes suscriben la presente acta en 2 ejemplares, quedando uno en poder de cada ` +
+    `Parte para los fines tributarios y societarios correspondientes.`
+  );
+}
+
 // ── Firmas ────────────────────────────────────────────────────────────────────
 function buildSignatures(doc, data) {
   const emp  = data.empleador  || {};
@@ -683,6 +806,8 @@ async function generatePDF(data) {
         buildClausulasProyecto(doc, data);
       } else if (tipo === "honorarios") {
         buildClausulasHonorarios(doc, data);
+      } else if (tipo === "sueldo_empresarial") {
+        buildClausulasSueldoEmpresarial(doc, data);
       } else {
         buildClausulasIndefinido(doc, data);
       }

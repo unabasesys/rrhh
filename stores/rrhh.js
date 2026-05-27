@@ -141,6 +141,10 @@ export const calcularCesantia = (imponible, tipo_contrato = "indefinido") => {
   if (tipo_contrato === "honorarios") {
     return { trabajador: 0, empleador: 0 };
   }
+  if (tipo_contrato === "sueldo_empresarial") {
+    // Sueldo Empresarial (Art. 31 N°6 LIR): no es contrato laboral, no aplica cesantía
+    return { trabajador: 0, empleador: 0 };
+  }
   // Indefinido, part_time
   return {
     trabajador: Math.round(imponible * (c.indefinido_trabajador || 0.006)),
@@ -189,6 +193,83 @@ export const calcularLiquidacion = (datos) => {
   // En ese caso se salta el gross-up y se calcula directamente sobre el bruto recibido
   // "jornada" también usa sueldo líquido pactado (igual que "proyecto")
   const esLiquidoPactado = !datos._yaEsBruto && (tipo === "proyecto" || tipo === "jornada" || tipo_sueldo === "liquido");
+
+  // ── SUELDO EMPRESARIAL (Art. 31 N°6 LIR) ─────────────────────────────────
+  // Figura tributaria, NO contrato de trabajo. El socio/dueño se asigna una
+  // remuneración como gasto necesario para producir la renta.
+  //   - Sin gratificación legal (no es trabajador del Cód. del Trabajo).
+  //   - Sin seguro de cesantía (ni trabajador ni empleador).
+  //   - Sin SIS ni Mutual de Seguridad (no es trabajador subordinado).
+  //   - AFP y salud son VOLUNTARIAS; el socio las paga en Previred con RUT
+  //     personal. Aquí se muestran como informativas si están activadas, pero
+  //     NO se descuentan del pago de la empresa.
+  //   - SÍ se retiene Impuesto Único 2ª Categoría: el sueldo empresarial es
+  //     renta del trabajo del socio, y va al Libro de Remuneraciones
+  //     Electrónico (LRE) de la DT, que alimenta F29 (retenciones IUSC) y
+  //     DJ 1887. La empresa retiene y entera el impuesto mensualmente.
+  if (tipo === "sueldo_empresarial") {
+    const bonosImpor  = bonos.filter(b => b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
+    const bonosNoImp  = bonos.filter(b => !b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
+    const otrosDesc   = descuentos.reduce((s, d) => s + (d.monto || 0), 0);
+
+    // Sueldo del mes (puede ser proporcional si dias_trabajados < 30, aunque
+    // típicamente el socio se asigna el mes completo).
+    const sueldoMes   = Math.round((sueldo_base / 30) * dias_trabajados);
+
+    // Cotizaciones voluntarias — informativas, NO se descuentan del pago.
+    // Si el usuario activó los flags en el contrato, mostramos los montos
+    // que el socio debe pagar por su cuenta en Previred (con RUT personal).
+    const afpComision   = getAfpComision(afp);
+    const afpInfo       = datos.cotiza_afp_voluntaria
+      ? calcularAFP(sueldoMes, afpComision) : 0;
+    const saludInfo     = datos.cotiza_salud_voluntaria
+      ? calcularSalud(sueldoMes, 0.07) : 0;
+
+    // Renta tributable para IUSC = sueldo del mes + bonos imponibles.
+    // Si el socio cotiza voluntariamente AFP/salud, esos montos rebajan la
+    // base tributable (igual que para un trabajador dependiente).
+    const rentaImpon  = sueldoMes + bonosImpor;
+    const rentaTrib   = Math.max(0, rentaImpon - afpInfo - saludInfo);
+    const impuesto    = calcularImpuesto(rentaTrib);   // IUSC mensual → F29
+
+    const totalHaberes    = sueldoMes + bonosImpor + bonosNoImp;
+    const totalDescuentos = impuesto + otrosDesc;
+    const liquidoAPagar   = Math.max(0, totalHaberes - totalDescuentos);
+    // Costo empresa = lo que contabiliza como gasto. No hay aportes patronales
+    // porque no hay relación laboral.
+    const costoEmpresa    = totalHaberes;
+
+    return {
+      sueldoProporcional: sueldoMes,
+      montoHorasExtra:    0,
+      valorHoraExtra:     0,
+      gratificacion:      0,
+      rentaImponible:     rentaImpon,
+      bonosImponibles:    bonosImpor,
+      bonosNoImponibles:  bonosNoImp,
+      totalHaberes,
+      afp_descuento:      0,           // no se descuenta de la liquidación
+      salud_descuento:    0,           // no se descuenta de la liquidación
+      cesantia_trabajador: 0,
+      cesantia_empleador:  0,
+      rentaTributable:    rentaTrib,
+      impuesto,                        // SÍ se retiene IUSC → F29
+      totalOtrosDesc:     otrosDesc,
+      totalDescuentos,
+      liquidoAPagar,
+      costoEmpresa,
+      mutual:             0,
+      sis:                0,
+      aportesEmpleador:   0,
+      previredTotal:      afpInfo + saludInfo,   // lo que paga el socio aparte
+      totalImponible:     rentaImpon,
+      // Metadata específica del Sueldo Empresarial
+      esSueldoEmpresarial: true,
+      afp_voluntaria_info:   afpInfo,   // informativo: paga el socio en Previred
+      salud_voluntaria_info: saludInfo, // informativo: paga el socio en Previred
+    };
+  }
+
 
   // ── SUELDO LÍQUIDO PACTADO (gross-up) ────────────────────────────────────
   // Aplica a contratos "proyecto" (Ley 19.981) y a cualquier contrato marcado

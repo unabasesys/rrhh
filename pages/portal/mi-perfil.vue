@@ -312,11 +312,12 @@ function formatCLP(n) {
 function mesNombre(m) { return MESES_NAMES[(Number(m) || 1) - 1] }
 function labelContrato(t) {
   const labels = {
-    indefinido: 'Indefinido',
-    plazo_fijo: 'Plazo fijo',
-    proyecto:   'Por proyecto/obra',
-    honorarios: 'A honorarios',
-    part_time:  'Part-time',
+    indefinido:         'Indefinido',
+    plazo_fijo:         'Plazo fijo',
+    proyecto:           'Por proyecto/obra',
+    honorarios:         'A honorarios',
+    part_time:          'Part-time',
+    sueldo_empresarial: 'Sueldo Empresarial',
   }
   return labels[t] || t || 'Contrato'
 }

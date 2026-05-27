@@ -632,7 +632,7 @@ function labelEstado(e) {
 }
 
 function labelContrato(tipo) {
-  return { indefinido: 'Indefinido', plazo_fijo: 'Plazo Fijo', proyecto: 'Por Proyecto', honorarios: 'Honorarios', part_time: 'Part Time' }[tipo] || tipo
+  return { indefinido: 'Indefinido', plazo_fijo: 'Plazo Fijo', proyecto: 'Por Proyecto', honorarios: 'Honorarios', part_time: 'Part Time', sueldo_empresarial: 'Sueldo Empresarial' }[tipo] || tipo
 }
 
 function formatCLP(v) {

@@ -813,6 +813,15 @@
                 <i class="u u-settings"></i>
                 <span>Part Time</span>
               </button>
+              <!-- Sueldo Empresarial (Art. 31 N°6 LIR) -->
+              <button type="button"
+                :class="['tipo-pill tipo-pill-sueldo-empresarial', contratoForm.tipo_contrato === 'sueldo_empresarial' && 'active']"
+                @click="contratoForm.tipo_contrato = 'sueldo_empresarial'"
+                title="Sueldo Empresarial — figura tributaria para socios/dueños (Art. 31 N°6 LIR)">
+                <i class="u u-empresa"></i>
+                <span>Sueldo Empresarial</span>
+                <small style="font-size:8px;color:#f59e0b;margin-top:1px">Socio / Dueño</small>
+              </button>
               <!-- Honorarios: solo descarga plantilla Word -->
               <a
                 href="/plantillas/contrato-honorarios.docx"
@@ -823,6 +832,24 @@
                 <span>Honorarios</span>
                 <small style="font-size:8px;color:#60a5fa;margin-top:1px">↓ Word</small>
               </a>
+            </div>
+
+            <!-- Banner explicativo: Sueldo Empresarial -->
+            <div v-if="contratoForm.tipo_contrato === 'sueldo_empresarial'" class="se-banner">
+              <div class="se-banner-icon">⚖️</div>
+              <div class="se-banner-body">
+                <div class="se-banner-title">Figura tributaria — NO es contrato laboral</div>
+                <div class="se-banner-text">
+                  El <strong>Sueldo Empresarial</strong> (Art. 31 N°6 LIR) permite a un socio/dueño asignarse
+                  remuneración como gasto necesario. <strong>No hay subordinación, no aplica Código del Trabajo</strong>,
+                  ni gratificación legal, ni seguro de cesantía. Las cotizaciones AFP/salud son
+                  <strong>voluntarias</strong> y las paga el socio en Previred con su RUT personal.
+                </div>
+                <div class="se-banner-reqs">
+                  <span class="se-req-chip">📋 Requiere trabajo efectivo, permanente y personal en el negocio</span>
+                  <span class="se-req-chip">💰 Debe ser razonable a precio de mercado</span>
+                </div>
+              </div>
             </div>
 
             <!-- Nivel 2: sub-selector Proyecto -->
@@ -1218,6 +1245,48 @@
                 </div>
               </template>
 
+              <!-- ── SUELDO EMPRESARIAL (Art. 31 N°6 LIR) ── -->
+              <template v-else-if="contratoForm.tipo_contrato === 'sueldo_empresarial'">
+                <div class="form-group" style="grid-column: 1 / -1">
+                  <div class="cf-proyecto-banner" style="border-color:#f59e0b;background:rgba(245,158,11,0.08)">
+                    <i class="u u-info-circle" style="color:#f59e0b"></i>
+                    <span>Monto asignado al socio. Se contabiliza como <strong>gasto necesario</strong> de la empresa (baja base imponible). El socio tributa por su cuenta en su F22.</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>RUT del Socio *</label>
+                  <input
+                    v-model="contratoForm.rut_socio"
+                    type="text"
+                    class="form-input"
+                    placeholder="12.345.678-9"
+                  />
+                  <small class="hint-text">RUT del dueño/accionista que recibe el sueldo empresarial</small>
+                </div>
+                <div class="form-group">
+                  <label>% Participación Societaria</label>
+                  <input
+                    v-model.number="contratoForm.pct_participacion"
+                    type="number" min="0" max="100" step="0.01"
+                    class="form-input"
+                    placeholder="0"
+                  />
+                  <small class="hint-text">% del capital social que posee el socio</small>
+                </div>
+                <div class="form-group">
+                  <label>Sueldo Empresarial Mensual *</label>
+                  <div class="money-input-wrap">
+                    <span class="money-prefix">$</span>
+                    <input
+                      :value="formatCLPInput(contratoForm.sueldo_base)"
+                      @input="e => contratoForm.sueldo_base = parseCLPInput(e.target.value)"
+                      class="form-input money-input" inputmode="numeric" placeholder="0"
+                    />
+                  </div>
+                  <small class="hint-text">Monto a registrar como gasto mensual</small>
+                </div>
+              </template>
+
               <!-- ── Contratos normales (indefinido / plazo_fijo / honorarios) ── -->
               <template v-else>
                 <div class="form-group" style="grid-column: 1 / -1">
@@ -1254,7 +1323,7 @@
                 </div>
               </template>
 
-              <div class="form-group">
+              <div class="form-group" v-if="contratoForm.tipo_contrato !== 'sueldo_empresarial'">
                 <label>Gratificación</label>
                 <select v-model="contratoForm.gratificacion" class="form-input">
                   <option value="mensual">Mensual (1/12 anual)</option>
@@ -1298,8 +1367,55 @@
             </div>
           </div>
 
-          <!-- TURNO -->
-          <div class="form-section">
+          <!-- COTIZACIONES VOLUNTARIAS + REQUISITOS SII (solo Sueldo Empresarial) -->
+          <div class="form-section" v-if="contratoForm.tipo_contrato === 'sueldo_empresarial'">
+            <h4 class="section-label">COTIZACIONES VOLUNTARIAS Y REQUISITOS SII</h4>
+
+            <div class="se-toggle-row">
+              <label class="se-toggle">
+                <input type="checkbox" v-model="contratoForm.cotiza_afp_voluntaria" />
+                <div>
+                  <div class="se-toggle-title">Cotiza AFP voluntariamente</div>
+                  <div class="se-toggle-desc">El socio paga 10% + comisión en Previred con su RUT personal. La empresa NO lo descuenta.</div>
+                </div>
+              </label>
+              <label class="se-toggle">
+                <input type="checkbox" v-model="contratoForm.cotiza_salud_voluntaria" />
+                <div>
+                  <div class="se-toggle-title">Cotiza salud voluntariamente</div>
+                  <div class="se-toggle-desc">El socio paga FONASA/Isapre 7% en Previred. La empresa NO lo descuenta.</div>
+                </div>
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-top:12px">
+              <label class="se-check-required">
+                <input type="checkbox" v-model="contratoForm.declara_trabajo_efectivo" />
+                <span>
+                  <strong>Declaro que el socio realiza un trabajo efectivo, permanente y personal en el negocio.</strong>
+                  <small style="display:block;color:#9ca3af;margin-top:2px">
+                    Requisito del SII para que el Sueldo Empresarial sea aceptado como gasto necesario (Art. 31 N°6 LIR).
+                  </small>
+                </span>
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-top:8px">
+              <label>Justificación del Monto <small style="color:#6b7280">(recomendado)</small></label>
+              <textarea
+                v-model="contratoForm.justificacion_monto"
+                class="form-input form-textarea"
+                rows="3"
+                placeholder="Ej: Monto consistente con sueldos de mercado para CEO de productora audiovisual de tamaño similar. Equivale al ~70% del sueldo de mercado externo según referencias del sector..."
+              />
+              <small class="hint-text">
+                Respaldo escrito por si el SII pregunta. El monto debe ser razonable y proporcional al trabajo realizado.
+              </small>
+            </div>
+          </div>
+
+          <!-- TURNO (no aplica a Sueldo Empresarial) -->
+          <div class="form-section" v-if="contratoForm.tipo_contrato !== 'sueldo_empresarial'">
             <h4 class="section-label">TURNO DE TRABAJO</h4>
             <select v-model="contratoForm.turno_id" class="form-input">
               <option value="">Sin turno asignado</option>
@@ -2463,6 +2579,13 @@ const contratoForm = ref({
   dias_contratados:        0,   // Días estimados del proyecto (se recalcula en liq por fechas)
   valor_hora_extra:        0,   // Valor líquido por hora extra acordada
   horas_extras_contratadas: 0,  // HH.EE. estimadas en el contrato
+  // Campos extra para Sueldo Empresarial (Art. 31 N°6 LIR)
+  rut_socio:               '',
+  pct_participacion:       0,
+  cotiza_afp_voluntaria:   false,
+  cotiza_salud_voluntaria: false,
+  declara_trabajo_efectivo:false,
+  justificacion_monto:     '',
 })
 // Modo vista de contrato existente (vs. creación)
 const contratoViewMode = ref(false)
@@ -3282,6 +3405,10 @@ const liqCalc = computed(() => {
     horas_extra:    liqForm.value.horas_extra,
     bonos:          liqForm.value.bonos,
     descuentos:     liqForm.value.descuentos,
+    // Flags Sueldo Empresarial (Art. 31 N°6 LIR) — solo aplican si el contrato
+    // es de tipo 'sueldo_empresarial'; en otros tipos son ignorados.
+    cotiza_afp_voluntaria:   cv?.cotiza_afp_voluntaria   || false,
+    cotiza_salud_voluntaria: cv?.cotiza_salud_voluntaria || false,
   })
 })
 
@@ -3296,12 +3423,13 @@ const _detalleResumen = computed(() => {
 
 function labelContrato(tipo) {
   const map = {
-    indefinido: 'Indefinido',
-    plazo_fijo: 'Plazo Fijo',
-    proyecto:   'Por Proyecto/Obra',
-    jornada:    'Por Jornada',
-    honorarios: 'Honorarios',
-    part_time:  'Part Time',
+    indefinido:         'Indefinido',
+    plazo_fijo:         'Plazo Fijo',
+    proyecto:           'Por Proyecto/Obra',
+    jornada:            'Por Jornada',
+    honorarios:         'Honorarios',
+    part_time:          'Part Time',
+    sueldo_empresarial: 'Sueldo Empresarial',
   }
   return map[tipo] || tipo
 }
@@ -3585,6 +3713,13 @@ async function descargarContratoPDFDesdeTab(c) {
     dias_contratados:        c.dias_contratados || 0,
     valor_hora_extra:        c.valor_hora_extra || 0,
     horas_extras_contratadas: c.horas_extras_contratadas || 0,
+    // Sueldo Empresarial (Art. 31 N°6 LIR)
+    rut_socio:               c.rut_socio || '',
+    pct_participacion:       c.pct_participacion || 0,
+    cotiza_afp_voluntaria:   !!c.cotiza_afp_voluntaria,
+    cotiza_salud_voluntaria: !!c.cotiza_salud_voluntaria,
+    declara_trabajo_efectivo:!!c.declara_trabajo_efectivo,
+    justificacion_monto:     c.justificacion_monto || '',
   }
   contratoViewMode.value = true
   contratoEditId.value = c._id
@@ -3698,6 +3833,13 @@ function openGenContrato() {
     dias_contratados:        0,
     valor_hora_extra:        0,
     horas_extras_contratadas: 0,
+    // Sueldo Empresarial (Art. 31 N°6 LIR)
+    rut_socio:               '',
+    pct_participacion:       0,
+    cotiza_afp_voluntaria:   false,
+    cotiza_salud_voluntaria: false,
+    declara_trabajo_efectivo:false,
+    justificacion_monto:     '',
   }
   showGenContrato.value = true
 }
@@ -3736,6 +3878,13 @@ async function abrirContratoExistente(c) {
     dias_contratados:        c.dias_contratados || 0,
     valor_hora_extra:        c.valor_hora_extra || 0,
     horas_extras_contratadas: c.horas_extras_contratadas || 0,
+    // Sueldo Empresarial (Art. 31 N°6 LIR)
+    rut_socio:               c.rut_socio || '',
+    pct_participacion:       c.pct_participacion || 0,
+    cotiza_afp_voluntaria:   !!c.cotiza_afp_voluntaria,
+    cotiza_salud_voluntaria: !!c.cotiza_salud_voluntaria,
+    declara_trabajo_efectivo:!!c.declara_trabajo_efectivo,
+    justificacion_monto:     c.justificacion_monto || '',
   }
 
   // Cargar líneas del proyecto si tiene negocio_id
@@ -3918,6 +4067,13 @@ async function generarContratoPDF() {
       negocio_nombre:    cf.negocio_nombre || null,
       linea_codigo:      cf.linea_codigo || null,
       linea_nombre:      cf.linea_nombre || null,
+      // Sueldo Empresarial (Art. 31 N°6 LIR) — solo se setean si aplica
+      rut_socio:               cf.tipo_contrato === 'sueldo_empresarial' ? (cf.rut_socio || '') : undefined,
+      pct_participacion:       cf.tipo_contrato === 'sueldo_empresarial' ? (cf.pct_participacion || 0) : undefined,
+      cotiza_afp_voluntaria:   cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.cotiza_afp_voluntaria   : undefined,
+      cotiza_salud_voluntaria: cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.cotiza_salud_voluntaria : undefined,
+      declara_trabajo_efectivo:cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.declara_trabajo_efectivo: undefined,
+      justificacion_monto:     cf.tipo_contrato === 'sueldo_empresarial' ? (cf.justificacion_monto || '') : undefined,
       estado:            'vigente',
       pdf_generado:      false,
       fecha_generacion:  new Date().toISOString(),
@@ -3980,6 +4136,13 @@ async function generarContratoPDF() {
         : '',
       clausulas_extras: cf.clausulas || [],
       fecha_documento:  new Date().toISOString().slice(0, 10),
+      // Campos Sueldo Empresarial (Art. 31 N°6 LIR) — solo aplican si tipo_contrato === 'sueldo_empresarial'
+      rut_socio:               cf.rut_socio || '',
+      pct_participacion:       cf.pct_participacion || 0,
+      cotiza_afp_voluntaria:   !!cf.cotiza_afp_voluntaria,
+      cotiza_salud_voluntaria: !!cf.cotiza_salud_voluntaria,
+      declara_trabajo_efectivo:!!cf.declara_trabajo_efectivo,
+      justificacion_monto:     cf.justificacion_monto || '',
       // Organización (lo que Python lee con org.get(...))
       organizacion: (() => { const _o = getOrgForPdf(); return { nombre: _o.nombre, rut: _o.rut, direccion: _o.direccion, ciudad: _o.ciudad } })(),
       logo_base64:  getOrgForPdf().logo_base64,
@@ -5199,6 +5362,82 @@ onMounted(async () => {
 .tipo-pill.active {
   background: rgba(58,199,165,0.12);
   border-color: #3ac7a5; color: #3ac7a5;
+}
+
+/* ── Sueldo Empresarial (Art. 31 N°6 LIR) ────────────────────────────────── */
+.tipo-pill-sueldo-empresarial:hover {
+  border-color: rgba(245,158,11,0.4);
+  color: #f59e0b;
+}
+.tipo-pill-sueldo-empresarial.active {
+  background: rgba(245,158,11,0.12);
+  border-color: #f59e0b; color: #f59e0b;
+}
+.se-banner {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-top: 12px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(245,158,11,0.35);
+  background: rgba(245,158,11,0.06);
+}
+.se-banner-icon { font-size: 24px; line-height: 1; flex-shrink: 0; }
+.se-banner-body { flex: 1; font-size: 12px; line-height: 1.5; color: #d1d5db; }
+.se-banner-title { font-weight: 700; color: #f59e0b; margin-bottom: 4px; }
+.se-banner-text { margin-bottom: 8px; }
+.se-banner-text strong { color: #f3f4f6; }
+.se-banner-reqs { display: flex; flex-wrap: wrap; gap: 6px; }
+.se-req-chip {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(245,158,11,0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245,158,11,0.25);
+}
+.se-toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.se-toggle {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.se-toggle:hover { border-color: rgba(245,158,11,0.35); }
+.se-toggle input[type="checkbox"] {
+  margin-top: 2px;
+  width: 16px; height: 16px;
+  accent-color: #f59e0b;
+  flex-shrink: 0;
+}
+.se-toggle-title { font-size: 12px; font-weight: 600; color: #f3f4f6; margin-bottom: 2px; }
+.se-toggle-desc  { font-size: 11px; color: #9ca3af; line-height: 1.4; }
+.se-check-required {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(245,158,11,0.3);
+  background: rgba(245,158,11,0.05);
+  cursor: pointer;
+}
+.se-check-required input[type="checkbox"] {
+  margin-top: 2px;
+  width: 16px; height: 16px;
+  accent-color: #f59e0b;
+  flex-shrink: 0;
+}
+.se-check-required > span { font-size: 12px; color: #f3f4f6; }
+@media (max-width: 640px) {
+  .se-toggle-row { grid-template-columns: 1fr; }
 }
 
 /* ── Proyecto sub-selector (nivel 2) ─────────────────────────────────────── */

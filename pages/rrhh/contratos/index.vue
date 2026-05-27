@@ -466,6 +466,7 @@ const tipoFiltros = [
   { v: 'indefinido', l: 'Indefinido' },
   { v: 'plazo_fijo', l: 'Plazo Fijo' },
   { v: 'proyecto', l: 'Proyecto' },
+  { v: 'sueldo_empresarial', l: 'Sueldo Empresarial' },
 ]
 
 const tiposContrato = [
@@ -581,7 +582,7 @@ function getInitials(c) {
 }
 
 function labelContrato(tipo) {
-  return { indefinido: 'Indefinido', plazo_fijo: 'Plazo Fijo', proyecto: 'Por Proyecto', honorarios: 'Honorarios', part_time: 'Part Time' }[tipo] || tipo
+  return { indefinido: 'Indefinido', plazo_fijo: 'Plazo Fijo', proyecto: 'Por Proyecto', honorarios: 'Honorarios', part_time: 'Part Time', sueldo_empresarial: 'Sueldo Empresarial' }[tipo] || tipo
 }
 
 function labelEstado(e) {

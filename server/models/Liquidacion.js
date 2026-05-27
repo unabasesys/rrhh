@@ -30,6 +30,12 @@ const LiquidacionSchema = new mongoose.Schema({
   bonos:                { type: mongoose.Schema.Types.Mixed, default: [] },
   descuentos:           { type: mongoose.Schema.Types.Mixed, default: [] },
   notas:                { type: String },
+  // ── Sueldo Empresarial (Art. 31 N°6 LIR) ────────────────────────────────
+  // Flags propagados desde el contrato y resultado del cálculo, para que el
+  // libro DT (LRE) y los reportes (Previred, F29, DJ 1887) puedan distinguir.
+  esSueldoEmpresarial:    { type: Boolean, default: false },
+  afp_voluntaria_info:    { type: Number,  default: 0 },   // informativa, paga el socio
+  salud_voluntaria_info:  { type: Number,  default: 0 },   // informativa, paga el socio
   // Estado
   estado:               { type: String, default: 'borrador', enum: ['borrador', 'pagada', 'pendiente'] },
   // Org (multi-empresa)
