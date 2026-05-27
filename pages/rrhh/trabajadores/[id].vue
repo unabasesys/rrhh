@@ -111,7 +111,11 @@
             <div class="info-rows">
               <div class="info-row">
                 <span class="info-label">Nombre</span>
-                <input class="info-input" v-model="fichaEdits.nombre" placeholder="Nombre" />
+                <input class="info-input" v-model="fichaEdits.nombre" placeholder="Nombres" />
+              </div>
+              <div class="info-row">
+                <span class="info-label">Apellido</span>
+                <input class="info-input" v-model="fichaEdits.apellido" placeholder="Apellidos" />
               </div>
               <div class="info-row">
                 <span class="info-label">RUT</span>
@@ -3821,8 +3825,8 @@ function openGenContrato() {
     tipo_sueldo:      'bruto',
     gratificacion:    'mensual',
     modalidad:        'presencial',
-    movilizacion:     50000,
-    colacion:         40000,
+    movilizacion:     0,
+    colacion:         0,
     turno_id:         '',
     negocio_id:       '',
     negocio_nombre:   '',
