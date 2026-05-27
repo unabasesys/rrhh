@@ -20,6 +20,7 @@
  */
 import PDFDocument from 'pdfkit'
 import { PassThrough } from 'stream'
+import { drawPeopleByFooter } from '../../utils/pdfFooter.js'
 
 // ── Paleta Unabase ──────────────────────────────────────────────────────────
 const C = {
@@ -364,6 +365,9 @@ export default defineEventHandler(async (event) => {
   drawText(doc, 'V°.B°.', firmaX, firmaY + 6, {
     fontSize: 9, color: C.DARK_TEXT, width: firmaW, align: 'center',
   })
+
+  // ── Pie "People by unabase" en todas las páginas ────────────────────────
+  drawPeopleByFooter(doc)
 
   // ── Fin ──────────────────────────────────────────────────────────────────
   doc.end()

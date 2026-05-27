@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
+import { drawPeopleByFooter } from "../../utils/pdfFooter.js";
 
 // ── Colores ───────────────────────────────────────────────────────────────────
 const TEAL       = "#2a9d8f";
@@ -704,6 +705,9 @@ async function generatePDF(data) {
             }
           );
       }
+
+      // ── Pie "People by unabase" debajo del footer de paginación ─────
+      drawPeopleByFooter(doc, { marginBottom: 4 });
 
       doc.end();
     } catch (err) {

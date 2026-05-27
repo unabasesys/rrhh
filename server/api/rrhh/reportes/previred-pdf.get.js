@@ -11,6 +11,7 @@ import PDFDocument from 'pdfkit'
 import { PassThrough } from 'stream'
 import { requireDb } from '../../../utils/db.js'
 import { requireAuth, orgScopeFilter } from '../../../utils/requireAuth.js'
+import { drawPeopleByFooter } from '../../../utils/pdfFooter.js'
 import Liquidacion  from '../../../models/Liquidacion.js'
 import Trabajador   from '../../../models/Trabajador.js'
 import Organization from '../../../models/Organization.js'
@@ -91,7 +92,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // ── Build PDF ──────────────────────────────────────────────────────────────
-  const doc = new PDFDocument({ size: 'LEGAL', layout: 'landscape', margin: 28 })
+  const doc = new PDFDocument({ size: 'LEGAL', layout: 'landscape', margin: 28, bufferPages: true })
   const stream = new PassThrough()
   doc.pipe(stream)
 
@@ -243,10 +244,12 @@ export default defineEventHandler(async (event) => {
   }
   y += rowH
 
-  // ── Footer ───────────────────────────────────────────────────────────────
+  // ── Footer: timestamp en página actual + "People by unabase" en todas ──
   doc.font('Helvetica').fontSize(7).fillColor(C.GRAY)
-     .text(`Generado por Unabase RRHH — ${new Date().toLocaleString('es-CL')}`,
+     .text(`Generado el ${new Date().toLocaleString('es-CL')}`,
            margin, pageH - 30, { width: pageW - 2 * margin, align: 'center' })
+
+  drawPeopleByFooter(doc)
 
   doc.end()
 

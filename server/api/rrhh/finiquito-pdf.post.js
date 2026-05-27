@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { drawPeopleByFooter } from "../../utils/pdfFooter.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ES = [
@@ -385,6 +386,9 @@ export default defineEventHandler(async (event) => {
       trab: (nomTrab || "TRABAJADOR").toUpperCase(),
       rut:  rutTrab,
     });
+
+    // ── Pie "People by unabase" en todas las páginas ──────────────────────
+    drawPeopleByFooter(doc);
 
     doc.end();
   });
