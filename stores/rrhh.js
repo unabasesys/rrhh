@@ -204,12 +204,11 @@ export const calcularLiquidacion = (datos) => {
   //     renta del trabajo del socio, y va al Libro de Remuneraciones
   //     Electrónico (LRE) de la DT, que alimenta F29 (retenciones IUSC) y
   //     DJ 1887.
-  //   - AFP y salud son VOLUNTARIAS. Si los flags están activos en el
-  //     contrato, la empresa procesa las cotizaciones a través de la planilla
-  //     (LRE/Previred) igual que a un trabajador dependiente — esto es lo
-  //     más común y lo que el SII espera ver para validar el gasto. Si los
-  //     flags están desactivados, el socio paga sus cotizaciones por su
-  //     cuenta en Previred con RUT personal y no aparecen en la liquidación.
+  //   - AFP y salud: por defecto la empresa las descuenta por planilla
+  //     (LRE/Previred) igual que a un trabajador dependiente. Los flags
+  //     `cotiza_afp_voluntaria` y `cotiza_salud_voluntaria` indican que el
+  //     socio paga esas cotizaciones por su cuenta en Previred con su RUT
+  //     personal; en ese caso la empresa NO las descuenta en la liquidación.
   if (tipo === "sueldo_empresarial") {
     const bonosImpor  = bonos.filter(b => b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
     const bonosNoImp  = bonos.filter(b => !b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
@@ -219,13 +218,14 @@ export const calcularLiquidacion = (datos) => {
     // típicamente el socio se asigna el mes completo).
     const sueldoMes   = Math.round((sueldo_base / 30) * dias_trabajados);
 
-    // Cotizaciones voluntarias — cuando los flags están activos, son
-    // descuentos efectivos del líquido a pagar (procesadas por planilla).
+    // Cotizaciones — por defecto la empresa descuenta AFP/salud por planilla.
+    // Si el socio marca que las cotiza voluntariamente en Previred con su RUT
+    // personal (flags activos), entonces la empresa NO descuenta esos montos.
     const afpComision  = getAfpComision(afp);
     const afpDesc      = datos.cotiza_afp_voluntaria
-      ? calcularAFP(sueldoMes + bonosImpor, afpComision) : 0;
+      ? 0 : calcularAFP(sueldoMes + bonosImpor, afpComision);
     const saludDesc    = datos.cotiza_salud_voluntaria
-      ? calcularSalud(sueldoMes + bonosImpor, 0.07) : 0;
+      ? 0 : calcularSalud(sueldoMes + bonosImpor, 0.07);
 
     // Renta tributable para IUSC = imponible − AFP − salud
     const rentaImpon   = sueldoMes + bonosImpor;
