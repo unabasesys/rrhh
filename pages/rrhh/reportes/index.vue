@@ -278,22 +278,29 @@ const filasPrevired = computed(() =>
   liquidacionesPeriodo.value.map(liq => {
     const trab = rrhhStore.trabajadores.find(t => t._id === liq.trabajador_id) || {}
     const sueldoImp = liq.total_imponible ?? liq.sueldo_base ?? 0
+    // Salud: el modelo guarda sistema_salud ('FONASA' | 'Isapre') + isapre_nombre
+    const sistemaSalud = trab.sistema_salud || 'FONASA'
+    const esIsapre     = sistemaSalud.toLowerCase().includes('isapre')
+    const saludLabel   = esIsapre
+      ? (trab.isapre_nombre ? `Isapre ${trab.isapre_nombre}` : 'Isapre')
+      : 'FONASA'
     return {
       trabajador_id:   liq.trabajador_id,
       rutFormat:       formatRut(trab.rut),
       rutLimpio:       (trab.rut || '').replace(/[^0-9kK]/g, ''),
-      nombreCompleto:  [trab.nombre, trab.apellido_paterno || trab.apellido, trab.apellido_materno].filter(Boolean).join(' ').trim() || trab.nombre || '—',
-      apellidoPaterno: trab.apellido_paterno || trab.apellido || '',
-      apellidoMaterno: trab.apellido_materno || '',
+      // El modelo solo tiene `apellido` (un campo, no separado en paterno/materno)
+      nombreCompleto:  `${trab.nombre || ''} ${trab.apellido || ''}`.trim() || '—',
+      apellidoPaterno: trab.apellido || '',
+      apellidoMaterno: '',
       nombres:         trab.nombre || '',
-      sexo:            (trab.sexo || 'M').toUpperCase(),
+      sexo:            (trab.sexo || '').toUpperCase() || '—',
       cargo:           trab.cargo || '—',
       dias:            liq.dias_trabajados || 30,
       imponible:       sueldoImp,
-      afpNombre:       trab.afp || liq.afp_nombre || 'Modelo',
+      afpNombre:       trab.afp || liq.afp_nombre || 'AFP Modelo',
       cotAfp:          liq.afp_descuento || 0,
       sis:             liq.sis_empleador || Math.round(sueldoImp * 0.0162),
-      saludNombre:     trab.isapre || trab.salud || liq.salud_nombre || 'Fonasa',
+      saludNombre:     saludLabel,
       cotSalud:        liq.salud_descuento || 0,
       afcTrab:         liq.cesantia_trabajador || 0,
       afcEmp:          liq.cesantia_empleador  || 0,
