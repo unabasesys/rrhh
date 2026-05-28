@@ -111,14 +111,6 @@ const navSections = computed(() => [
         badgeColor: null,
       },
       {
-        label:   'Contratos y Liq.',
-        icon:    'u u-ventas',
-        path:    '/rrhh/contratos',
-        matches: (p) => p.startsWith('/rrhh/contratos') || p.startsWith('/rrhh/liquidaciones'),
-        badge:   badgeContratos.value > 0 ? badgeContratos.value : null,
-        badgeColor: 'orange',
-      },
-      {
         label:   'Marcaciones',
         icon:    'u u-check',
         path:    '/rrhh/asistencia/marcaciones',
@@ -126,38 +118,11 @@ const navSections = computed(() => [
         badge:   badgeAsistencia.value > 0 ? badgeAsistencia.value : null,
         badgeColor: 'red',
       },
-      {
-        label:   'Proyectos y Líneas',
-        icon:    'u u-ventas',
-        path:    '/rrhh/admin/proyectos',
-        matches: (p) => p.startsWith('/rrhh/admin/proyectos'),
-        badge:   null,
-        badgeColor: null,
-      },
     ],
   },
-  // Sección Sistema eliminada — sus items se movieron:
-  //   • Proyectos y Líneas → Principal
-  //   • Organizaciones / Usuarios / Facturación → menú de usuario (header)
   {
     label: 'Herramientas',
     items: [
-      {
-        label:   'Dashboard',
-        icon:    'u u-home',
-        path:    '/rrhh/asistencia',
-        matches: (p) => p === '/rrhh/asistencia',
-        badge:   null,
-        badgeColor: null,
-      },
-      {
-        label:   'Turnos',
-        icon:    'u u-clock',
-        path:    '/rrhh/asistencia/turnos',
-        matches: (p) => p === '/rrhh/asistencia/turnos',
-        badge:   null,
-        badgeColor: null,
-      },
       {
         label:   'Reportes',
         icon:    'u u-reportes',
@@ -572,8 +537,20 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="user-dropdown__divider"></div>
+              <!-- Accesos al módulo (antes en sidebar) -->
+              <button class="user-dropdown__item" @click="router.push('/rrhh/admin/proyectos'); showUserMenu = false">
+                <i class="u u-folder-open"></i> Proyectos y Líneas
+              </button>
+              <button class="user-dropdown__item" @click="router.push('/rrhh/asistencia/turnos'); showUserMenu = false">
+                <i class="u u-clock"></i> Turnos
+              </button>
+              <button class="user-dropdown__item user-dropdown__item--disabled" disabled title="En construcción">
+                <i class="u u-home"></i> Dashboard
+                <span class="user-dropdown__pill">Pronto</span>
+              </button>
+              <div class="user-dropdown__divider"></div>
               <button v-if="authStore?.canManageOrgs" class="user-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showUserMenu = false">
-                <i class="u u-empresa"></i> Organizaciones
+                <i class="u u-building"></i> Organizaciones
               </button>
               <button v-if="authStore?.canManageUsers" class="user-dropdown__item" @click="router.push('/rrhh/admin/usuarios'); showUserMenu = false">
                 <i class="u u-usuarios"></i> Gestión de usuarios
@@ -1154,6 +1131,38 @@ onUnmounted(() => {
 .org-item-rut  { font-size: 11px; color: #9ca3af; }
 
 .org-dropdown__divider { height: 1px; background: rgba(0,0,0,0.07); margin: 4px 0; }
+
+/* Items extra del dropdown del usuario (Contratos, Proyectos, Turnos, Dashboard) */
+.user-dropdown__item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.user-dropdown__badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f97316;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.user-dropdown__pill {
+  margin-left: auto;
+  background: rgba(255,255,255,0.08);
+  color: var(--neutral-text-muted, #9ca3af);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+:root.light-theme .user-dropdown__pill { background: #f1f5f9; color: #64748b; }
 
 /* ── User chip ───────────────────────────────────────────────────────────── */
 .user-menu-wrap {

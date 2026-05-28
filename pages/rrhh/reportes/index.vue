@@ -207,7 +207,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import useRrhhStore from '@/stores/rrhh'
 import RrhhSectionTabs from '@/components/rrhh/SectionTabs.vue'
 
@@ -238,12 +238,41 @@ const herramientasTabs = [
   { key: 'informes', label: 'Informes Asistencia', path: '/rrhh/asistencia/informes' },
 ]
 
-// ─── Cotización: una fila por liquidación del mes/año seleccionado ──────────
-const liquidacionesPeriodo = computed(() =>
-  (rrhhStore.liquidaciones || []).filter(l =>
-    l.anio === filtroAnio.value && l.mes === filtroMes.value
+// Asegurar que trabajadores y liquidaciones estén cargados al entrar
+// (si el usuario entra directo a /rrhh/reportes el store estaba vacío).
+onMounted(async () => {
+  try {
+    const { useAuthStore } = await import('@/stores/auth')
+    const authStore = useAuthStore()
+    await authStore.init()
+    rrhhStore.setOrgId?.(authStore.currentOrgId)
+  } catch {}
+  if (!rrhhStore.trabajadores?.length) await rrhhStore.getTrabajadores?.()
+  if (!rrhhStore.liquidaciones?.length) await rrhhStore.getLiquidaciones?.()
+})
+
+// ─── Cotización: una fila por liquidación válida del mes/año seleccionado ──
+// Reglas:
+//  - Scope por organización activa
+//  - Excluir borradores
+//  - Excluir liquidaciones cuyo trabajador no existe o está inactivo
+//  - Un trabajador puede tener N liquidaciones (varios contratos vigentes)
+const liquidacionesPeriodo = computed(() => {
+  const oid = rrhhStore.currentOrgId
+  const activos = new Set(
+    (rrhhStore.trabajadores || [])
+      .filter(t => t.estado !== 'inactivo')
+      .map(t => t._id)
   )
-)
+  return (rrhhStore.liquidaciones || []).filter(l => {
+    if (oid && l.orgId && l.orgId !== oid) return false
+    if (Number(l.anio) !== Number(filtroAnio.value)) return false
+    if (Number(l.mes)  !== Number(filtroMes.value))  return false
+    if (l.estado === 'borrador') return false
+    if (!activos.has(l.trabajador_id)) return false   // excluye huérfanas e inactivos
+    return true
+  })
+})
 
 const filasPrevired = computed(() =>
   liquidacionesPeriodo.value.map(liq => {
