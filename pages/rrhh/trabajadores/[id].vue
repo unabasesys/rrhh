@@ -3674,9 +3674,17 @@ async function _descargarLiqDesdeCalc() {
     trabajador: {
       nombre:        `${t.nombre || ''} ${t.apellido || ''}`.trim(),
       rut:           t.rut || '',
-      cargo:         t.cargo || '',
+      cargo:         t.cargo || liqContratoActivo.value?.cargo || '',
       afp:           t.afp || '',
       sistema_salud: t.sistema_salud || 'FONASA',
+      // Fecha de ingreso = fecha_inicio del contrato vigente (no del trabajador)
+      fecha_ingreso: liqContratoActivo.value?.fecha_inicio || contratoVigente.value?.fecha_inicio || '',
+      // Centro de costo = nombre del proyecto/negocio del contrato
+      centro_costo:  liqContratoActivo.value?.negocio_nombre
+                   || liqContratoActivo.value?.nombre_proyecto
+                   || contratoVigente.value?.negocio_nombre
+                   || contratoVigente.value?.nombre_proyecto
+                   || '',
       dias_trabajados: liqForm.value.contratos_sel.length > 0
         ? '30 (por proyecto)'
         : String(liqForm.value.dias_trabajados),
@@ -3838,6 +3846,11 @@ async function descargarLiqPDF(liq) {
         afp:             t.afp || '',
         sistema_salud:   t.sistema_salud || 'FONASA',
         tipo_contrato:   t.tipo_contrato || 'indefinido',
+        // Fecha ingreso y centro de costo desde el contrato vinculado a la liquidación
+        fecha_ingreso:   (rrhhStore.contratos.find(c => c._id === liq.contrato_id) || contratoVigente.value)?.fecha_inicio || '',
+        centro_costo:    (rrhhStore.contratos.find(c => c._id === liq.contrato_id) || contratoVigente.value)?.negocio_nombre
+                      || (rrhhStore.contratos.find(c => c._id === liq.contrato_id) || contratoVigente.value)?.nombre_proyecto
+                      || '',
       },
       liquidacion: {
         mes:                 liq.mes,

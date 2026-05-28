@@ -110,14 +110,24 @@ function drawFirmaSello(doc, x, y, estado, fecha, tipo) {
 function drawText(doc, text, x, y, opts = {}) {
   const {
     font = 'Helvetica', fontSize = 9, color = C.DARK_TEXT,
-    width = null, align = 'left',
+    width = null, align = 'left', wrap = false,
   } = opts
   doc.save()
   doc.font(font).fontSize(fontSize).fillColor(color)
-  const args = { lineBreak: false }
+  const args = { lineBreak: wrap }
   if (width) { args.width = width; args.align = align }
   doc.text(text, x, y, args)
   doc.restore()
+}
+
+// Devuelve la altura en puntos que ocuparía el texto con wrap activo
+function measureTextHeight(doc, text, opts = {}) {
+  const { font = 'Helvetica', fontSize = 9, width } = opts
+  doc.save()
+  doc.font(font).fontSize(fontSize)
+  const h = doc.heightOfString(String(text || '—'), { width })
+  doc.restore()
+  return h
 }
 
 // ── Handler ─────────────────────────────────────────────────────────────────
@@ -213,11 +223,13 @@ export default defineEventHandler(async (event) => {
       font: 'Helvetica-Bold', fontSize: 9, color: C.DARK_TEXT,
     })
     const labelW = doc.widthOfString(label) + 4
+    const valW   = blkW - 18 - labelW
     drawText(doc, value || '—', labelLeft + labelW, ly, {
       font: 'Helvetica', fontSize: 9, color: C.DARK_TEXT,
-      width: blkW - 18 - labelW, align: 'left',
+      width: valW, align: 'left', wrap: true,
     })
-    ly += lineH
+    const h = measureTextHeight(doc, value || '—', { width: valW })
+    ly += Math.max(lineH, h + 2)
   }
   drawKV('Rut:', formatRut(rut))
   drawKV('Fecha de Ingreso:', formatFecha(trab.fecha_ingreso))
@@ -238,12 +250,14 @@ export default defineEventHandler(async (event) => {
     drawText(doc, label, rightX + 12, ry, {
       font: 'Helvetica-Bold', fontSize: 9, color: C.DARK_TEXT,
     })
-    const lw = doc.widthOfString(label) + 4
+    const lw  = doc.widthOfString(label) + 4
+    const vw  = blkW - 24 - lw
     drawText(doc, value || '—', rightX + 12 + lw, ry, {
       font: 'Helvetica', fontSize: 9, color: C.DARK_TEXT,
-      width: blkW - 24 - lw, align: 'left',
+      width: vw, align: 'left', wrap: true,
     })
-    ry += lineH
+    const h = measureTextHeight(doc, value || '—', { width: vw })
+    ry += Math.max(lineH, h + 2)
   }
   drawKVRight('Razón Social:', org.nombre || org.razon_social || '—')
   drawKVRight('Rut:',          formatRut(org.rut))
