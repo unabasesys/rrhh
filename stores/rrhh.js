@@ -723,25 +723,36 @@ const useRrhhStore = defineStore("rrhh", {
     },
 
     // ── API helpers (modo dual: API si disponible, localStorage como fallback) ─
+    // ── Helper: lee el token Bearer desde la sesión persistida ──────────────
+    _authHeaders() {
+      if (typeof window === 'undefined') return {};
+      try {
+        const ses = JSON.parse(localStorage.getItem('rrhh_session') || '{}');
+        return ses.token ? { Authorization: `Bearer ${ses.token}` } : {};
+      } catch { return {}; }
+    },
+
     async _apiGet(path, params = {}) {
       try {
         const qs = new URLSearchParams(params).toString();
-        return await $fetch(`/api/rrhh/${path}${qs ? "?" + qs : ""}`);
+        return await $fetch(`/api/rrhh/${path}${qs ? "?" + qs : ""}`, {
+          headers: this._authHeaders(),
+        });
       } catch (e) {
         if (e?.statusCode === 503) return null;  // sin DB → fallback
         throw e;
       }
     },
     async _apiPost(path, body) {
-      try { return await $fetch(`/api/rrhh/${path}`, { method: "POST", body }); }
+      try { return await $fetch(`/api/rrhh/${path}`, { method: "POST", body, headers: this._authHeaders() }); }
       catch (e) { if (e?.statusCode === 503) return null; throw e; }
     },
     async _apiPut(path, body) {
-      try { return await $fetch(`/api/rrhh/${path}`, { method: "PUT", body }); }
+      try { return await $fetch(`/api/rrhh/${path}`, { method: "PUT", body, headers: this._authHeaders() }); }
       catch (e) { if (e?.statusCode === 503) return null; throw e; }
     },
     async _apiDel(path) {
-      try { return await $fetch(`/api/rrhh/${path}`, { method: "DELETE" }); }
+      try { return await $fetch(`/api/rrhh/${path}`, { method: "DELETE", headers: this._authHeaders() }); }
       catch (e) { if (e?.statusCode === 503) return null; throw e; }
     },
 
