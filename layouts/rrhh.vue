@@ -119,7 +119,7 @@ const navSections = computed(() => [
         badgeColor: 'orange',
       },
       {
-        label:   'Asistencia',
+        label:   'Marcaciones',
         icon:    'u u-check',
         path:    '/rrhh/asistencia/marcaciones',
         matches: (p) => p === '/rrhh/asistencia/marcaciones' || p === '/rrhh/asistencia/informes',
