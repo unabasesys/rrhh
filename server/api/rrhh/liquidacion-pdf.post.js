@@ -268,28 +268,34 @@ export default defineEventHandler(async (event) => {
   // ══════════════════════════════════════════════════════════════════════════
   // KPI ROW: Días Trabajados | Días Licencia | Días Ausencia | Horas Base
   // ══════════════════════════════════════════════════════════════════════════
-  const kpis = [
-    { label: 'Días Trabajados:', value: String(liq.dias_trabajados ?? 30) },
-    { label: 'Días Licencia',    value: String(liq.dias_licencia   ?? 0) },
-    { label: 'Días Ausencia',    value: String(liq.dias_ausencia   ?? 0) },
-    { label: 'Horas Base',       value: liq.horas_base ? String(liq.horas_base).replace('.', ',') : '45,0' },
+  // KPIs: omitir los que tengan valor 0 (excepto Días Trabajados, siempre se muestra)
+  const allKpis = [
+    { label: 'Días Trabajados', value: String(liq.dias_trabajados ?? 30), always: true },
+    { label: 'Días Licencia',   value: String(liq.dias_licencia   ?? 0) },
+    { label: 'Días Ausencia',   value: String(liq.dias_ausencia   ?? 0) },
+    { label: 'Horas Base',      value: liq.horas_base ? String(liq.horas_base).replace('.', ',') : '45,0' },
   ]
-  const kpiW = (CW - 3 * 8) / 4
-  const kpiH = 56
-  kpis.forEach((k, i) => {
-    const kx = ML + i * (kpiW + 8)
-    // Label superior con fondo teal claro
-    fillRect(doc, kx, y, kpiW, 22, C.TEAL_LIGHT)
-    drawText(doc, k.label, kx, y + 7, {
-      fontSize: 9, color: C.DARK, font: 'Helvetica-Bold',
-      width: kpiW, align: 'center',
+  const kpis = allKpis.filter(k => k.always || (k.value && k.value !== '0' && k.value !== '0,0'))
+
+  if (kpis.length > 0) {
+    const gap  = 8
+    const kpiW = (CW - (kpis.length - 1) * gap) / kpis.length
+    const kpiH = 42
+    kpis.forEach((k, i) => {
+      const kx = ML + i * (kpiW + gap)
+      // Label superior con fondo teal claro
+      fillRect(doc, kx, y, kpiW, 16, C.TEAL_LIGHT)
+      drawText(doc, k.label, kx, y + 5, {
+        fontSize: 7.5, color: C.DARK, font: 'Helvetica-Bold',
+        width: kpiW, align: 'center',
+      })
+      drawText(doc, k.value, kx, y + 22, {
+        fontSize: 11, color: C.DARK_TEXT, font: 'Helvetica',
+        width: kpiW, align: 'center',
+      })
     })
-    drawText(doc, k.value, kx, y + 32, {
-      fontSize: 13, color: C.DARK_TEXT, font: 'Helvetica',
-      width: kpiW, align: 'center',
-    })
-  })
-  y += kpiH + 16
+    y += kpiH + 12
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // TABLA DETALLE
