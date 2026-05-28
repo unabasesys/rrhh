@@ -222,23 +222,51 @@ export const calcularLiquidacion = (datos) => {
     // Si el socio marca que las cotiza voluntariamente en Previred con su RUT
     // personal (flags activos), entonces la empresa NO descuenta esos montos.
     const afpComision  = getAfpComision(afp);
-    const afpDesc      = datos.cotiza_afp_voluntaria
-      ? 0 : calcularAFP(sueldoMes + bonosImpor, afpComision);
-    const saludDesc    = datos.cotiza_salud_voluntaria
-      ? 0 : calcularSalud(sueldoMes + bonosImpor, 0.07);
-
-    // Renta tributable para IUSC = imponible − AFP − salud
     const rentaImpon   = sueldoMes + bonosImpor;
-    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDesc);
+
+    const afpDesc      = datos.cotiza_afp_voluntaria
+      ? 0 : calcularAFP(rentaImpon, afpComision);
+    const saludDesc    = datos.cotiza_salud_voluntaria
+      ? 0 : calcularSalud(rentaImpon, 0.07);
+
+    // ── Isapre sobre 7% (UF excedente) ──────────────────────────────────────
+    // Si el plan pactado en UF supera el 7% del imponible, el cotizante paga
+    // la diferencia. Fórmula: max(0, UF_plan × UF_actual − 7% × imponible)
+    const ind  = _getIndicadores();
+    const trabIsapreTipo  = datos.trabajador?.isapre_tipo || datos.isapre_tipo;
+    const trabIsapreMonto = Number(datos.trabajador?.isapre_monto ?? datos.trabajador?.isapre_uf ?? datos.isapre_monto ?? 0);
+    let isapreAdicional = 0;
+    if (!datos.cotiza_salud_voluntaria && trabIsapreTipo === 'UF' && trabIsapreMonto > 0 && ind.uf_actual) {
+      const planCLP = trabIsapreMonto * ind.uf_actual;
+      isapreAdicional = Math.max(0, Math.round(planCLP - saludDesc));
+    }
+
+    // ── Cargos patronales que el socio asume en Sueldo Empresarial ──────────
+    // En este régimen el socio paga los cargos del empleador (SIS, Seguro
+    // Social/Expectativa de Vida, Capitalización Individual Patronal) por
+    // su cuenta. Aparecen en la liquidación como descuentos del bruto.
+    const sisDesc             = datos.cotiza_afp_voluntaria
+      ? 0 : Math.round(rentaImpon * (ind.sis_tasa || 0.0162));
+    const expectativaVidaDesc = datos.cotiza_afp_voluntaria
+      ? 0 : Math.round(rentaImpon * (ind.expectativa_vida_tasa || 0.009));
+    const capPatronalDesc     = datos.cotiza_afp_voluntaria
+      ? 0 : Math.round(rentaImpon * (ind.cap_individual_patronal || 0.001));
+
+    // ── Renta tributable y IUSC ─────────────────────────────────────────────
+    // El SIS NO reduce renta tributable (es cargo patronal). Sí reducen:
+    // AFP, salud, isapre adicional, expectativa vida, capitalización patronal.
+    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDesc - isapreAdicional - expectativaVidaDesc - capPatronalDesc);
     const impuesto     = calcularImpuesto(rentaTrib);   // IUSC mensual → F29
 
     const totalHaberes    = sueldoMes + bonosImpor + bonosNoImp;
-    const totalDescuentos = afpDesc + saludDesc + impuesto + otrosDesc;
+    const totalDescuentos = afpDesc + saludDesc + isapreAdicional + sisDesc
+                          + expectativaVidaDesc + capPatronalDesc + impuesto + otrosDesc;
     const liquidoAPagar   = Math.max(0, totalHaberes - totalDescuentos);
     // Costo empresa = lo que contabiliza como gasto = total haberes brutos.
-    // No hay aportes patronales (no hay relación laboral subordinada).
+    // No hay aportes patronales separados (el socio los paga del mismo monto).
     const costoEmpresa    = totalHaberes;
-    const previredTotal   = afpDesc + saludDesc;   // lo que la empresa entera
+    const previredTotal   = afpDesc + saludDesc + isapreAdicional + sisDesc
+                          + expectativaVidaDesc + capPatronalDesc;
 
     return {
       sueldoProporcional: sueldoMes,
@@ -249,20 +277,24 @@ export const calcularLiquidacion = (datos) => {
       bonosImponibles:    bonosImpor,
       bonosNoImponibles:  bonosNoImp,
       totalHaberes,
-      afp_descuento:      afpDesc,         // efectivo si flag activo
-      salud_descuento:    saludDesc,       // efectivo si flag activo
+      afp_descuento:      afpDesc,
+      salud_descuento:    saludDesc,
+      isapre_adicional:   isapreAdicional,
+      sis_descuento:           sisDesc,
+      expectativa_vida_desc:   expectativaVidaDesc,
+      cap_patronal_desc:       capPatronalDesc,
       cesantia_trabajador: 0,
       cesantia_empleador:  0,
       rentaTributable:    rentaTrib,
-      impuesto,                            // IUSC → F29
+      impuesto,
       totalOtrosDesc:     otrosDesc,
       totalDescuentos,
       liquidoAPagar,
       costoEmpresa,
       mutual:             0,
-      sis:                0,
+      sis:                sisDesc,
       aportesEmpleador:   0,
-      previredTotal,                       // lo que la empresa entera a Previred
+      previredTotal,
       totalImponible:     rentaImpon,
       // Metadata específica del Sueldo Empresarial
       esSueldoEmpresarial:  true,

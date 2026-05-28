@@ -38,7 +38,14 @@ const DEFAULTS = {
 
   // ── SIS (Seguro de Invalidez y Sobrevivencia) ──────────────────────────────
   // Oficio Ordinario N° 7429, publicado 14-04-2026
-  sis_tasa:       0.0162,      // 1,62% cargo empleador
+  sis_tasa:       0.0162,      // 1,62% cargo empleador (Superintendencia de Pensiones)
+
+  // ── Otros cargos patronales (cuenta del empleador) ─────────────────────────
+  // Aplican normalmente como costo del empleador. En el régimen Sueldo
+  // Empresarial los paga el propio socio (asume rol patronal).
+  // Fuentes: Previred / IPS / ChileAtiende
+  expectativa_vida_tasa:   0.009,   // 0,9% — Seguro Social / Expectativa de Vida
+  cap_individual_patronal: 0.001,   // 0,1% — Capitalización Individual Patronal
 
   // ── Salud ──────────────────────────────────────────────────────────────────
   salud_minima:   0.07,        // 7% legal mínimo

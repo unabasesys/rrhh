@@ -69,6 +69,44 @@ function fillRect(doc, x, y, w, h, fill, stroke = null, lw = 0.5) {
   doc.restore()
 }
 
+// Dibuja un sello "FIRMADA" o "PENDIENTE DE FIRMA" rotado
+function drawFirmaSello(doc, x, y, estado, fecha, tipo) {
+  doc.save()
+  const w = 130, h = 50
+  const isFirmada = estado === 'firmada'
+  const color   = isFirmada ? '#0DCFA8' : '#9ca3af'
+  const text1   = isFirmada ? 'FIRMADA' : 'PENDIENTE'
+  const text2   = isFirmada
+    ? (tipo === 'manual' ? 'manualmente' : 'digitalmente')
+    : 'de firma'
+
+  // Rotar -8° alrededor del centro del sello
+  doc.translate(x + w / 2, y + h / 2)
+  doc.rotate(-8)
+  doc.translate(-w / 2, -h / 2)
+
+  // Doble borde redondeado tipo sello
+  doc.lineWidth(2.2).strokeColor(color)
+  doc.roundedRect(0, 0, w, h, 7).stroke()
+  doc.lineWidth(0.8).strokeColor(color)
+  doc.roundedRect(4, 4, w - 8, h - 8, 5).stroke()
+
+  // Texto principal
+  doc.font('Helvetica-Bold').fontSize(15).fillColor(color)
+  doc.text(text1, 0, 10, { width: w, align: 'center', lineBreak: false })
+  // Subtítulo
+  doc.font('Helvetica').fontSize(9).fillColor(color)
+  doc.text(text2, 0, 28, { width: w, align: 'center', lineBreak: false })
+  // Fecha si firmada
+  if (isFirmada && fecha) {
+    let f = fecha
+    try { f = new Date(fecha).toLocaleDateString('es-CL') } catch {}
+    doc.font('Helvetica').fontSize(7).fillColor(color)
+    doc.text(f, 0, 40, { width: w, align: 'center', lineBreak: false })
+  }
+  doc.restore()
+}
+
 function drawText(doc, text, x, y, opts = {}) {
   const {
     font = 'Helvetica', fontSize = 9, color = C.DARK_TEXT,
@@ -103,6 +141,12 @@ export default defineEventHandler(async (event) => {
   const logoB64 = body.logo_base64 || org.logo_base64 || org.logo || null
   const nombreTrab = (trab.nombre || trab.nombre_completo || '').toUpperCase()
   const rut    = trab.rut || ''
+
+  // Estado de firma para el sello: 'firmada' | 'pendiente' | 'sin_firma'
+  const firma = body.firma || liq.firma || {}
+  const firmaEstado = firma.estado || (firma.firmada ? 'firmada' : (liq.estado === 'pagada' ? 'firmada' : 'pendiente'))
+  const firmaFecha  = firma.fecha || null
+  const firmaTipo   = firma.tipo  || 'digital'
 
   // ── PDF setup ─────────────────────────────────────────────────────────────
   const doc = new PDFDocument({
@@ -365,6 +409,20 @@ export default defineEventHandler(async (event) => {
   drawText(doc, 'V°.B°.', firmaX, firmaY + 6, {
     fontSize: 9, color: C.DARK_TEXT, width: firmaW, align: 'center',
   })
+
+  // ── Sello de firma (firmada / pendiente) ────────────────────────────────
+  // Se posiciona sobre la línea V°B°, ligeramente desplazado
+  drawFirmaSello(doc, firmaX + 15, firmaY - 50, firmaEstado, firmaFecha, firmaTipo)
+
+  // ── Logo de la organización abajo a la izquierda del recibo ─────────────
+  if (logoB64) {
+    try {
+      const cleaned = String(logoB64).replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
+      const logoBuf = Buffer.from(cleaned, 'base64')
+      const logoY = recY + 55
+      doc.image(logoBuf, ML, logoY, { fit: [80, 35], align: 'left' })
+    } catch (e) { /* logo inválido — silenciar */ }
+  }
 
   // ── Pie "People by unabase" en todas las páginas ────────────────────────
   drawPeopleByFooter(doc)

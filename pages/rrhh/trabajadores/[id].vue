@@ -2120,6 +2120,18 @@
                 <div class="liq-line">
                   <span>Salud {{ trabajador.sistema_salud || 'FONASA' }} (7%)</span><span class="red">-{{ formatCLP(liqCalc.salud_descuento) }}</span>
                 </div>
+                <div class="liq-line" v-if="liqCalc.isapre_adicional > 0">
+                  <span>Isapre sobre 7% (Plan UF {{ trabajador.isapre_monto || 0 }})</span><span class="red">-{{ formatCLP(liqCalc.isapre_adicional) }}</span>
+                </div>
+                <div class="liq-line" v-if="liqCalc.sis_descuento > 0">
+                  <span>SIS Empresarial (1.62%)</span><span class="red">-{{ formatCLP(liqCalc.sis_descuento) }}</span>
+                </div>
+                <div class="liq-line" v-if="liqCalc.expectativa_vida_desc > 0">
+                  <span>Expectativa de Vida Patronal (0.9%)</span><span class="red">-{{ formatCLP(liqCalc.expectativa_vida_desc) }}</span>
+                </div>
+                <div class="liq-line" v-if="liqCalc.cap_patronal_desc > 0">
+                  <span>Capitalización Individual Patronal (0.1%)</span><span class="red">-{{ formatCLP(liqCalc.cap_patronal_desc) }}</span>
+                </div>
                 <div class="liq-line" v-if="liqCalc.cesantia_trabajador > 0">
                   <span>Cesantía (0.6%)</span><span class="red">-{{ formatCLP(liqCalc.cesantia_trabajador) }}</span>
                 </div>
@@ -3447,6 +3459,9 @@ const liqCalc = computed(() => {
     afp:            trabajador.value.afp,
     sistema_salud:  trabajador.value.sistema_salud,
     isapre_uf:      trabajador.value.isapre_uf || 0,
+    isapre_tipo:    trabajador.value.isapre_tipo,
+    isapre_monto:   trabajador.value.isapre_monto,
+    trabajador:     trabajador.value,
     tipo_contrato:  cv?.tipo_contrato || 'indefinido',
     tipo_sueldo:    cv?.tipo_sueldo || 'bruto',
     gratificacion:  cv?.gratificacion || trabajador.value.gratificacion || 'mensual',
@@ -3656,9 +3671,13 @@ async function _descargarLiqDesdeCalc() {
       liquido_a_pagar:  lc.liquidoAPagar,
       haberes: haberesPDF,
       descuentos_legales: [
-        { nombre: t.afp || 'AFP',                       monto: lc.afp_descuento },
-        { nombre: `Salud ${t.sistema_salud || 'FONASA'}`, monto: lc.salud_descuento },
-        { nombre: 'Cesantía (0.6%)',                    monto: lc.cesantia_trabajador },
+        { nombre: t.afp || 'AFP',                                     monto: lc.afp_descuento },
+        { nombre: `Salud ${t.sistema_salud || 'FONASA'} (7%)`,        monto: lc.salud_descuento },
+        ...(lc.isapre_adicional > 0       ? [{ nombre: `Isapre sobre 7% (Plan UF ${t.isapre_monto || 0})`, monto: lc.isapre_adicional }]       : []),
+        ...(lc.sis_descuento > 0          ? [{ nombre: 'SIS Empresarial (1.62%)',                          monto: lc.sis_descuento }]           : []),
+        ...(lc.expectativa_vida_desc > 0  ? [{ nombre: 'Expectativa de Vida Patronal (0.9%)',              monto: lc.expectativa_vida_desc }]   : []),
+        ...(lc.cap_patronal_desc > 0      ? [{ nombre: 'Capitalización Individual Patronal (0.1%)',       monto: lc.cap_patronal_desc }]       : []),
+        { nombre: 'Cesantía (0.6%)',                                  monto: lc.cesantia_trabajador },
         ...(lc.impuesto > 0 ? [{ nombre: 'Imp. 2ª Cat.', monto: lc.impuesto }] : []),
       ].filter(d => d.monto > 0),
       otros_descuentos: (liqForm.value.descuentos || []).filter(d => d.monto > 0),
@@ -3721,13 +3740,17 @@ async function saveLiq(estado) {
     total_descuentos:    liqCalc.value.totalDescuentos,
     liquido_a_pagar:     liqCalc.value.liquidoAPagar,
     costo_empresa:       liqCalc.value.costoEmpresa,
-    afp_descuento:       liqCalc.value.afp_descuento,
-    salud_descuento:     liqCalc.value.salud_descuento,
-    cesantia_trabajador: liqCalc.value.cesantia_trabajador,
-    cesantia_empleador:  liqCalc.value.cesantia_empleador,
-    impuesto:            liqCalc.value.impuesto,
-    renta_imponible:     liqCalc.value.rentaImponible,
-    renta_tributable:    liqCalc.value.rentaTributable,
+    afp_descuento:        liqCalc.value.afp_descuento,
+    salud_descuento:      liqCalc.value.salud_descuento,
+    isapre_adicional:     liqCalc.value.isapre_adicional || 0,
+    sis_descuento:        liqCalc.value.sis_descuento || 0,
+    expectativa_vida_desc: liqCalc.value.expectativa_vida_desc || 0,
+    cap_patronal_desc:    liqCalc.value.cap_patronal_desc || 0,
+    cesantia_trabajador:  liqCalc.value.cesantia_trabajador,
+    cesantia_empleador:   liqCalc.value.cesantia_empleador,
+    impuesto:             liqCalc.value.impuesto,
+    renta_imponible:      liqCalc.value.rentaImponible,
+    renta_tributable:     liqCalc.value.rentaTributable,
     estado,
   })
   showNewLiq.value = false
@@ -3822,12 +3845,24 @@ async function descargarLiqPDF(liq) {
         ...bonos.map(b => ({ nombre: b.nombre || b.tipo, monto: b.monto, imponible: b.imponible })),
       ].filter(h => h.monto > 0),
       descuentos_legales: [
-        { nombre: t.afp || 'AFP', monto: liq.afp_descuento },
-        { nombre: t.sistema_salud || 'FONASA', monto: liq.salud_descuento },
+        { nombre: t.afp || 'AFP',                                            monto: liq.afp_descuento },
+        { nombre: `Salud ${t.sistema_salud || 'FONASA'} (7%)`,               monto: liq.salud_descuento },
+        ...(liq.isapre_adicional > 0      ? [{ nombre: `Isapre sobre 7% (Plan UF ${t.isapre_monto || 0})`, monto: liq.isapre_adicional }]      : []),
+        ...(liq.sis_descuento > 0         ? [{ nombre: 'SIS Empresarial (1.62%)',                         monto: liq.sis_descuento }]          : []),
+        ...(liq.expectativa_vida_desc > 0 ? [{ nombre: 'Expectativa de Vida Patronal (0.9%)',             monto: liq.expectativa_vida_desc }]  : []),
+        ...(liq.cap_patronal_desc > 0     ? [{ nombre: 'Capitalización Individual Patronal (0.1%)',      monto: liq.cap_patronal_desc }]      : []),
         { nombre: 'Cesantía trabajador', monto: liq.cesantia_trabajador },
-        { nombre: 'Imp. Único 2ª Cat.', monto: liq.impuesto },
+        { nombre: 'Imp. Único 2ª Cat.',  monto: liq.impuesto },
       ].filter(d => d.monto > 0),
       otros_descuentos: descuentos.filter(d => d.monto > 0),
+    }
+
+    // Estado de firma para el sello del PDF
+    const firmaDoc = getEstadoFirmaDoc(liq._id)
+    payload.firma = {
+      estado: firmaDoc?.estado === 'firmado' ? 'firmada' : 'pendiente',
+      fecha:  firmaDoc?.fecha || null,
+      tipo:   firmaDoc?.tipo  || 'digital',
     }
 
     const res = await $fetch('/api/rrhh/liquidacion-pdf', {

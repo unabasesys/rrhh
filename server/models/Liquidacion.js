@@ -21,6 +21,11 @@ const LiquidacionSchema = new mongoose.Schema({
   // Descuentos detallados
   afp_descuento:        { type: Number, default: 0 },
   salud_descuento:      { type: Number, default: 0 },
+  isapre_adicional:     { type: Number, default: 0 },   // UF excedente sobre el 7%
+  // Cargos patronales que el socio asume en Sueldo Empresarial
+  sis_descuento:        { type: Number, default: 0 },   // 1.62%
+  expectativa_vida_desc:{ type: Number, default: 0 },   // 0.9%
+  cap_patronal_desc:    { type: Number, default: 0 },   // 0.1%
   cesantia_trabajador:  { type: Number, default: 0 },
   cesantia_empleador:   { type: Number, default: 0 },
   impuesto:             { type: Number, default: 0 },
