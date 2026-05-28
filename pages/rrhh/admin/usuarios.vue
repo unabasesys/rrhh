@@ -129,7 +129,7 @@
     </template>
 
     <!-- Modal Crear / Editar -->
-    <div v-if="modal.open" class="modal-overlay" @click.self="closeModal">
+    <div v-if="modal.open" class="modal-overlay">
       <div class="modal">
         <div class="modal__header">
           <h3>{{ modal.mode === 'create' ? 'Nuevo usuario' : 'Editar usuario' }}</h3>
@@ -229,7 +229,7 @@
     </div>
 
     <!-- Modal Cambiar contraseña -->
-    <div v-if="pwdModal.open" class="modal-overlay" @click.self="closePwd">
+    <div v-if="pwdModal.open" class="modal-overlay">
       <div class="modal modal--sm">
         <div class="modal__header">
           <h3>Cambiar contraseña</h3>

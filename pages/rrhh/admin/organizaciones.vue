@@ -118,7 +118,7 @@
 
     <!-- ── Modal Crear / Editar ──────────────────────────────────────────────── -->
     <Teleport to="body">
-      <div v-if="modal.open" class="modal-overlay" @click.self="closeModal">
+      <div v-if="modal.open" class="modal-overlay">
         <div class="modal-box">
           <div class="modal-header">
             <span>{{ modal.mode === 'create' ? 'Nueva organización' : 'Editar organización' }}</span>

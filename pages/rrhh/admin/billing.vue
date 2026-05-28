@@ -187,7 +187,7 @@
 
     <!-- ── Modal: Cambiar plan ─────────────────────────────────────────────── -->
     <Teleport to="body">
-      <div v-if="planModal.open" class="modal-overlay" @click.self="planModal.open = false">
+      <div v-if="planModal.open" class="modal-overlay">
         <div class="modal-box">
           <div class="modal-header">
             <span>Cambiar plan · {{ planModal.org?.nombre }}</span>
@@ -258,7 +258,7 @@
 
     <!-- ── Modal: Procesar pago ───────────────────────────────────────────── -->
     <Teleport to="body">
-      <div v-if="payModal.open" class="modal-overlay" @click.self="payModal.open = false">
+      <div v-if="payModal.open" class="modal-overlay">
         <div class="modal-box">
           <div class="modal-header">
             <span>Procesar pago · {{ payModal.org?.nombre }}</span>

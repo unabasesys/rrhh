@@ -156,7 +156,7 @@
     </div>
 
     <!-- Modal Nueva Liquidación -->
-    <div v-if="showNewLiqModal" class="modal-overlay" @click.self="showNewLiqModal = false">
+    <div v-if="showNewLiqModal" class="modal-overlay">
       <div class="modal-box modal-lg">
         <div class="modal-header">
           <h2>Nueva Liquidación de Sueldo</h2>
@@ -391,7 +391,7 @@
     </div>
 
     <!-- Modal Detalle Liquidación -->
-    <div v-if="showDetailModal && selectedLiq" class="modal-overlay" @click.self="showDetailModal = false">
+    <div v-if="showDetailModal && selectedLiq" class="modal-overlay">
       <div class="modal-box modal-lg">
         <div class="modal-header">
           <div>

@@ -17,6 +17,13 @@ const indicadores  = useIndicadoresStore()
 const route   = useRoute()
 const router  = useRouter()
 
+const indicadoresUltimaFechaCorta = computed(() => {
+  const iso = indicadores.actualizado
+  if (!iso) return null
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `last update ${d}/${m}/${y.slice(2)}` : null
+})
+
 // Auth + Org stores — carga dinámica para evitar SSR issues
 let authStore = null
 let orgStore  = null
@@ -158,6 +165,7 @@ const navSections = computed(() => [
         matches: (p) => p.startsWith('/rrhh/indicadores'),
         badge:   null,
         badgeColor: null,
+        meta:    indicadoresUltimaFechaCorta.value,
       },
     ],
   },
@@ -384,12 +392,12 @@ onUnmounted(() => {
       <div class="sidebar-brand">
         <!-- Collapsed: show only isotipo -->
         <div v-if="!sidebarExpanded && !isMobile" class="brand-icon">
-          <img src="/img/isotipo-white.png" alt="Unabase" width="26" height="26" />
+          <img :src="isDark ? '/img/isotipo-white.png' : '/img/isotipo-color.png'" alt="Unabase" width="26" height="26" />
         </div>
-        <!-- Expanded: wordmark Unabase oficial (versión blanca para fondo oscuro) -->
+        <!-- Expanded: wordmark Unabase oficial (blanca en oscuro, color en claro) -->
         <transition name="fade-label">
           <div v-if="sidebarExpanded || isMobile" class="sidebar-personas-lockup">
-            <img src="/img/logo-unabase-white.png" alt="Unabase" class="spl-logo" />
+            <img :src="isDark ? '/img/logo-unabase-white.png' : '/img/logo-unabase-color.png'" alt="Unabase" class="spl-logo" />
           </div>
         </transition>
         <button
@@ -397,7 +405,7 @@ onUnmounted(() => {
           @click="isMobile ? closeMobileSidebar() : toggleSidebar()"
           :title="isMobile ? 'Cerrar' : (sidebarExpanded ? 'Colapsar' : 'Expandir')"
         >
-          <i :class="isMobile ? 'u u-close' : (sidebarExpanded ? 'u u-arrow-left' : 'u u-arrow-right')"></i>
+          <i :class="isMobile ? 'u u-close' : (sidebarExpanded ? 'u u-chevron-left' : 'u u-chevron-right')"></i>
         </button>
       </div>
 
@@ -418,7 +426,10 @@ onUnmounted(() => {
           >
             <i :class="item.icon" class="nav-icon"></i>
             <transition name="fade-label">
-              <span v-if="sidebarExpanded || isMobile" class="nav-label">{{ item.label }}</span>
+              <span v-if="sidebarExpanded || isMobile" class="nav-label-wrap">
+                <span class="nav-label">{{ item.label }}</span>
+                <span v-if="item.meta" class="nav-meta">{{ item.meta }}</span>
+              </span>
             </transition>
             <!-- Badge dinámico -->
             <transition name="fade-label">
@@ -667,7 +678,7 @@ onUnmounted(() => {
   background: var(--neutral-background-default, #ffffff);
   border-right: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
   height: 100vh;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
 }
 
@@ -678,6 +689,7 @@ onUnmounted(() => {
   padding: 14px 16px 18px;
   border-bottom: 1px solid var(--neutral-border-light, rgba(0,0,0,0.08));
   min-height: 72px;
+  position: relative;
 }
 
 .brand-icon {
@@ -742,23 +754,40 @@ onUnmounted(() => {
 }
 
 .collapse-btn {
-  background: none;
-  border: none;
-  color: var(--neutral-text-body, #4b5563);
+  background: var(--neutral-background-default, #ffffff);
+  border: 1px solid rgba(13, 207, 168, 0.4);
+  color: #0DCFA8;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
   flex-shrink: 0;
+  position: absolute;
+  right: -13px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .collapse-btn:hover {
-  background: var(--neutral-background-strong, #e5e7eb);
-  color: var(--neutral-text-title, #111827);
+  background: rgba(13, 207, 168, 0.18);
+  border-color: rgba(13, 207, 168, 0.45);
+}
+
+:root.light-theme .collapse-btn {
+  background: rgba(13, 207, 168, 0.10);
+  border-color: rgba(13, 207, 168, 0.3);
+  color: #0aa888;
+}
+:root.light-theme .collapse-btn:hover {
+  background: rgba(13, 207, 168, 0.18);
 }
 
 /* Nav */
@@ -811,6 +840,23 @@ onUnmounted(() => {
 }
 
 .nav-label { flex: 1; }
+
+.nav-label-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.15;
+}
+.nav-meta {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--neutral-text-muted, #9ca3af);
+  opacity: 0.7;
+  letter-spacing: 0.01em;
+}
+.nav-item.active .nav-meta { opacity: 0.85; }
 
 /* Badge en nav — solo número, estilo notificación */
 .nav-badge {

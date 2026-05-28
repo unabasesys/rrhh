@@ -151,7 +151,7 @@
     </div>
 
     <!-- Modal Seleccionar Trabajador -->
-    <div v-if="showPickTrabajador" class="modal-overlay" @click.self="showPickTrabajador = false">
+    <div v-if="showPickTrabajador" class="modal-overlay">
       <div class="modal-box" style="max-width:460px">
         <div class="modal-header">
           <h2 class="modal-title">¿Para qué trabajador?</h2>
@@ -180,7 +180,7 @@
     </div>
 
     <!-- Modal Nuevo Contrato -->
-    <div v-if="showNewModal" class="modal-overlay" @click.self="showNewModal = false">
+    <div v-if="showNewModal" class="modal-overlay">
       <div class="modal-box modal-lg">
         <div class="modal-header">
           <h2>{{ modalEditMode ? 'Editar Contrato' : 'Nuevo Contrato' }}</h2>
@@ -318,7 +318,7 @@
     </div>
 
     <!-- Modal Detalle Contrato -->
-    <div v-if="showDetailModal && selectedContrato" class="modal-overlay" @click.self="showDetailModal = false">
+    <div v-if="showDetailModal && selectedContrato" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
           <div>

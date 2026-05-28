@@ -10,9 +10,25 @@
       <!-- Header -->
       <div class="ficha-header">
         <div class="trabajador-hero">
-          <div class="avatar-lg">
-            <img v-if="trabajador.foto" :src="trabajador.foto" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />
+          <div class="avatar-lg avatar-upload-wrap">
+            <img v-if="trabajador.foto" :src="trabajador.foto" class="avatar-img" />
             <template v-else>{{ initials }}</template>
+            <button
+              type="button"
+              class="avatar-upload-btn"
+              :title="trabajador.foto ? 'Cambiar foto' : 'Subir foto de perfil'"
+              :disabled="fotoSubiendo"
+              @click="$refs.fotoInput.click()"
+            >
+              <i class="u u-camera"></i>
+            </button>
+            <input
+              ref="fotoInput"
+              type="file"
+              accept="image/*"
+              class="hidden-input"
+              @change="onFotoSeleccionada"
+            />
           </div>
           <div class="hero-info">
             <h1>{{ trabajador.nombre }} {{ trabajador.apellido }}</h1>
@@ -30,24 +46,6 @@
         <div class="header-actions">
           <button class="btn btn-ghost" @click="$router.back()">
             <i class="u u-arrow-left"></i> Volver
-          </button>
-          <button v-if="fichaModificada" class="btn btn-save" :disabled="fichaGuardando" @click="guardarFicha">
-            <i class="u u-check"></i> {{ fichaGuardando ? 'Guardando...' : 'Guardar Cambios' }}
-          </button>
-          <button class="btn btn-outline" @click="openGenContrato">
-            <i class="u u-folder-open"></i> Nuevo Contrato
-          </button>
-          <button
-            class="btn btn-danger"
-            :disabled="finiquitosTrabajador.length > 0"
-            :title="finiquitosTrabajador.length > 0 ? 'Ya existe un finiquito — elimínalo desde Documentos para reabrir' : 'Generar finiquito de término'"
-            @click="openFiniquito"
-          >
-            <i class="u u-delete"></i>
-            {{ finiquitosTrabajador.length > 0 ? 'Finiquitado' : 'Término Contrato' }}
-          </button>
-          <button class="btn btn-primary" @click="openNewLiquidacion">
-            <i class="u u-cobros-y-pagos"></i> Nueva Liquidación
           </button>
         </div>
       </div>
@@ -101,7 +99,7 @@
         <div v-if="fichaModificada" class="ficha-save-banner">
           <span>Hay cambios sin guardar</span>
           <button class="btn btn-save btn-sm" :disabled="fichaGuardando" @click="guardarFicha">
-            {{ fichaGuardando ? 'Guardando...' : '💾 Guardar Cambios' }}
+            <i class="u u-check"></i> {{ fichaGuardando ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>
         <div class="info-grid">
@@ -420,7 +418,7 @@
       </div>
 
       <!-- ─── Modal Crear cuenta de acceso ─────────────────────────────────── -->
-      <div v-if="showCreateAccount" class="modal-overlay" @click.self="showCreateAccount = false">
+      <div v-if="showCreateAccount" class="modal-overlay">
         <div class="modal">
           <div class="modal-header">
             <h3>Crear cuenta de acceso</h3>
@@ -455,7 +453,7 @@
       </div>
 
       <!-- ─── Modal Reset Password ─────────────────────────────────────────── -->
-      <div v-if="showResetPassword" class="modal-overlay" @click.self="showResetPassword = false">
+      <div v-if="showResetPassword" class="modal-overlay">
         <div class="modal">
           <div class="modal-header">
             <h3>Cambiar contraseña</h3>
@@ -604,8 +602,8 @@
       <div v-if="activeTab === 'liquidaciones'" class="tab-content">
         <div class="liq-toolbar">
           <h3>Historial de Liquidaciones</h3>
-          <button class="btn btn-primary btn-sm" @click="openNewLiquidacion">
-            <i class="u u-agregar"></i> Nueva Liquidación
+          <button class="btn btn-primary" @click="openNewLiquidacion">
+            <i class="u u-money-bag"></i> Crear Liquidación
           </button>
         </div>
 
@@ -658,7 +656,6 @@
         <div class="empty-state" v-else>
           <i class="u u-cobros-y-pagos empty-icon"></i>
           <p>No hay liquidaciones registradas</p>
-          <button class="btn btn-primary btn-sm" @click="openNewLiquidacion">Generar primera liquidación</button>
         </div>
       </div>
 
@@ -666,8 +663,8 @@
       <div v-if="activeTab === 'contratos'" class="tab-content">
         <div class="liq-toolbar">
           <h3>Contratos</h3>
-          <button class="btn btn-primary btn-sm" @click="openGenContrato">
-            <i class="u u-agregar"></i> Generar Contrato PDF
+          <button class="btn btn-primary" @click="openGenContrato">
+            <i class="u u-folder-open"></i> Crear Contrato
           </button>
         </div>
 
@@ -746,14 +743,22 @@
               </template>
               <button class="btn-icon btn-firma-doc" title="Enviar a firmar"
                 @click="abrirFirmaModal('contrato', c._id, { titulo: `Contrato ${labelContrato(c.tipo_contrato)} — ${c.nombre_proyecto || c.negocio_nombre || ''}`.trim(), cargo: c.cargo, fecha_inicio: c.fecha_inicio, fecha_termino: c.fecha_termino, sueldo_base: c.sueldo_base, negocio: c.negocio_nombre })">
-                <i class="u u-edit"></i>
+                <i class="u u-link"></i>
               </button>
-              <button class="btn-icon" title="Ver/Editar" @click="abrirContratoExistente(c)"><i class="u u-eye"></i></button>
               <button class="btn-icon" title="Descargar PDF" @click="descargarContratoPDFDesdeTab(c)">
                 <i class="u u-download"></i>
               </button>
               <button class="btn-icon btn-icon-danger" title="Eliminar contrato" @click="pedirEliminarContrato(c)">
                 <i class="u u-delete"></i>
+              </button>
+              <button
+                class="btn btn-danger btn-sm btn-terminar-contrato"
+                :disabled="contratoFiniquitado(c)"
+                :title="contratoFiniquitado(c) ? 'Contrato finiquitado' : 'Generar finiquito de término'"
+                @click="openFiniquito(c._id)"
+              >
+                <i class="u u-log-out"></i>
+                <span>{{ contratoFiniquitado(c) ? 'Finiquitado' : 'Terminar contrato' }}</span>
               </button>
             </div>
           </div>
@@ -762,7 +767,6 @@
         <div class="empty-state" v-else>
           <i class="u u-folder-open empty-icon"></i>
           <p>No hay contratos registrados</p>
-          <button class="btn btn-primary btn-sm" @click="openGenContrato">Generar contrato</button>
         </div>
       </div>
     </template>
@@ -776,7 +780,7 @@
 
     <!-- ── Modal Contrato (unificado: crear / ver / editar) ─────────────────── -->
     <Teleport to="body">
-    <div v-if="showGenContrato" class="modal-overlay" @click.self="showGenContrato = false">
+    <div v-if="showGenContrato" class="modal-overlay">
       <div class="modal-box modal-contrato">
         <div class="modal-header">
           <div>
@@ -802,7 +806,7 @@
               <button type="button"
                 :class="['tipo-pill', contratoForm.tipo_contrato === 'plazo_fijo' && 'active']"
                 @click="contratoForm.tipo_contrato = 'plazo_fijo'">
-                <i class="u u-calendario"></i>
+                <i class="u u-calendar"></i>
                 <span>Plazo Fijo</span>
               </button>
               <button type="button"
@@ -1473,7 +1477,7 @@
     </Teleport>
 
     <!-- Modal Detalle de Contrato -->
-    <div v-if="showContratoDetalle && contratoDetalle" class="modal-overlay" @click.self="showContratoDetalle = false">
+    <div v-if="showContratoDetalle && contratoDetalle" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
           <h2>Contrato — {{ labelContrato(contratoDetalle.tipo_contrato) }}</h2>
@@ -1523,7 +1527,7 @@
     </div>
 
     <!-- Modal Término de Contrato / Finiquito -->
-    <div v-if="showFiniquito" class="modal-overlay" @click.self="showFiniquito = false">
+    <div v-if="showFiniquito" class="modal-overlay">
       <div class="modal-box modal-lg">
         <div class="modal-header">
           <h2>Término de Contrato — {{ trabajador?.nombre }} {{ trabajador?.apellido }}</h2>
@@ -1728,7 +1732,7 @@
     </div>
 
     <!-- Modal Nueva Liquidación -->
-    <div v-if="showNewLiq" class="modal-overlay" @click.self="showNewLiq = false">
+    <div v-if="showNewLiq" class="modal-overlay">
       <div class="modal-box modal-lg">
         <div class="modal-header">
           <h2>Nueva Liquidación — {{ trabajador?.nombre }} {{ trabajador?.apellido }}</h2>
@@ -2264,7 +2268,7 @@
     </div>
 
     <!-- ── Modal: Enviar a Firmar ─────────────────────────────────────── -->
-    <div v-if="showFirmaModal" class="modal-overlay" @click.self="showFirmaModal = false">
+    <div v-if="showFirmaModal" class="modal-overlay">
       <div class="modal-box firma-modal-box">
         <div class="modal-header">
           <h2 class="modal-title">
@@ -2982,37 +2986,68 @@ async function confirmUnlinkUser() {
 }
 
 // ── Edición inline de Ficha Personal ─────────────────────────────────────────
-const fichaEdits = ref({})
+const fichaEdits    = ref({})
+const fichaOriginal = ref({})
 const fichaGuardando = ref(false)
+const fotoSubiendo  = ref(false)
+const fotoInput     = ref(null)
+
+async function onFotoSeleccionada(e) {
+  const file = e.target?.files?.[0]
+  if (!file || !trabajador.value) return
+  if (!file.type.startsWith('image/')) {
+    alert('Solo se permiten imágenes')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    alert('La imagen debe pesar menos de 2 MB')
+    return
+  }
+  fotoSubiendo.value = true
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    await rrhhStore.updateTrabajador(trabajador.value._id, { foto: base64 })
+  } catch (err) {
+    console.error('Error subiendo foto:', err)
+    alert('No se pudo subir la foto')
+  } finally {
+    fotoSubiendo.value = false
+    if (e.target) e.target.value = ''
+  }
+}
 
 function syncFichaEdits() {
   if (!trabajador.value) return
-  fichaEdits.value = {
-    nombre:          trabajador.value.nombre || '',
-    apellido:        trabajador.value.apellido || '',
-    rut:             trabajador.value.rut || '',
-    email:           trabajador.value.email || '',
-    telefono:        trabajador.value.telefono || '',
-    direccion:       trabajador.value.direccion || '',
+  const snap = {
+    nombre:           trabajador.value.nombre || '',
+    apellido:         trabajador.value.apellido || '',
+    rut:              trabajador.value.rut || '',
+    email:            trabajador.value.email || '',
+    telefono:         trabajador.value.telefono || '',
+    direccion:        trabajador.value.direccion || '',
     fecha_nacimiento: trabajador.value.fecha_nacimiento || '',
-    nacionalidad:    trabajador.value.nacionalidad || 'Chilena',
-    profesion:       trabajador.value.profesion || '',
-    cargo:           trabajador.value.cargo || '',
-    departamento:    trabajador.value.departamento || '',
-    fecha_ingreso:   trabajador.value.fecha_ingreso?.slice(0,10) || '',
-    afp:             trabajador.value.afp || '',
-    sistema_salud:   trabajador.value.sistema_salud || 'FONASA',
-    isapre_nombre:   trabajador.value.isapre_nombre || '',
-    // Tipo de plan Isapre: 'UF' | '$' | '7%+GES(UF)' | '7%+GES($)' | '%'
-    // Backward compat: si tiene isapre_uf guardado y no isapre_tipo, asumir UF
-    isapre_tipo:     trabajador.value.isapre_tipo  || (trabajador.value.isapre_uf ? 'UF' : 'UF'),
-    isapre_monto:    trabajador.value.isapre_monto ?? trabajador.value.isapre_uf ?? 0,
-    // Datos bancarios
-    banco:           trabajador.value.banco            || '',
-    tipo_cuenta:     trabajador.value.tipo_cuenta      || '',
-    numero_cuenta:   trabajador.value.numero_cuenta    || '',
-    email_pago:      trabajador.value.email_pago       || trabajador.value.email || '',
+    nacionalidad:     trabajador.value.nacionalidad || 'Chilena',
+    profesion:        trabajador.value.profesion || '',
+    cargo:            trabajador.value.cargo || '',
+    departamento:     trabajador.value.departamento || '',
+    fecha_ingreso:    trabajador.value.fecha_ingreso?.slice(0,10) || '',
+    afp:              trabajador.value.afp || '',
+    sistema_salud:    trabajador.value.sistema_salud || 'FONASA',
+    isapre_nombre:    trabajador.value.isapre_nombre || '',
+    isapre_tipo:      trabajador.value.isapre_tipo  || (trabajador.value.isapre_uf ? 'UF' : 'UF'),
+    isapre_monto:     trabajador.value.isapre_monto ?? trabajador.value.isapre_uf ?? 0,
+    banco:            trabajador.value.banco        || '',
+    tipo_cuenta:      trabajador.value.tipo_cuenta  || '',
+    numero_cuenta:    trabajador.value.numero_cuenta || '',
+    email_pago:       trabajador.value.email_pago   || trabajador.value.email || '',
   }
+  fichaEdits.value    = { ...snap }
+  fichaOriginal.value = { ...snap }
 }
 
 watch(trabajador, (val) => {
@@ -3036,10 +3071,10 @@ watch(() => contratoForm.value.tipo_contrato, (tipo) => {
 })
 
 const fichaModificada = computed(() => {
-  if (!trabajador.value) return false
+  if (!trabajador.value || !Object.keys(fichaOriginal.value).length) return false
   return Object.keys(fichaEdits.value).some(k => {
     const a = (fichaEdits.value[k] ?? '') + ''
-    const b = (trabajador.value[k] ?? '') + ''
+    const b = (fichaOriginal.value[k] ?? '') + ''
     return a !== b
   })
 })
@@ -3253,6 +3288,13 @@ const contratosTrabajador = computed(() => {
   return rrhhStore.contratos.filter(c => c.trabajador_id === id)
 })
 
+// Saber si un contrato ya fue finiquitado (matchea por contratos_ids o estado terminado)
+function contratoFiniquitado(c) {
+  if (!c) return false
+  if (c.estado === 'terminado') return true
+  return finiquitosTrabajador.value.some(f => (f.contratos_ids || []).includes(c._id))
+}
+
 // Contrato vigente: el más reciente con estado 'vigente' del trabajador
 const contratoVigente = computed(() => {
   const activos = contratosTrabajador.value.filter(c => c.estado === 'vigente')
@@ -3274,7 +3316,7 @@ const documentos = ref([])
 const checklistDocs = computed(() => {
   const tipo = trabajador.value?.tipo_contrato
   const docs = [
-    { id: 'contrato', label: 'Contrato de Trabajo', done: contratosTrabajador.value.length > 0 },
+    { id: 'contrato', label: 'Contrato de Trabajo (docs o pdf fuera del sistema)', done: contratosTrabajador.value.length > 0 },
     { id: 'cedula', label: 'Cédula de Identidad', done: false },
     { id: 'afp', label: 'Certificado AFP vigente', done: false },
     { id: 'salud', label: 'Certificado Sistema Salud', done: false },
@@ -3928,6 +3970,13 @@ async function abrirContratoExistente(c) {
  * Para proyecto: los que se solapan con el mes de la fecha de término.
  */
 function getContratosAFiniquitar(fechaTerminoStr) {
+  // Si el form apunta a un contrato específico, scope al solo ese contrato
+  const cid = finiquitoForm.value?.contrato_id
+  if (cid) {
+    return contratosTrabajador.value.filter(c =>
+      c._id === cid && ['vigente', 'activo', 'borrador'].includes(c.estado)
+    )
+  }
   if (!fechaTerminoStr) return contratosTrabajador.value.filter(c =>
     ['vigente', 'activo', 'borrador'].includes(c.estado)
   )
@@ -3977,17 +4026,20 @@ function diasDeContratos(fechaTerminoStr) {
   return total || 30
 }
 
-function openFiniquito() {
+function openFiniquito(contratoId = null) {
   const t = trabajador.value
   const fechaTermino = new Date().toISOString().slice(0, 10)
 
-  // Detectar si el contrato vigente es tipo proyecto/jornada → sugerir conclusión
-  const cv = contratoVigente.value
+  // Si se pasó contratoId, usar ese contrato; si no, el contrato vigente
+  const cv = contratoId
+    ? contratosTrabajador.value.find(c => c._id === contratoId)
+    : contratoVigente.value
   const esProyecto = cv?.tipo_contrato === 'proyecto' || cv?.tipo_contrato === 'jornada'
   const motivoDefecto = esProyecto ? 'conclusion_trabajo' : 'mutuo_acuerdo'
   const esConclusionDefecto = motivoDefecto === 'conclusion_trabajo'
 
   finiquitoForm.value = {
+    contrato_id:                contratoId,
     motivo_termino:             motivoDefecto,
     fecha_termino:              fechaTermino,
     mes_aviso_dado:             true,
@@ -4596,6 +4648,45 @@ onMounted(async () => {
   justify-content: center;
   flex-shrink: 0;
 }
+
+.avatar-upload-wrap {
+  position: relative;
+  overflow: visible;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.avatar-upload-btn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0DCFA8;
+  color: #062D3A;
+  border: 2px solid var(--neutral-background, #111d2e);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: transform 0.15s, background 0.15s;
+  padding: 0;
+}
+.avatar-upload-btn:hover:not(:disabled) {
+  background: #15dab3;
+  transform: scale(1.08);
+}
+.avatar-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.hidden-input { display: none; }
+:root.light-theme .avatar-upload-btn { border-color: #fff; }
 
 .hero-info h1 {
   font-size: 24px;
@@ -6028,6 +6119,27 @@ onMounted(async () => {
 .btn-icon-danger:hover {
   opacity: 1;
   background: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* ── Botón terminar contrato (genera finiquito) ──────────────────────────── */
+.btn-terminar-contrato {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn-terminar-contrato:disabled {
+  background: transparent !important;
+  border: 1px solid rgba(107, 114, 128, 0.3) !important;
+  color: #6b7280 !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Icono firma (SVG) en botón de firma */
+.icon-firma {
+  width: 16px;
+  height: 16px;
 }
 
 /* ── Firma Modal ─────────────────────────────────────────────────────────── */

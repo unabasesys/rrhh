@@ -123,7 +123,7 @@
     </template>
 
     <!-- Modal crear/editar proyecto -->
-    <div v-if="showModal" class="modal-overlay" @click.self="cerrarModal">
+    <div v-if="showModal" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
           <h3>{{ modalMode === 'edit' ? 'Editar Proyecto' : 'Nuevo Proyecto' }}</h3>
