@@ -620,7 +620,13 @@
           </thead>
           <tbody>
             <tr v-for="liq in liquidacionesTrabajador" :key="liq._id">
-              <td>{{ liq.mes }}/{{ liq.anio }}</td>
+              <td>
+                <div>{{ liq.mes }}/{{ liq.anio }}</div>
+                <div v-if="liq.creado" class="liq-audit">
+                  <span class="liq-audit-date">{{ formatFechaHora(liq.creado) }}</span>
+                  <span v-if="liq.creado_por_nombre" class="liq-audit-author">created by: {{ liq.creado_por_nombre }}</span>
+                </div>
+              </td>
               <td>{{ formatCLP(liq.sueldo_base) }}</td>
               <td>{{ formatCLP(liq.total_haberes) }}</td>
               <td class="red">{{ formatCLP(liq.total_descuentos) }}</td>
@@ -3512,6 +3518,15 @@ function formatDate(d) {
   return new Date(dateStr).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+function formatFechaHora(d) {
+  if (!d) return '—'
+  const dt = new Date(d)
+  if (isNaN(dt)) return '—'
+  const date = dt.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })
+  const time = dt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+  return `${date} ${time}`
+}
+
 function openEditModal() {
   // TODO: open edit modal
 }
@@ -5325,6 +5340,27 @@ onMounted(async () => {
 
 .data-table tbody tr:hover td {
   background: var(--neutral-background-strong, #2a3a4a);
+}
+
+/* Audit info (fecha + autor) en celda de período */
+.liq-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+  line-height: 1.2;
+}
+.liq-audit-date {
+  font-size: 10px;
+  color: var(--neutral-text-muted, #9ca3af);
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: 0.02em;
+}
+.liq-audit-author {
+  font-size: 10px;
+  color: var(--neutral-text-muted, #6b7280);
+  font-style: italic;
+  opacity: 0.85;
 }
 
 /* Modal Liquidación */

@@ -47,6 +47,9 @@ const LiquidacionSchema = new mongoose.Schema({
   estado:               { type: String, default: 'borrador', enum: ['borrador', 'pagada', 'pendiente'] },
   // Org (multi-empresa)
   orgId:                { type: String, default: null, ref: 'Organization' },
+  // Auditoría — quién creó la liquidación
+  creado_por_id:        { type: String, default: null, ref: 'User' },
+  creado_por_nombre:    { type: String, default: null },
   // Metadatos
   creado:               { type: Date, default: Date.now },
 }, { _id: false, versionKey: false })
