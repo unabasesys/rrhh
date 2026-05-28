@@ -1662,15 +1662,23 @@ onUnmounted(() => {
     opacity: 1 !important;
   }
 
-  /* Hamburger visible */
+  /* Hamburger visible y prominente */
   .hamburger-btn {
     display: flex;
+    background: rgba(13, 207, 168, 0.12) !important;
+    border: 1px solid rgba(13, 207, 168, 0.35) !important;
+  }
+  .hamburger-btn span {
+    background: #0DCFA8 !important;
   }
 
-  /* Header compacto */
+  /* Header compacto + sticky (siempre visible al scrollear) */
   .rrhh-header {
-    padding: 0 16px;
+    padding: 0 12px;
     gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
   }
 
   /* Ocultar breadcrumb en móvil (muy estrecho) */
