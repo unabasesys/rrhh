@@ -226,12 +226,22 @@ export default defineEventHandler(async (event) => {
 
   // ── Derecho: Empresa ─────────────────────────────────────────────────────
   const rightX = ML + blkW + 14
-  // Banner teal con título
+  // Banner teal con título + logo de la organización a la derecha
   const bannerH = 26
   fillRect(doc, rightX, blkY, blkW, bannerH, C.TEAL_LIGHT)
   drawText(doc, 'INFORMACIÓN EMPRESA', rightX + 12, blkY + 9, {
     font: 'Helvetica-Bold', fontSize: 10, color: C.DARK,
   })
+  // Logo de la organización en el banner (esquina derecha)
+  if (logoB64) {
+    try {
+      const cleaned = String(logoB64).replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
+      const logoBuf = Buffer.from(cleaned, 'base64')
+      doc.image(logoBuf, rightX + blkW - 56, blkY + 3, { fit: [50, 20] })
+    } catch (e) {
+      console.warn('[liquidacion-pdf] logo org inválido:', e.message)
+    }
+  }
 
   let ry = blkY + bannerH + 12
   const drawKVRight = (label, value) => {
@@ -413,16 +423,6 @@ export default defineEventHandler(async (event) => {
   // ── Sello de firma (firmada / pendiente) ────────────────────────────────
   // Se posiciona sobre la línea V°B°, ligeramente desplazado
   drawFirmaSello(doc, firmaX + 15, firmaY - 50, firmaEstado, firmaFecha, firmaTipo)
-
-  // ── Logo de la organización abajo a la izquierda del recibo ─────────────
-  if (logoB64) {
-    try {
-      const cleaned = String(logoB64).replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
-      const logoBuf = Buffer.from(cleaned, 'base64')
-      const logoY = recY + 55
-      doc.image(logoBuf, ML, logoY, { fit: [80, 35], align: 'left' })
-    } catch (e) { /* logo inválido — silenciar */ }
-  }
 
   // ── Pie "People by unabase" en todas las páginas ────────────────────────
   drawPeopleByFooter(doc)
