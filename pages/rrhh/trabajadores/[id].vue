@@ -615,18 +615,13 @@
               <th>Descuentos</th>
               <th>Líquido</th>
               <th>Estado</th>
+              <th>Creado por</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="liq in liquidacionesTrabajador" :key="liq._id">
-              <td>
-                <div>{{ liq.mes }}/{{ liq.anio }}</div>
-                <div v-if="liq.creado" class="liq-audit">
-                  <span class="liq-audit-date">{{ formatFechaHora(liq.creado) }}</span>
-                  <span v-if="liq.creado_por_nombre" class="liq-audit-author">created by: {{ liq.creado_por_nombre }}</span>
-                </div>
-              </td>
+              <td>{{ liq.mes }}/{{ liq.anio }}</td>
               <td>{{ formatCLP(liq.sueldo_base) }}</td>
               <td>{{ formatCLP(liq.total_haberes) }}</td>
               <td class="red">{{ formatCLP(liq.total_descuentos) }}</td>
@@ -635,6 +630,13 @@
                 <span class="badge" :class="`badge-estado-${liq.estado}`">
                   {{ liq.estado === 'pagada' ? 'Pagada' : liq.estado === 'pendiente' ? 'Pendiente' : 'Borrador' }}
                 </span>
+              </td>
+              <td>
+                <div class="liq-audit">
+                  <span v-if="liq.creado_por_nombre" class="liq-audit-author">Created by: {{ liq.creado_por_nombre }}</span>
+                  <span v-else class="liq-audit-author muted">—</span>
+                  <span v-if="liq.creado" class="liq-audit-date">{{ formatFechaHora(liq.creado) }}</span>
+                </div>
               </td>
               <td>
                 <template v-if="getEstadoFirmaDoc(liq._id)">
@@ -5355,25 +5357,27 @@ onMounted(async () => {
   background: var(--neutral-background-strong, #2a3a4a);
 }
 
-/* Audit info (fecha + autor) en celda de período */
+/* Columna "Creado por" — autor en primera línea, fecha/hora abajo */
 .liq-audit {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  margin-top: 4px;
-  line-height: 1.2;
+  gap: 2px;
+  line-height: 1.25;
+}
+.liq-audit-author {
+  font-size: 12px;
+  color: var(--neutral-text-title, #f3f4f6);
+  font-weight: 500;
+}
+.liq-audit-author.muted {
+  color: var(--neutral-text-muted, #6b7280);
+  font-weight: 400;
 }
 .liq-audit-date {
   font-size: 10px;
   color: var(--neutral-text-muted, #9ca3af);
   font-family: 'Space Grotesk', sans-serif;
   letter-spacing: 0.02em;
-}
-.liq-audit-author {
-  font-size: 10px;
-  color: var(--neutral-text-muted, #6b7280);
-  font-style: italic;
-  opacity: 0.85;
 }
 
 /* Modal Liquidación */
