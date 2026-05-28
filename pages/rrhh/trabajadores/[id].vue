@@ -4203,7 +4203,8 @@ function buildContratoPayload() {
 // Guarda el contrato (sin PDF) — primary action en el modal.
 // Devuelve el contrato guardado o null si falla.
 async function guardarContrato() {
-  if (!trabajador.value) return null
+  // Guard anti doble-submit: si ya está procesando, ignorar segundo click
+  if (!trabajador.value || loadingPDF.value) return null
   loadingPDF.value = true
   try {
     const payload = buildContratoPayload()
@@ -4225,7 +4226,8 @@ async function guardarContrato() {
 }
 
 async function generarContratoPDF() {
-  if (!trabajador.value) return
+  // Guard anti doble-submit
+  if (!trabajador.value || loadingPDF.value) return
   loadingPDF.value = true
   const t = trabajador.value
 
