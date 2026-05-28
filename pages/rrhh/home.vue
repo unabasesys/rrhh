@@ -315,7 +315,7 @@ const tips = [
     ruta: '/rrhh/contratos' },
 ]
 
-const PAGE_SIZE = 5
+const PAGE_SIZE = 3
 const tipPage = ref(0)
 const totalTipPages = computed(() => Math.ceil(tips.length / PAGE_SIZE))
 const tipsVisible = computed(() => {
@@ -514,15 +514,15 @@ const tipsVisible = computed(() => {
 /* ── Tips ──────────────────────────────────────────────────────────── */
 .tips-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
 }
 .tip-card {
   background: var(--neutral-background-subtle, #0f1a26);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 12px;
-  padding: 16px 16px 14px;
-  display: flex; flex-direction: column; gap: 8px;
+  padding: 22px 22px 18px;
+  display: flex; flex-direction: column; gap: 10px;
 }
 .tip-icon {
   width: 28px; height: 28px;
@@ -557,12 +557,12 @@ const tipsVisible = computed(() => {
 }
 .tip-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px; font-weight: 700;
-  line-height: 1.25;
+  font-size: 16px; font-weight: 700;
+  line-height: 1.3;
   color: var(--neutral-text-title, #f3f4f6);
   margin: 2px 0 0;
 }
-.tip-body { font-size: 12px; line-height: 1.5; color: var(--neutral-text-body, #9ca3af); margin: 0; }
+.tip-body { font-size: 13px; line-height: 1.55; color: var(--neutral-text-body, #9ca3af); margin: 0; }
 .tip-cta {
   background: none; border: none;
   font-family: 'Space Grotesk', sans-serif;
