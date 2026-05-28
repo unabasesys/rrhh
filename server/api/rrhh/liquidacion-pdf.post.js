@@ -266,23 +266,22 @@ export default defineEventHandler(async (event) => {
   y = blkY + blkH + 24
 
   // ══════════════════════════════════════════════════════════════════════════
-  // KPI ROW: Días Trabajados | Días Licencia | Días Ausencia | Horas Base
+  // KPI ROW: Días Trabajados | Días Licencia | Días Ausencia
+  // (Horas Base removida — Días Trabajados queda a la izquierda)
   // ══════════════════════════════════════════════════════════════════════════
-  // KPIs: omitir los que tengan valor 0 (excepto Días Trabajados, siempre se muestra)
   const allKpis = [
     { label: 'Días Trabajados', value: String(liq.dias_trabajados ?? 30), always: true },
     { label: 'Días Licencia',   value: String(liq.dias_licencia   ?? 0) },
     { label: 'Días Ausencia',   value: String(liq.dias_ausencia   ?? 0) },
-    { label: 'Horas Base',      value: liq.horas_base ? String(liq.horas_base).replace('.', ',') : '45,0' },
   ]
   const kpis = allKpis.filter(k => k.always || (k.value && k.value !== '0' && k.value !== '0,0'))
 
   if (kpis.length > 0) {
     const gap  = 8
-    const kpiW = (CW - (kpis.length - 1) * gap) / kpis.length
+    const kpiW = 130                                 // ancho fijo — no estira para llenar
     const kpiH = 42
     kpis.forEach((k, i) => {
-      const kx = ML + i * (kpiW + gap)
+      const kx = ML + i * (kpiW + gap)               // ← alineados a la izquierda
       // Label superior con fondo teal claro
       fillRect(doc, kx, y, kpiW, 16, C.TEAL_LIGHT)
       drawText(doc, k.label, kx, y + 5, {
