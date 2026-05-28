@@ -78,13 +78,17 @@ const badgeAsistencia = computed(() => {
   if (hora < 8 || hora >= 20) return 0
 
   const hoy = ahora.toISOString().slice(0, 10)
+  // Scope por org activa: solo cuenta trabajadores y marcaciones de esa org
+  const oid = rrhhStore.currentOrgId
+  const inOrg = (item) => !oid || !item.orgId || item.orgId === oid
+
   const marcadas = new Set(
     (asistencia.marcaciones || [])
-      .filter(m => m.fecha === hoy)
+      .filter(m => m.fecha === hoy && inOrg(m))
       .map(m => m.trabajador_id)
   )
   const activos = (rrhhStore.trabajadores || []).filter(t =>
-    t.estado === 'activo' || t.estado === 'Activo'
+    (t.estado === 'activo' || t.estado === 'Activo') && inOrg(t)
   )
   return activos.filter(t => !marcadas.has(t._id || t.id)).length
 })
