@@ -337,41 +337,41 @@ const tipsVisible = computed(() => {
 /* ── Hero ──────────────────────────────────────────────────────────── */
 .hero {
   display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: 32px;
-  background: radial-gradient(circle at top right, rgba(13,207,168,0.08), transparent 60%),
-              var(--neutral-background-subtle, #0f1a26);
+  grid-template-columns: 1fr 340px;
+  gap: 28px;
+  background: var(--neutral-background-subtle, #0f1a26);
   border: 1px solid var(--neutral-border-light, rgba(255,255,255,0.06));
-  border-radius: 18px;
-  padding: 36px 36px;
+  border-radius: 14px;
+  padding: 28px 32px;
 }
-.hero-content { display: flex; flex-direction: column; gap: 18px; }
+.hero-content { display: flex; flex-direction: column; gap: 14px; }
 .hero-meta {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
   color: var(--neutral-text-muted, #9ca3af);
+  text-transform: uppercase;
 }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #0DCFA8; box-shadow: 0 0 0 4px rgba(13,207,168,0.18); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: #0DCFA8; }
 .hero-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 38px; line-height: 1.1; font-weight: 700;
+  font-size: 26px; line-height: 1.2; font-weight: 700;
   color: var(--neutral-text-title, #f3f4f6);
-  margin: 0; letter-spacing: -0.02em;
+  margin: 0; letter-spacing: -0.01em;
 }
 .hero-lede {
   font-size: 14px; line-height: 1.55; max-width: 540px;
   color: var(--neutral-text-body, #9ca3af);
   margin: 0;
 }
-.hero-cta { display: flex; gap: 10px; margin-top: 8px; }
+.hero-cta { display: flex; gap: 10px; margin-top: 6px; }
 
 /* Onboarding card */
 .onboarding-card {
-  background: rgba(0,0,0,0.18);
+  background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px;
-  padding: 20px 22px;
+  border-radius: 12px;
+  padding: 18px 20px;
   align-self: flex-start;
 }
 .onb-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
@@ -405,9 +405,10 @@ const tipsVisible = computed(() => {
 }
 .block-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 24px; font-weight: 700;
+  font-size: 18px; font-weight: 600;
   color: var(--neutral-text-title, #f3f4f6);
   margin: 0;
+  letter-spacing: -0.01em;
 }
 .carousel-nav { display: flex; align-items: center; gap: 10px; }
 .carousel-counter { font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--neutral-text-muted, #9ca3af); }
@@ -450,16 +451,27 @@ const tipsVisible = computed(() => {
 .tut-play {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 60px; height: 60px; border-radius: 50%;
+  width: 52px; height: 52px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  color: #062D3A;
-  font-size: 22px;
-  transition: transform 0.15s;
+  background: rgba(13, 207, 168, 0.12);
+  border: 1px solid rgba(13, 207, 168, 0.35);
+  color: #0DCFA8;
+  font-size: 18px;
+  transition: all 0.15s;
 }
-.tut-play--teal  { background: #0DCFA8; box-shadow: 0 0 32px rgba(13,207,168,0.45); }
-.tut-play--gold  { background: #F0B040; box-shadow: 0 0 32px rgba(240,176,64,0.45); }
-.tut-play--coral { background: #E07856; box-shadow: 0 0 32px rgba(224,120,86,0.45); }
-.tut-media:hover .tut-play { transform: translate(-50%, -50%) scale(1.08); }
+.tut-play--teal,
+.tut-play--gold,
+.tut-play--coral {
+  /* Todas las variantes ahora son teal sutil — color unificado */
+  background: rgba(13, 207, 168, 0.12);
+  border-color: rgba(13, 207, 168, 0.35);
+  color: #0DCFA8;
+  box-shadow: none;
+}
+.tut-media:hover .tut-play {
+  background: rgba(13, 207, 168, 0.2);
+  transform: translate(-50%, -50%) scale(1.05);
+}
 .tut-dur {
   position: absolute; top: 12px; right: 12px;
   font-family: 'Space Grotesk', sans-serif;
@@ -513,15 +525,23 @@ const tipsVisible = computed(() => {
   display: flex; flex-direction: column; gap: 8px;
 }
 .tip-icon {
-  width: 32px; height: 32px;
-  border-radius: 8px;
+  width: 28px; height: 28px;
+  border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--neutral-text-muted, #9ca3af);
 }
-.tip-icon--teal  { background: rgba(13,207,168,0.14); color: #0DCFA8; }
-.tip-icon--gold  { background: rgba(240,176,64,0.14); color: #F0B040; }
-.tip-icon--coral { background: rgba(224,120,86,0.14); color: #E07856; }
+/* Variantes neutras — sin color estridente */
+.tip-icon--teal,
+.tip-icon--gold,
+.tip-icon--coral {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: var(--neutral-text-muted, #9ca3af);
+}
 .tip-meta { display: flex; gap: 8px; align-items: baseline; }
 .tip-num {
   font-family: 'Space Grotesk', sans-serif;
