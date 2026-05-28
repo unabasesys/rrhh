@@ -169,25 +169,25 @@ export default defineEventHandler(async (event) => {
   // ══════════════════════════════════════════════════════════════════════════
   // TÍTULO
   // ══════════════════════════════════════════════════════════════════════════
-  drawText(doc, 'Liquidación de Remuneraciones', ML, y, {
-    font: 'Helvetica-Bold', fontSize: 22, color: C.DARK_TEXT,
+  drawText(doc, 'Liquidación de Remuneraciones', ML, y + 4, {
+    font: 'Helvetica-Bold', fontSize: 17, color: C.DARK_TEXT,
   })
-  // Logo en la esquina superior derecha si viene en base64
+  // Logo en la esquina superior derecha — más grande y visible
   if (logoB64) {
     try {
       const cleanB64 = String(logoB64).replace(/^data:image\/\w+;base64,/, '')
       const buf = Buffer.from(cleanB64, 'base64')
-      const lw = 90, lh = 32
-      doc.image(buf, PW - MR - lw, y - 4, { fit: [lw, lh], align: 'right' })
+      const lw = 140, lh = 55
+      doc.image(buf, PW - MR - lw, y - 8, { fit: [lw, lh], align: 'right' })
     } catch { /* ignore */ }
   }
 
-  y += 32
+  y += 28
   drawText(doc, `Mes: ${liq.periodo || ''}`, ML, y, {
-    font: 'Helvetica-Bold', fontSize: 12, color: C.DARK_TEXT,
+    font: 'Helvetica-Bold', fontSize: 11, color: C.DARK_TEXT,
   })
 
-  y += 28
+  y += 26
 
   // ══════════════════════════════════════════════════════════════════════════
   // DOS BLOQUES: TRABAJADOR (IZQ) + EMPRESA (DER)
@@ -232,16 +232,6 @@ export default defineEventHandler(async (event) => {
   drawText(doc, 'INFORMACIÓN EMPRESA', rightX + 12, blkY + 9, {
     font: 'Helvetica-Bold', fontSize: 10, color: C.DARK,
   })
-  // Logo de la organización en el banner (esquina derecha)
-  if (logoB64) {
-    try {
-      const cleaned = String(logoB64).replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
-      const logoBuf = Buffer.from(cleaned, 'base64')
-      doc.image(logoBuf, rightX + blkW - 56, blkY + 3, { fit: [50, 20] })
-    } catch (e) {
-      console.warn('[liquidacion-pdf] logo org inválido:', e.message)
-    }
-  }
 
   let ry = blkY + bannerH + 12
   const drawKVRight = (label, value) => {
