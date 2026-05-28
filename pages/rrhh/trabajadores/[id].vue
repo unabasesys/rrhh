@@ -646,7 +646,7 @@
                 </template>
                 <button class="btn-icon btn-firma-doc" title="Enviar a firmar"
                   @click="abrirFirmaModal('liquidacion', liq._id, { titulo: `Liquidación ${liq.mes}/${liq.anio}`, periodo: `${liq.mes}/${liq.anio}`, sueldo_base: liq.sueldo_base, liquido_pagar: liq.liquido_a_pagar })">
-                  <i class="u u-edit"></i>
+                  <i class="u u-link"></i>
                 </button>
                 <button class="btn-icon" title="Ver detalle"><i class="u u-eye"></i></button>
                 <button class="btn-icon" :class="{ 'spin': liqPdfLoading === liq._id }" title="Descargar PDF" @click="descargarLiqPDF(liq)">
@@ -1729,7 +1729,7 @@
           <button class="btn btn-ghost" @click="showFiniquito = false">Cancelar</button>
           <button class="btn btn-outline" :disabled="!finiquitoForm.fecha_termino"
             @click="abrirFirmaModal('finiquito', `finiquito_${trabajador?._id}_${finiquitoForm.fecha_termino}`, { titulo: `Finiquito — ${trabajador?.nombre} ${trabajador?.apellido}`, cargo: trabajador?.cargo, fecha_termino: finiquitoForm.fecha_termino, sueldo_base: contratoVigente?.sueldo_base || 0 })">
-            <i class="u u-edit"></i> Enviar a Firmar
+            <i class="u u-link"></i> Enviar a Firmar
           </button>
           <button class="btn btn-primary" :disabled="loadingPDF || !finiquitoForm.fecha_termino" @click="generarFiniquitoPDF">
             <i class="u u-download"></i> {{ loadingPDF ? 'Generando...' : 'Descargar PDF' }}
@@ -2291,7 +2291,7 @@
       <div class="modal-box firma-modal-box">
         <div class="modal-header">
           <h2 class="modal-title">
-            <i class="u u-edit" style="margin-right:6px"></i>
+            <i class="u u-link" style="margin-right:6px"></i>
             Enviar a Firmar
           </h2>
           <button class="modal-close" @click="showFirmaModal = false">×</button>
@@ -2371,7 +2371,7 @@
           <button class="btn btn-ghost" @click="showFirmaModal = false">Cerrar</button>
           <template v-if="!firmaCreada">
             <button class="btn btn-primary" @click="generarLinkFirma">
-              <i class="u u-edit"></i> Generar Link de Firma
+              <i class="u u-link"></i> Generar Link de Firma
             </button>
           </template>
           <template v-else>
