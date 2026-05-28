@@ -16,17 +16,37 @@ const rrhhStore  = useRrhhStore()
 const global     = {}
 const route      = useRoute()
 
+// ─── Proyectos reales (desde backend, scopados a la org activa) ─────────────
+const proyectos = ref([])
+async function cargarProyectos() {
+  try {
+    const oid = rrhhStore.currentOrgId
+    const ses = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+    const url = oid ? `/api/rrhh/proyectos?orgId=${oid}` : '/api/rrhh/proyectos'
+    proyectos.value = await $fetch(url, {
+      headers: ses.token ? { Authorization: `Bearer ${ses.token}` } : {},
+    })
+  } catch (e) {
+    proyectos.value = []
+  }
+}
+function getProyecto(id) {
+  if (!id) return null
+  return proyectos.value.find(p => (p._id || p.id) === id) || null
+}
+
 onMounted(async () => {
   asistencia.init()
-  global.title     = 'Asistencia'
+  global.title     = 'Marcaciones'
   global.namePage  = 'RRHH'
   global.breadcrumb = [
-    { name: 'RRHH',      path: '/rrhh/trabajadores' },
-    { name: 'Asistencia' },
+    { name: 'RRHH',         path: '/rrhh/trabajadores' },
+    { name: 'Marcaciones' },
   ]
   if (!rrhhStore.trabajadores?.length) {
     await rrhhStore.getTrabajadores()
   }
+  await cargarProyectos()
 })
 
 // ── Tabs de sección: Asistencia unificada ────────────────────────────────────
@@ -221,7 +241,7 @@ function guardarEdicion() {
 
 // Líneas del proyecto seleccionado en el form de edición
 const lineasEditForm = computed(() => {
-  const p = asistencia.getProyecto(editForm.value?.proyecto_id)
+  const p = getProyecto(editForm.value?.proyecto_id)
   return p?.lineas || []
 })
 
@@ -238,7 +258,7 @@ const marcacionesPorProyecto = computed(() => {
   const grupos = {}
 
   list.forEach(m => {
-    const p = asistencia.getProyecto(m.proyecto_id)
+    const p = getProyecto(m.proyecto_id)
     const key   = m.proyecto_id || '__sin_proyecto__'
     const label = p?.nombre || (m.proyecto_id ? m.proyecto_id : 'Sin proyecto asignado')
 
@@ -406,7 +426,7 @@ function tipoBadge(m) {
         <label>Proyecto</label>
         <select v-model="filtroProyecto">
           <option value="">Todos</option>
-          <option v-for="p in asistencia.proyectos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+          <option v-for="p in proyectos" :key="p._id || p.id" :value="p._id || p.id">{{ p.nombre }}</option>
         </select>
       </div>
       <div class="filter-group">
@@ -589,7 +609,7 @@ function tipoBadge(m) {
               </td>
               <td>
                 <div class="proyecto-cell">
-                  <span class="proj-name">{{ asistencia.getProyecto(marc.proyecto_id)?.nombre || '—' }}</span>
+                  <span class="proj-name">{{ getProyecto(marc.proyecto_id)?.nombre || '—' }}</span>
                   <span v-if="marc.linea_id" class="linea-code">
                     {{ asistencia.getLinea(marc.proyecto_id, marc.linea_id)?.nombre || '' }}
                     <span class="code-badge">{{ asistencia.getLinea(marc.proyecto_id, marc.linea_id)?.codigo || '' }}</span>
@@ -630,7 +650,7 @@ function tipoBadge(m) {
                       <label>Proyecto</label>
                       <select v-model="editForm.proyecto_id" @change="editForm.linea_id = ''">
                         <option value="">Sin proyecto</option>
-                        <option v-for="p in asistencia.proyectos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+                        <option v-for="p in proyectos" :key="p._id || p.id" :value="p._id || p.id">{{ p.nombre }}</option>
                       </select>
                     </div>
                     <div class="ef">

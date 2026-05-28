@@ -1,10 +1,14 @@
 import Marcacion from '../../../models/Marcacion.js'
 import { requireDb } from '../../../utils/db.js'
+import { requireAuth, orgScopeFilter } from '../../../utils/requireAuth.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  const { trabajador_id, fecha_desde, fecha_hasta } = getQuery(event)
-  const filter = {}
+  const user = await requireAuth(event)
+  const { trabajador_id, fecha_desde, fecha_hasta, orgId } = getQuery(event)
+
+  // Scope por org del usuario (admin sin filtro, manager/viewer por sus orgs)
+  const filter = { ...orgScopeFilter(user, orgId) }
   if (trabajador_id) filter.trabajador_id = trabajador_id
   if (fecha_desde || fecha_hasta) {
     filter.fecha = {}

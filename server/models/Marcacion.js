@@ -6,14 +6,21 @@ const MarcacionSchema = new mongoose.Schema({
   fecha:            { type: String, required: true },  // 'YYYY-MM-DD'
   entrada:          { type: String },   // 'HH:MM'
   salida:           { type: String },   // 'HH:MM'
-  horas:            { type: Number, default: 0 },
+  horas_trabajadas: { type: Number, default: 0 },
   horas_extra:      { type: Number, default: 0 },
-  atraso:           { type: Number, default: 0 },   // minutos
+  atraso_minutos:   { type: Number, default: 0 },
+  // Centro de costo
+  proyecto_id:      { type: String },
   proyecto_nombre:  { type: String },
+  linea_id:         { type: String },
   turno_id:         { type: String },
-  tipo:             { type: String, default: 'normal', enum: ['normal', 'extra', 'permiso', 'feriado'] },
-  estado:           { type: String, default: 'pendiente', enum: ['pendiente', 'confirmada', 'rechazada'] },
-  notas:            { type: String },
+  // Auditoría
+  tipo:             { type: String, default: 'normal', enum: ['normal', 'tardanza', 'extra', 'permiso', 'feriado'] },
+  estado:           { type: String, default: 'pendiente', enum: ['pendiente', 'aprobado', 'rechazado'] },
+  observaciones:    { type: String },
+  modificado_por_supervisor: { type: Boolean, default: false },
+  ubicacion:        { type: mongoose.Schema.Types.Mixed },
+  ubicacion_salida: { type: mongoose.Schema.Types.Mixed },
   orgId:            { type: String, default: null, ref: 'Organization', index: true },
   // Metadatos
   creado:           { type: Date, default: Date.now },

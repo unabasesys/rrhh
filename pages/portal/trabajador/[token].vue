@@ -7,28 +7,40 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute }   from 'vue-router'
-import { useAsistenciaStore } from '@/stores/asistencia'
-import useRrhhStore from '@/stores/rrhh'
 
 // Sin layout RRHH — página standalone
 definePageMeta({ layout: false })
 
-const route      = useRoute()
-const asistencia = useAsistenciaStore()
-const rrhhStore  = useRrhhStore()
+const route = useRoute()
 
 // ─── Estado ──────────────────────────────────────────────────────────────
 const cargando     = ref(true)
 const error        = ref('')
-const tokenData    = ref(null)
+const tokenStr     = ref('')
 const trabajador   = ref(null)
 const marcacionHoy = ref(null)
+const turnos       = ref([])
+const proyectos    = ref([])
 
 // Proyecto y turno seleccionados (al marcar entrada)
 const proyectoSel  = ref('')
 const lineaSel     = ref('')
 const turnoSel     = ref('')
 const ubicacion    = ref(null)
+
+// Helpers de fecha
+function fechaHoy() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function getProyecto(id) {
+  return proyectos.value.find(p => (p._id || p.id) === id) || null
+}
+
+function getTurno(id) {
+  return turnos.value.find(t => (t._id || t.id) === id) || null
+}
 
 const step = ref('loading') // 'loading' | 'error' | 'select' | 'dentro' | 'fuera'
 const marcando = ref(false)
@@ -49,58 +61,36 @@ onUnmounted(() => {
 })
 
 onMounted(async () => {
-  asistencia.init()
   tickClock()
   clockInterval = setInterval(tickClock, 1000)
 
-  const token = route.params.token
-  const tok   = asistencia.getTokenByValue(token)
+  tokenStr.value = route.params.token
 
-  if (!tok) {
-    error.value = 'El link no es válido o ha expirado. Solicita uno nuevo a tu encargado de RRHH.'
+  try {
+    const data = await $fetch(`/api/portal/by-token/${tokenStr.value}`)
+    trabajador.value   = data.trabajador
+    turnos.value       = data.turnos || []
+    proyectos.value    = data.proyectos || []
+    marcacionHoy.value = data.marcacionHoy || null
+
+    // Pre-seleccionar primer turno y primer proyecto
+    if (turnos.value[0])    turnoSel.value    = turnos.value[0]._id
+    if (proyectos.value[0]) {
+      proyectoSel.value = proyectos.value[0]._id
+      lineaSel.value    = proyectos.value[0].lineas?.[0]?._id || proyectos.value[0].lineas?.[0]?.id || ''
+    }
+
+    // Estado actual del día
+    const m = marcacionHoy.value
+    if (!m || !m.entrada)   step.value = 'select'
+    else if (!m.salida)     step.value = 'dentro'
+    else                    step.value = 'fuera'
+  } catch (e) {
+    error.value = e?.data?.message || 'El link no es válido o ha expirado. Solicita uno nuevo a tu encargado de RRHH.'
     step.value  = 'error'
+  } finally {
     cargando.value = false
-    return
   }
-
-  tokenData.value  = tok
-
-  // Cargar trabajadores si hacen falta
-  if (!rrhhStore.trabajadores?.length) {
-    await rrhhStore.getTrabajadores()
-  }
-
-  trabajador.value = (rrhhStore.trabajadores || []).find(w => (w._id || w.id) === tok.trabajador_id) || null
-
-  if (!trabajador.value) {
-    error.value = 'No se encontró el perfil del trabajador. Contacta a RRHH.'
-    step.value  = 'error'
-    cargando.value = false
-    return
-  }
-
-  // Cargar turno y proyecto del trabajador (del primer turno disponible)
-  const t = asistencia.turnos[0]
-  if (t) turnoSel.value = t.id
-  const p = asistencia.proyectos[0]
-  if (p) { proyectoSel.value = p.id; lineaSel.value = p.lineas?.[0]?.id || '' }
-
-  // Estado hoy
-  const hoy = asistencia.fechaHoy()
-  const marc = asistencia.marcaciones.find(
-    m => m.trabajador_id === tok.trabajador_id && m.fecha === hoy
-  )
-  marcacionHoy.value = marc || null
-
-  if (!marc || !marc.entrada) {
-    step.value = 'select' // Debe elegir proyecto y marcar entrada
-  } else if (marc.entrada && !marc.salida) {
-    step.value = 'dentro'
-  } else {
-    step.value = 'fuera'
-  }
-
-  cargando.value = false
 
   // Obtener ubicación en segundo plano (no bloqueante)
   if (navigator.geolocation) {
@@ -113,69 +103,76 @@ onMounted(async () => {
 
 // ─── Líneas del proyecto seleccionado ────────────────────────────────────
 const lineasProySel = computed(() => {
-  const p = asistencia.getProyecto(proyectoSel.value)
+  const p = getProyecto(proyectoSel.value)
   return p?.lineas || []
 })
 
 // Auto-seleccionar primera línea al cambiar proyecto
 function onProyectoChange() {
   const lineas = lineasProySel.value
-  lineaSel.value = lineas[0]?.id || ''
+  lineaSel.value = lineas[0]?._id || lineas[0]?.id || ''
 }
 
 // ─── Marcar Entrada ───────────────────────────────────────────────────────
-function marcarEntrada() {
+async function marcarEntrada() {
   marcando.value = true
-  const res = asistencia.marcarEntrada({
-    trabajador_id: tokenData.value.trabajador_id,
-    turno_id:      turnoSel.value,
-    proyecto_id:   proyectoSel.value,
-    linea_id:      lineaSel.value,
-    ubicacion:     ubicacion.value,
-  })
-  setTimeout(() => {
-    marcando.value = false
-    if (res.ok) {
-      marcacionHoy.value = res.marcacion
-      resultado.value = {
+  try {
+    const data = await $fetch(`/api/portal/by-token/${tokenStr.value}/marcar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: {
         tipo: 'entrada',
-        hora: res.marcacion.entrada,
-        atraso: res.marcacion.atraso_minutos,
-      }
-      step.value = 'dentro'
-    } else {
-      error.value = res.error
-      // Si ya tenía entrada, actualizar estado
-      if (res.marcacion) {
-        marcacionHoy.value = res.marcacion
-        step.value = res.marcacion.salida ? 'fuera' : 'dentro'
-      }
+        turno_id:    turnoSel.value,
+        proyecto_id: proyectoSel.value,
+        linea_id:    lineaSel.value,
+        ubicacion:   ubicacion.value,
+      },
+    })
+    marcacionHoy.value = data.marcacion
+    resultado.value = {
+      tipo: 'entrada',
+      hora: data.marcacion.entrada,
+      atraso: data.marcacion.atraso_minutos,
     }
-  }, 600)
+    step.value = 'dentro'
+  } catch (e) {
+    error.value = e?.data?.message || 'Error al marcar entrada'
+    // Si el server devolvió la marcación existente, actualizar estado
+    const existing = e?.data?.data?.marcacion
+    if (existing) {
+      marcacionHoy.value = existing
+      step.value = existing.salida ? 'fuera' : 'dentro'
+    }
+  } finally {
+    marcando.value = false
+  }
 }
 
 // ─── Marcar Salida ────────────────────────────────────────────────────────
-function marcarSalida() {
+async function marcarSalida() {
   marcando.value = true
-  const res = asistencia.marcarSalida({
-    trabajador_id: tokenData.value.trabajador_id,
-    ubicacion: ubicacion.value,
-  })
-  setTimeout(() => {
-    marcando.value = false
-    if (res.ok) {
-      marcacionHoy.value = res.marcacion
-      resultado.value = {
+  try {
+    const data = await $fetch(`/api/portal/by-token/${tokenStr.value}/marcar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: {
         tipo: 'salida',
-        hora: res.marcacion.salida,
-        horasTrabajadas: res.marcacion.horas_trabajadas,
-        horasExtra: res.marcacion.horas_extra,
-      }
-      step.value = 'fuera'
-    } else {
-      error.value = res.error
+        ubicacion: ubicacion.value,
+      },
+    })
+    marcacionHoy.value = data.marcacion
+    resultado.value = {
+      tipo: 'salida',
+      hora: data.marcacion.salida,
+      horasTrabajadas: data.marcacion.horas_trabajadas,
+      horasExtra: data.marcacion.horas_extra,
     }
-  }, 600)
+    step.value = 'fuera'
+  } catch (e) {
+    error.value = e?.data?.message || 'Error al marcar salida'
+  } finally {
+    marcando.value = false
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -245,7 +242,7 @@ function hoyLabel() {
         <div class="form-group">
           <label>Turno</label>
           <select v-model="turnoSel">
-            <option v-for="t in asistencia.turnos" :key="t.id" :value="t.id">
+            <option v-for="t in turnos" :key="t._id || t.id" :value="t._id || t.id">
               {{ t.nombre }} ({{ t.hora_entrada }}–{{ t.hora_salida }})
             </option>
           </select>
@@ -254,14 +251,14 @@ function hoyLabel() {
         <div class="form-group">
           <label>Proyecto</label>
           <select v-model="proyectoSel" @change="onProyectoChange">
-            <option v-for="p in asistencia.proyectos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+            <option v-for="p in proyectos" :key="p._id || p.id" :value="p._id || p.id">{{ p.nombre }}</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>Línea / Tarea</label>
           <select v-model="lineaSel">
-            <option v-for="l in lineasProySel" :key="l.id" :value="l.id">
+            <option v-for="l in lineasProySel" :key="l._id || l.id" :value="l._id || l.id">
               [{{ l.codigo }}] {{ l.nombre }}
             </option>
           </select>
@@ -303,13 +300,13 @@ function hoyLabel() {
             <span class="info-label">Entrada</span>
             <span class="info-val mono">{{ marcacionHoy?.entrada }}</span>
           </div>
-          <div class="info-row" v-if="asistencia.getProyecto(marcacionHoy?.proyecto_id)">
+          <div class="info-row" v-if="getProyecto(marcacionHoy?.proyecto_id)">
             <span class="info-label">Proyecto</span>
-            <span class="info-val">{{ asistencia.getProyecto(marcacionHoy?.proyecto_id)?.nombre }}</span>
+            <span class="info-val">{{ getProyecto(marcacionHoy?.proyecto_id)?.nombre }}</span>
           </div>
-          <div class="info-row" v-if="asistencia.getTurno(marcacionHoy?.turno_id)">
+          <div class="info-row" v-if="getTurno(marcacionHoy?.turno_id)">
             <span class="info-label">Turno</span>
-            <span class="info-val">{{ asistencia.getTurno(marcacionHoy?.turno_id)?.nombre }}</span>
+            <span class="info-val">{{ getTurno(marcacionHoy?.turno_id)?.nombre }}</span>
           </div>
         </div>
 
