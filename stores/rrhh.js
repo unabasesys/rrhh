@@ -253,9 +253,13 @@ export const calcularLiquidacion = (datos) => {
       ? 0 : Math.round(rentaImpon * (ind.cap_individual_patronal || 0.001));
 
     // ── Renta tributable y IUSC ─────────────────────────────────────────────
-    // El SIS NO reduce renta tributable (es cargo patronal). Sí reducen:
-    // AFP, salud, isapre adicional, expectativa vida, capitalización patronal.
-    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDesc - isapreAdicional - expectativaVidaDesc - capPatronalDesc);
+    // Solo los descuentos legales del trabajador reducen renta tributable:
+    // AFP, salud 7%, isapre adicional (UF excedente) y seguro de cesantía.
+    // SIS, Expectativa de Vida y Capitalización Patronal son cargos
+    // patronales que el socio asume — NO reducen renta tributable.
+    // (En sueldo empresarial cesantía_trabajador = 0 por no haber relación
+    // laboral subordinada.)
+    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDesc - isapreAdicional);
     const impuesto     = calcularImpuesto(rentaTrib);   // IUSC mensual → F29
 
     const totalHaberes    = sueldoMes + bonosImpor + bonosNoImp;
