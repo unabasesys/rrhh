@@ -9,6 +9,7 @@ const TurnoSchema = new mongoose.Schema({
   color:        { type: String, default: '#2a9d8f' },
   descripcion:  { type: String },
   activo:       { type: Boolean, default: true },
+  orgId:        { type: String, default: null, ref: 'Organization', index: true },
   creado:       { type: Date, default: Date.now },
 }, { _id: false, versionKey: false })
 

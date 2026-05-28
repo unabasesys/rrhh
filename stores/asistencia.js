@@ -66,6 +66,17 @@ export const TIPOS_TURNO = [
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useAsistenciaStore = defineStore('asistencia', () => {
 
+  // Lee el orgId actual desde la sesión persistida (sin acoplar al rrhh store)
+  function getOrgId() {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem('rrhh_session')
+      if (!raw) return null
+      const ses = JSON.parse(raw)
+      return ses?.currentOrgId || null
+    } catch { return null }
+  }
+
   // ── Colecciones reactivas ─────────────────────────────────────────────────
   const turnos      = ref([])
   const marcaciones = ref([])
@@ -99,7 +110,8 @@ export const useAsistenciaStore = defineStore('asistencia', () => {
   // ══════════════════════════════════════════════════════════════════
 
   function saveTurno(turno) {
-    turnosSt.save(turno)
+    const withOrg = { ...turno, orgId: turno.orgId ?? getOrgId() }
+    turnosSt.save(withOrg)
     turnos.value = turnosSt.getAll()
   }
 
@@ -228,6 +240,7 @@ export const useAsistenciaStore = defineStore('asistencia', () => {
       observaciones: '',
       modificado_por_supervisor: false,
       ubicacion,
+      orgId: getOrgId(),
     }
 
     marcacionesSt.save(marcacion)

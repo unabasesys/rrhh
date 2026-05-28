@@ -18,15 +18,14 @@
               class="avatar-upload-btn"
               :title="trabajador.foto ? 'Cambiar foto' : 'Subir foto de perfil'"
               :disabled="fotoSubiendo"
-              @click="$refs.fotoInput.click()"
+              @click="triggerFotoPicker"
             >
               <i class="u u-camera"></i>
             </button>
             <input
-              ref="fotoInput"
               type="file"
               accept="image/*"
-              class="hidden-input"
+              class="hidden-input foto-input"
               @change="onFotoSeleccionada"
             />
           </div>
@@ -1457,18 +1456,18 @@
           <button class="btn btn-ghost" @click="showGenContrato = false">Cancelar</button>
           <template v-if="contratoViewMode">
             <button class="btn btn-outline" :disabled="loadingPDF" @click="generarContratoPDF">
-              <i class="u u-check"></i> Guardar Cambios
-            </button>
-            <button class="btn btn-primary" :disabled="loadingPDF" @click="generarContratoPDF">
               <i class="u u-download"></i> Descargar PDF
+            </button>
+            <button class="btn btn-primary" :disabled="loadingPDF" @click="guardarContrato">
+              <i class="u u-check"></i> {{ loadingPDF ? 'Guardando...' : 'Guardar cambios' }}
             </button>
           </template>
           <template v-else>
             <button class="btn btn-outline" :disabled="loadingPDF" @click="generarContratoPDF">
-              Guardar Borrador
+              <i class="u u-download"></i> Guardar y descargar PDF
             </button>
-            <button class="btn btn-primary" :disabled="loadingPDF" @click="generarContratoPDF">
-              <i class="u u-folder-open"></i> {{ loadingPDF ? 'Guardando...' : 'Generar Contrato' }}
+            <button class="btn btn-primary" :disabled="loadingPDF" @click="guardarContrato">
+              <i class="u u-check"></i> {{ loadingPDF ? 'Guardando...' : 'Guardar contrato' }}
             </button>
           </template>
         </div>
@@ -2990,7 +2989,11 @@ const fichaEdits    = ref({})
 const fichaOriginal = ref({})
 const fichaGuardando = ref(false)
 const fotoSubiendo  = ref(false)
-const fotoInput     = ref(null)
+
+function triggerFotoPicker(e) {
+  const input = e?.currentTarget?.parentElement?.querySelector('.foto-input')
+  input?.click()
+}
 
 async function onFotoSeleccionada(e) {
   const file = e.target?.files?.[0]
@@ -4080,6 +4083,82 @@ function onFechaTerminoChange() {
 }
 
 // ── Contrato PDF ──────────────────────────────────────────────────────────────
+function buildContratoPayload() {
+  const t = trabajador.value
+  const cf = contratoForm.value
+  const horasSem = cf.jornada_semanal === 'custom' ? cf.horas_semana
+    : cf.jornada_semanal === 'diaria' ? 'diaria'
+    : cf.jornada_semanal === 'art22'  ? 'art22'
+    : parseInt(cf.jornada_semanal) || 45
+  return {
+    trabajador_id:     t._id || t.id,
+    trabajador_nombre: `${t.nombre} ${t.apellido || ''}`,
+    tipo_contrato:     cf.tipo_contrato,
+    fecha_inicio:      cf.fecha_inicio,
+    fecha_termino:     cf.fecha_termino || null,
+    nombre_proyecto:   cf.nombre_proyecto,
+    descripcion_rol:   cf.descripcion_rol,
+    cargo:             cf.cargo || t.cargo,
+    jornada_semanal:   cf.jornada_semanal,
+    horas_semana:      horasSem,
+    lugar_trabajo:     cf.lugar_trabajo,
+    direccion_trabajo: cf.direccion_trabajo || '',
+    modalidad:         cf.modalidad,
+    sueldo_base:       cf.tipo_contrato === 'proyecto'
+                         ? (cf.valor_dia || 0) * (cf.dias_contratados || 0)
+                         : cf.sueldo_base,
+    tipo_sueldo:       cf.tipo_contrato === 'proyecto' ? 'bruto'
+                     : cf.tipo_contrato === 'jornada'  ? 'liquido'
+                     : (cf.tipo_sueldo || 'bruto'),
+    valor_dia:               ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.valor_dia || 0) : null,
+    dias_contratados:        ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.dias_contratados || 0) : null,
+    valor_hora_extra:        ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.valor_hora_extra || 0) : null,
+    horas_extras_contratadas:['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.horas_extras_contratadas || 0) : null,
+    gratificacion:     cf.gratificacion,
+    movilizacion:      cf.movilizacion,
+    colacion:          cf.colacion,
+    clausulas:         cf.clausulas,
+    turno_id:          cf.turno_id || null,
+    negocio_id:        cf.negocio_id || null,
+    negocio_nombre:    cf.negocio_nombre || null,
+    linea_codigo:      cf.linea_codigo || null,
+    linea_nombre:      cf.linea_nombre || null,
+    rut_socio:               cf.tipo_contrato === 'sueldo_empresarial' ? (cf.rut_socio || '') : undefined,
+    pct_participacion:       cf.tipo_contrato === 'sueldo_empresarial' ? (cf.pct_participacion || 0) : undefined,
+    cotiza_afp_voluntaria:   cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.cotiza_afp_voluntaria   : undefined,
+    cotiza_salud_voluntaria: cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.cotiza_salud_voluntaria : undefined,
+    declara_trabajo_efectivo:cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.declara_trabajo_efectivo: undefined,
+    justificacion_monto:     cf.tipo_contrato === 'sueldo_empresarial' ? (cf.justificacion_monto || '') : undefined,
+    estado:            'vigente',
+    pdf_generado:      false,
+    fecha_generacion:  new Date().toISOString(),
+  }
+}
+
+// Guarda el contrato (sin PDF) — primary action en el modal.
+// Devuelve el contrato guardado o null si falla.
+async function guardarContrato() {
+  if (!trabajador.value) return null
+  loadingPDF.value = true
+  try {
+    const payload = buildContratoPayload()
+    let saved
+    if (contratoViewMode.value && contratoEditId.value) {
+      saved = await rrhhStore.updateContrato(contratoEditId.value, payload)
+    } else {
+      saved = await rrhhStore.createContrato(payload)
+    }
+    showGenContrato.value = false
+    return saved
+  } catch (err) {
+    const msg = err?.data?.message || err?.message || 'Error desconocido'
+    alert('No se pudo guardar el contrato:\n\n' + msg)
+    return null
+  } finally {
+    loadingPDF.value = false
+  }
+}
+
 async function generarContratoPDF() {
   if (!trabajador.value) return
   loadingPDF.value = true
@@ -4091,59 +4170,19 @@ async function generarContratoPDF() {
     : cf.jornada_semanal === 'art22'  ? 'art22'    // libre de jornada
     : parseInt(cf.jornada_semanal) || 45
 
-  // 1. Guardar contrato en localStorage SIEMPRE (antes de intentar el PDF)
+  // 1. Guardar contrato — si falla, abortar (no generar PDF de algo que no existe)
   try {
-    const payload = {
-      trabajador_id:     t._id || t.id,
-      trabajador_nombre: `${t.nombre} ${t.apellido || ''}`,
-      tipo_contrato:     cf.tipo_contrato,
-      fecha_inicio:      cf.fecha_inicio,
-      fecha_termino:     cf.fecha_termino || null,
-      nombre_proyecto:   cf.nombre_proyecto,
-      descripcion_rol:   cf.descripcion_rol,
-      cargo:             cf.cargo || t.cargo,
-      jornada_semanal:   cf.jornada_semanal,
-      horas_semana:      horasSem,
-      lugar_trabajo:     cf.lugar_trabajo,
-      direccion_trabajo: cf.direccion_trabajo || '',
-      modalidad:         cf.modalidad,
-      sueldo_base:       cf.tipo_contrato === 'proyecto'
-                           ? (cf.valor_dia || 0) * (cf.dias_contratados || 0)
-                           : cf.sueldo_base,   // jornada: sueldo_base ES el líquido pactado
-      tipo_sueldo:       cf.tipo_contrato === 'proyecto' ? 'bruto'
-                       : cf.tipo_contrato === 'jornada'  ? 'liquido'
-                       : (cf.tipo_sueldo || 'bruto'),
-      valor_dia:               ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.valor_dia || 0) : null,
-      dias_contratados:        ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.dias_contratados || 0) : null,
-      valor_hora_extra:        ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.valor_hora_extra || 0) : null,
-      horas_extras_contratadas: ['proyecto','jornada'].includes(cf.tipo_contrato) ? (cf.horas_extras_contratadas || 0) : null,
-      gratificacion:     cf.gratificacion,
-      movilizacion:      cf.movilizacion,
-      colacion:          cf.colacion,
-      clausulas:         cf.clausulas,
-      turno_id:          cf.turno_id || null,
-      negocio_id:        cf.negocio_id || null,
-      negocio_nombre:    cf.negocio_nombre || null,
-      linea_codigo:      cf.linea_codigo || null,
-      linea_nombre:      cf.linea_nombre || null,
-      // Sueldo Empresarial (Art. 31 N°6 LIR) — solo se setean si aplica
-      rut_socio:               cf.tipo_contrato === 'sueldo_empresarial' ? (cf.rut_socio || '') : undefined,
-      pct_participacion:       cf.tipo_contrato === 'sueldo_empresarial' ? (cf.pct_participacion || 0) : undefined,
-      cotiza_afp_voluntaria:   cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.cotiza_afp_voluntaria   : undefined,
-      cotiza_salud_voluntaria: cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.cotiza_salud_voluntaria : undefined,
-      declara_trabajo_efectivo:cf.tipo_contrato === 'sueldo_empresarial' ? !!cf.declara_trabajo_efectivo: undefined,
-      justificacion_monto:     cf.tipo_contrato === 'sueldo_empresarial' ? (cf.justificacion_monto || '') : undefined,
-      estado:            'vigente',
-      pdf_generado:      false,
-      fecha_generacion:  new Date().toISOString(),
-    }
+    const payload = buildContratoPayload()
     if (contratoViewMode.value && contratoEditId.value) {
-      rrhhStore.updateContrato(contratoEditId.value, payload)
+      await rrhhStore.updateContrato(contratoEditId.value, payload)
     } else {
       await rrhhStore.createContrato(payload)
     }
   } catch (saveErr) {
-    console.warn('Error guardando contrato en LS:', saveErr)
+    const msg = saveErr?.data?.message || saveErr?.message || 'Error desconocido'
+    alert('No se pudo guardar el contrato:\n\n' + msg)
+    loadingPDF.value = false
+    return
   }
 
   // 2. Intentar generar PDF (opcional — puede fallar si el servidor no está activo)

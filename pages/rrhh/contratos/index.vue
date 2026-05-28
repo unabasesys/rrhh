@@ -7,7 +7,7 @@
     <div class="page-header">
       <div class="page-header__left">
         <h2 class="page-header__title">Contratos y Liquidaciones</h2>
-        <span class="page-header__sub">{{ contratosFiltrados.length }} contratos · {{ rrhhStore.contratos?.length || 0 }} total</span>
+        <span class="page-header__sub">{{ contratosFiltrados.length }} contratos · {{ contratosOrg.length }} total</span>
       </div>
       <div class="page-header__right">
         <button class="btn btn-outline" @click="exportarContratos">
@@ -504,8 +504,16 @@ const form = ref(defaultForm())
 
 const today = new Date()
 
+// Contratos visibles en la org actual (super-admin sin org seleccionada ve todo)
+const contratosOrg = computed(() => {
+  const oid = rrhhStore.currentOrgId
+  const all = rrhhStore.contratos || []
+  if (!oid) return all
+  return all.filter(c => c.orgId === oid || !c.orgId)
+})
+
 const proximosVencer = computed(() => {
-  return rrhhStore.contratos.filter(c => {
+  return contratosOrg.value.filter(c => {
     if (!c.fecha_termino || c.estado === 'vencido') return false
     const dias = getDiasVence(c)
     return dias !== null && dias <= 30 && dias > 0
@@ -513,7 +521,7 @@ const proximosVencer = computed(() => {
 })
 
 const contratosFiltrados = computed(() => {
-  let list = rrhhStore.contratos || []
+  let list = contratosOrg.value
 
   // Filtro mes: contratos activos en el período seleccionado
   list = list.filter(c => contratoActivoEnMes(c, filtroMes.value))
@@ -564,7 +572,7 @@ const contratosFiltrados = computed(() => {
 
 function getNombreTrabajador(id) {
   const t = rrhhStore.trabajadores.find(t => t._id === id)
-  return t ? `${t.nombre} ${t.apellido}` : id || '—'
+  return t ? `${t.nombre} ${t.apellido}` : 'Trabajador no encontrado'
 }
 
 function getCargo(id) {

@@ -27,6 +27,8 @@ const TrabajadorSchema = new mongoose.Schema({
   tipo_cuenta:  { type: String },
   numero_cuenta:{ type: String },
   email_pago:   { type: String },                           // email separado para envío de liquidaciones (opcional)
+  // Foto de perfil (base64 data URL)
+  foto:         { type: String },
   // Estado
   estado:       { type: String, default: 'activo', enum: ['activo', 'inactivo'] },
   fecha_ingreso:{ type: String },

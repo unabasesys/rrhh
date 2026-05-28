@@ -5,7 +5,7 @@ const ContratoSchema = new mongoose.Schema({
   trabajador_id:     { type: String, required: true, index: true },
   trabajador_nombre: { type: String },
   // Tipo
-  tipo_contrato:     { type: String, required: true, enum: ['indefinido', 'plazo_fijo', 'proyecto', 'part_time', 'sueldo_empresarial'] },
+  tipo_contrato:     { type: String, required: true, enum: ['indefinido', 'plazo_fijo', 'proyecto', 'jornada', 'part_time', 'honorarios', 'sueldo_empresarial'] },
   subtipo:           { type: String },   // 'proyecto_obra' | 'jornada'
   // Vigencia
   fecha_inicio:      { type: String, required: true },

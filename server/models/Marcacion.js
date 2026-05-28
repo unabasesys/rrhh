@@ -14,6 +14,7 @@ const MarcacionSchema = new mongoose.Schema({
   tipo:             { type: String, default: 'normal', enum: ['normal', 'extra', 'permiso', 'feriado'] },
   estado:           { type: String, default: 'pendiente', enum: ['pendiente', 'confirmada', 'rechazada'] },
   notas:            { type: String },
+  orgId:            { type: String, default: null, ref: 'Organization', index: true },
   // Metadatos
   creado:           { type: Date, default: Date.now },
 }, { _id: false, versionKey: false })

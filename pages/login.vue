@@ -163,7 +163,7 @@ onMounted(async () => {
   slideTimer = setInterval(nextSlide, 5000)
   await authStore.init()
   if (authStore.isAuthenticated) {
-    router.replace(route.query.redirect || '/rrhh/trabajadores')
+    router.replace(route.query.redirect || '/rrhh/home')
   }
 })
 
@@ -176,7 +176,7 @@ async function handleLogin() {
   loading.value = true
   try {
     const result = await authStore.login(form.email.trim().toLowerCase(), form.password, form.remember)
-    if (result.ok) router.replace(route.query.redirect || '/rrhh/trabajadores')
+    if (result.ok) router.replace(route.query.redirect || '/rrhh/home')
     else errors.global = result.message || 'Credenciales incorrectas'
   } catch {
     errors.global = 'Error inesperado. Intenta de nuevo.'

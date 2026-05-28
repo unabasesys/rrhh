@@ -95,6 +95,14 @@ const navSections = computed(() => [
     label: 'Principal',
     items: [
       {
+        label:   'Home',
+        icon:    'u u-home',
+        path:    '/rrhh/home',
+        matches: (p) => p === '/rrhh' || p === '/rrhh/' || p.startsWith('/rrhh/home'),
+        badge:   null,
+        badgeColor: null,
+      },
+      {
         label:   'Personas',
         icon:    'u u-usuarios',
         path:    '/rrhh/trabajadores',
