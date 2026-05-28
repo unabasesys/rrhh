@@ -33,9 +33,11 @@ const LiquidacionSchema = new mongoose.Schema({
   // ── Sueldo Empresarial (Art. 31 N°6 LIR) ────────────────────────────────
   // Flags propagados desde el contrato y resultado del cálculo, para que el
   // libro DT (LRE) y los reportes (Previred, F29, DJ 1887) puedan distinguir.
-  esSueldoEmpresarial:    { type: Boolean, default: false },
-  afp_voluntaria_info:    { type: Number,  default: 0 },   // informativa, paga el socio
-  salud_voluntaria_info:  { type: Number,  default: 0 },   // informativa, paga el socio
+  // Cuando los flags están activos, AFP/salud aparecen como descuentos
+  // efectivos en afp_descuento/salud_descuento (procesados por planilla).
+  esSueldoEmpresarial:      { type: Boolean, default: false },
+  cotiza_afp_voluntaria:    { type: Boolean, default: false },
+  cotiza_salud_voluntaria:  { type: Boolean, default: false },
   // Estado
   estado:               { type: String, default: 'borrador', enum: ['borrador', 'pagada', 'pendiente'] },
   // Org (multi-empresa)

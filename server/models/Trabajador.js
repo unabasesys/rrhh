@@ -17,10 +17,16 @@ const TrabajadorSchema = new mongoose.Schema({
   // Previsión
   afp:          { type: String, default: 'AFP Capital' },
   sistema_salud:{ type: String, default: 'FONASA' },
+  // Plan Isapre (aplica solo si sistema_salud === 'Isapre')
+  isapre_nombre:{ type: String },                           // 'Banmédica' | 'Colmena' | 'Cruz Blanca' | 'Vida Tres' | 'Nueva Masvida' | 'Consalud'
+  isapre_tipo:  { type: String, default: 'UF' },            // 'UF' | '$' | '7%+GES(UF)' | '7%+GES($)' | '%'
+  isapre_monto: { type: Number, default: 0 },               // valor del plan en la unidad seleccionada
+  isapre_uf:    { type: Number },                           // legacy / backward compat (se prefiere isapre_monto + isapre_tipo='UF')
   // Banco
   banco:        { type: String },
   tipo_cuenta:  { type: String },
   numero_cuenta:{ type: String },
+  email_pago:   { type: String },                           // email separado para envío de liquidaciones (opcional)
   // Estado
   estado:       { type: String, default: 'activo', enum: ['activo', 'inactivo'] },
   fecha_ingreso:{ type: String },

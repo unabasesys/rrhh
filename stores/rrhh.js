@@ -200,13 +200,16 @@ export const calcularLiquidacion = (datos) => {
   //   - Sin gratificación legal (no es trabajador del Cód. del Trabajo).
   //   - Sin seguro de cesantía (ni trabajador ni empleador).
   //   - Sin SIS ni Mutual de Seguridad (no es trabajador subordinado).
-  //   - AFP y salud son VOLUNTARIAS; el socio las paga en Previred con RUT
-  //     personal. Aquí se muestran como informativas si están activadas, pero
-  //     NO se descuentan del pago de la empresa.
   //   - SÍ se retiene Impuesto Único 2ª Categoría: el sueldo empresarial es
   //     renta del trabajo del socio, y va al Libro de Remuneraciones
   //     Electrónico (LRE) de la DT, que alimenta F29 (retenciones IUSC) y
-  //     DJ 1887. La empresa retiene y entera el impuesto mensualmente.
+  //     DJ 1887.
+  //   - AFP y salud son VOLUNTARIAS. Si los flags están activos en el
+  //     contrato, la empresa procesa las cotizaciones a través de la planilla
+  //     (LRE/Previred) igual que a un trabajador dependiente — esto es lo
+  //     más común y lo que el SII espera ver para validar el gasto. Si los
+  //     flags están desactivados, el socio paga sus cotizaciones por su
+  //     cuenta en Previred con RUT personal y no aparecen en la liquidación.
   if (tipo === "sueldo_empresarial") {
     const bonosImpor  = bonos.filter(b => b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
     const bonosNoImp  = bonos.filter(b => !b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
@@ -216,28 +219,26 @@ export const calcularLiquidacion = (datos) => {
     // típicamente el socio se asigna el mes completo).
     const sueldoMes   = Math.round((sueldo_base / 30) * dias_trabajados);
 
-    // Cotizaciones voluntarias — informativas, NO se descuentan del pago.
-    // Si el usuario activó los flags en el contrato, mostramos los montos
-    // que el socio debe pagar por su cuenta en Previred (con RUT personal).
-    const afpComision   = getAfpComision(afp);
-    const afpInfo       = datos.cotiza_afp_voluntaria
-      ? calcularAFP(sueldoMes, afpComision) : 0;
-    const saludInfo     = datos.cotiza_salud_voluntaria
-      ? calcularSalud(sueldoMes, 0.07) : 0;
+    // Cotizaciones voluntarias — cuando los flags están activos, son
+    // descuentos efectivos del líquido a pagar (procesadas por planilla).
+    const afpComision  = getAfpComision(afp);
+    const afpDesc      = datos.cotiza_afp_voluntaria
+      ? calcularAFP(sueldoMes + bonosImpor, afpComision) : 0;
+    const saludDesc    = datos.cotiza_salud_voluntaria
+      ? calcularSalud(sueldoMes + bonosImpor, 0.07) : 0;
 
-    // Renta tributable para IUSC = sueldo del mes + bonos imponibles.
-    // Si el socio cotiza voluntariamente AFP/salud, esos montos rebajan la
-    // base tributable (igual que para un trabajador dependiente).
-    const rentaImpon  = sueldoMes + bonosImpor;
-    const rentaTrib   = Math.max(0, rentaImpon - afpInfo - saludInfo);
-    const impuesto    = calcularImpuesto(rentaTrib);   // IUSC mensual → F29
+    // Renta tributable para IUSC = imponible − AFP − salud
+    const rentaImpon   = sueldoMes + bonosImpor;
+    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDesc);
+    const impuesto     = calcularImpuesto(rentaTrib);   // IUSC mensual → F29
 
     const totalHaberes    = sueldoMes + bonosImpor + bonosNoImp;
-    const totalDescuentos = impuesto + otrosDesc;
+    const totalDescuentos = afpDesc + saludDesc + impuesto + otrosDesc;
     const liquidoAPagar   = Math.max(0, totalHaberes - totalDescuentos);
-    // Costo empresa = lo que contabiliza como gasto. No hay aportes patronales
-    // porque no hay relación laboral.
+    // Costo empresa = lo que contabiliza como gasto = total haberes brutos.
+    // No hay aportes patronales (no hay relación laboral subordinada).
     const costoEmpresa    = totalHaberes;
+    const previredTotal   = afpDesc + saludDesc;   // lo que la empresa entera
 
     return {
       sueldoProporcional: sueldoMes,
@@ -248,12 +249,12 @@ export const calcularLiquidacion = (datos) => {
       bonosImponibles:    bonosImpor,
       bonosNoImponibles:  bonosNoImp,
       totalHaberes,
-      afp_descuento:      0,           // no se descuenta de la liquidación
-      salud_descuento:    0,           // no se descuenta de la liquidación
+      afp_descuento:      afpDesc,         // efectivo si flag activo
+      salud_descuento:    saludDesc,       // efectivo si flag activo
       cesantia_trabajador: 0,
       cesantia_empleador:  0,
       rentaTributable:    rentaTrib,
-      impuesto,                        // SÍ se retiene IUSC → F29
+      impuesto,                            // IUSC → F29
       totalOtrosDesc:     otrosDesc,
       totalDescuentos,
       liquidoAPagar,
@@ -261,12 +262,12 @@ export const calcularLiquidacion = (datos) => {
       mutual:             0,
       sis:                0,
       aportesEmpleador:   0,
-      previredTotal:      afpInfo + saludInfo,   // lo que paga el socio aparte
+      previredTotal,                       // lo que la empresa entera a Previred
       totalImponible:     rentaImpon,
       // Metadata específica del Sueldo Empresarial
-      esSueldoEmpresarial: true,
-      afp_voluntaria_info:   afpInfo,   // informativo: paga el socio en Previred
-      salud_voluntaria_info: saludInfo, // informativo: paga el socio en Previred
+      esSueldoEmpresarial:  true,
+      cotiza_afp_voluntaria:   !!datos.cotiza_afp_voluntaria,
+      cotiza_salud_voluntaria: !!datos.cotiza_salud_voluntaria,
     };
   }
 

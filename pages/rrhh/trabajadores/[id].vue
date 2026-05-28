@@ -3021,15 +3021,17 @@ watch(trabajador, (val) => {
   loadLinkedUser()
 }, { immediate: true })
 
-// Movilización y colación en 0 para contratos por proyecto/jornada/honorarios
+// Movilización y colación en 0 para contratos por proyecto/jornada/honorarios/sueldo_empresarial.
+// El usuario las ingresa explícitamente cuando aplican (decisión: nunca asumir defaults).
+// Bonus: al cambiar a sueldo_empresarial, autocompletar el RUT del socio desde la ficha
+// si está vacío (el socio suele ser el mismo trabajador).
 watch(() => contratoForm.value.tipo_contrato, (tipo) => {
-  if (tipo === 'proyecto' || tipo === 'jornada' || tipo === 'honorarios') {
+  if (['proyecto','jornada','honorarios','sueldo_empresarial'].includes(tipo)) {
     contratoForm.value.movilizacion = 0
     contratoForm.value.colacion = 0
-  } else if (tipo === 'indefinido' || tipo === 'plazo_fijo' || tipo === 'part_time') {
-    // Solo si vienen en 0, sugerir valores por defecto
-    if (!contratoForm.value.movilizacion) contratoForm.value.movilizacion = 50000
-    if (!contratoForm.value.colacion) contratoForm.value.colacion = 40000
+  }
+  if (tipo === 'sueldo_empresarial' && !contratoForm.value.rut_socio && trabajador.value?.rut) {
+    contratoForm.value.rut_socio = trabajador.value.rut
   }
 })
 
@@ -3837,8 +3839,9 @@ function openGenContrato() {
     dias_contratados:        0,
     valor_hora_extra:        0,
     horas_extras_contratadas: 0,
-    // Sueldo Empresarial (Art. 31 N°6 LIR)
-    rut_socio:               '',
+    // Sueldo Empresarial (Art. 31 N°6 LIR) — el RUT del socio se autocompleta
+    // desde la ficha del trabajador (asumiendo que el trabajador ES el socio).
+    rut_socio:               t?.rut || '',
     pct_participacion:       0,
     cotiza_afp_voluntaria:   false,
     cotiza_salud_voluntaria: false,

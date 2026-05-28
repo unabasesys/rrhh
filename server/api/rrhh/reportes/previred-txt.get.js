@@ -177,12 +177,14 @@ export default defineEventHandler(async (event) => {
   // Scope por org (admin sin filtro; manager solo sus orgs)
   const scope = orgScopeFilter(me, q.orgId || null)
 
-  // Cargar liquidaciones del período
-  // Excluir Sueldo Empresarial (Art. 31 N°6 LIR): el socio paga sus
-  // cotizaciones AFP/salud voluntarias en Previred con su RUT personal,
-  // no a través de la planilla de la empresa.
+  // Cargar liquidaciones del período.
+  // Para Sueldo Empresarial (Art. 31 N°6 LIR): solo incluir si tiene
+  // cotizaciones voluntarias activas (la empresa las procesa por planilla).
+  // Si no, el socio las paga aparte con su RUT personal y no aparece acá.
   const liqsRaw = await Liquidacion.find({ ...scope, anio, mes }).lean()
-  const liqs    = liqsRaw.filter(l => !l.esSueldoEmpresarial)
+  const liqs    = liqsRaw.filter(l =>
+    !l.esSueldoEmpresarial || l.cotiza_afp_voluntaria || l.cotiza_salud_voluntaria
+  )
   if (!liqs.length) {
     setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
     setResponseHeader(event, 'content-disposition',
