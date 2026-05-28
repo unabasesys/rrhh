@@ -1,38 +1,42 @@
 <template>
   <div class="login-page">
     <div class="card">
-      <!-- ── Slider izquierda ──────────────────────────────────────── -->
-      <div class="slider">
-        <TransitionGroup name="img-fade">
+      <!-- ── Panel izquierdo: carrusel de testimonios ── -->
+      <div class="illus-panel">
+        <!-- Foto de fondo semitransparente -->
+        <transition name="slide-fade">
           <img
-            v-for="s in 6"
-            v-show="step === s"
-            :key="s"
-            :src="`/img/login/${s}.png`"
-            class="bg-img"
+            :key="currentSlide"
+            :src="`/img/welcome_${currentSlide + 1}.png`"
             alt=""
+            class="slide-img"
           />
-        </TransitionGroup>
+        </transition>
+        <div class="slide-overlay"></div>
 
-        <div class="slider-overlay">
-          <div class="slider-logo">
-            <img src="/img/logo-unabase-white.png" alt="Unabase Personas" />
-          </div>
+        <!-- Logo -->
+        <div class="slide-logo">
+          <img src="/img/logo-unabase-white.png" alt="unabase personas" />
+          <span class="app-name">Personas</span>
+        </div>
 
-          <Transition :name="`slide-${direction}`" mode="out-in">
-            <div class="slider-texts" :key="step">
-              <h2>{{ slides[step - 1].title }}</h2>
-              <span>{{ slides[step - 1].description }}</span>
+        <!-- Texto del slide -->
+        <div class="slide-content">
+          <transition name="text-fade" mode="out-in">
+            <div :key="currentSlide" class="slide-text">
+              <p class="slide-quote">"{{ slides[currentSlide].quote }}"</p>
+              <p class="slide-author">{{ slides[currentSlide].author }}</p>
             </div>
-          </Transition>
+          </transition>
 
-          <div class="slider-controls">
+          <!-- Dots -->
+          <div class="slide-dots">
             <button
-              v-for="s in 6"
-              :key="s"
-              :class="{ selected: step === s }"
-              @click="changeStep(s)"
-              aria-label="Cambiar slide"
+              v-for="(_, i) in slides"
+              :key="i"
+              class="dot"
+              :class="{ 'dot--active': i === currentSlide }"
+              @click="goToSlide(i)"
             />
           </div>
         </div>
@@ -40,17 +44,25 @@
 
       <!-- ── Form derecha ──────────────────────────────────────────── -->
       <div class="login-form">
-        <h2 class="title">Bienvenido</h2>
-        <span class="subtitle">Ingresa al módulo de Personas</span>
+        <h2 class="title">Iniciar Sesión</h2>
+        <span class="subtitle">Introduce tu correo y contraseña para ingresar</span>
+
+        <!-- Google (inactivo por ahora) -->
+        <button type="button" class="google-btn" disabled>
+          <img src="/img/googlelogo.png" alt="Google" class="google-icon" />
+          Continuar con Google
+        </button>
+
+        <div class="divider"><span>o</span></div>
 
         <form @submit.prevent="handleLogin">
           <div class="field">
-            <label for="email">Correo corporativo</label>
+            <label for="email">Correo Electrónico</label>
             <input
               id="email"
               v-model="form.email"
               type="email"
-              placeholder="ana@estudio.cl"
+              placeholder="example@unabase.com"
               autocomplete="email"
               autofocus
               required
@@ -66,13 +78,14 @@
                 id="password"
                 v-model="form.password"
                 :type="showPass ? 'text' : 'password'"
-                placeholder="••••••••••••"
+                placeholder="Mínimo 8 caracteres"
                 autocomplete="current-password"
                 required
                 @input="errors.password = ''"
               />
               <button type="button" class="eye-btn" @click="showPass = !showPass">
-                {{ showPass ? 'Ocultar' : 'Ver' }}
+                <svg v-if="showPass" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
             <span v-if="errors.password" class="error-msg">{{ errors.password }}</span>
@@ -81,9 +94,9 @@
           <div class="options-row">
             <label class="check-label">
               <input type="checkbox" v-model="form.remember" />
-              <span>Mantener sesión 30 días</span>
+              <span>Mantener sesión iniciada</span>
             </label>
-            <a class="forgot-link" href="#">¿Olvidaste tu clave?</a>
+            <a class="forgot-link" href="#">¿Olvidaste tu contraseña?</a>
           </div>
 
           <div v-if="errors.global" class="alert-error">
@@ -96,17 +109,13 @@
 
           <button type="submit" class="sign-in-btn" :disabled="loading">
             <span v-if="loading" class="btn-spinner"></span>
-            <span>{{ loading ? 'Entrando...' : 'Entrar al módulo' }}</span>
+            <span>{{ loading ? 'Entrando...' : 'Iniciar Sesión' }}</span>
           </button>
         </form>
 
-        <div class="footer">
-          <span>unabase · RRHH v1.2</span>
-          <span class="footer-dot">·</span>
-          <span class="footer-status">
-            <span class="status-dot"></span>
-            operativo
-          </span>
+        <div class="form-footer">
+          <span class="form-footer-text">¿No tienes cuenta aún?</span>
+          <a class="form-footer-link" href="#">Crea una cuenta aquí</a>
         </div>
       </div>
     </div>
@@ -121,6 +130,26 @@ definePageMeta({ layout: false, middleware: 'no-auth' })
 const router = useRouter()
 const route  = useRoute()
 
+// ── Carrusel ────────────────────────────────────────────────────────────────
+const slides = [
+  { quote: 'Creo liquidaciones en un paso y las organizo en proyectos.', author: 'Vale — Vale Producciones' },
+  { quote: 'Antes me tomaba horas calcular la nómina. Ahora es cosa de minutos.', author: 'Rodrigo — Estudio R&A' },
+  { quote: 'El portal de firma digital eliminó el 100% del papeleo con mis trabajadores.', author: 'Camila — Agencia Norte' },
+  { quote: 'Tener contratos, asistencia y liquidaciones en un solo lugar es un cambio total.', author: 'Martín — Productora Sur' },
+]
+const currentSlide = ref(0)
+let slideTimer = null
+
+function goToSlide(i) {
+  currentSlide.value = i
+  clearInterval(slideTimer)
+  slideTimer = setInterval(nextSlide, 5000)
+}
+
+function nextSlide() {
+  currentSlide.value = (currentSlide.value + 1) % slides.length
+}
+
 // ── Form state ──────────────────────────────────────────────────────────────
 const form     = reactive({ email: '', password: '', remember: false })
 const errors   = reactive({ email: '', password: '', global: '' })
@@ -131,11 +160,14 @@ const { useAuthStore } = await import('@/stores/auth')
 const authStore = useAuthStore()
 
 onMounted(async () => {
+  slideTimer = setInterval(nextSlide, 5000)
   await authStore.init()
   if (authStore.isAuthenticated) {
     router.replace(route.query.redirect || '/rrhh/trabajadores')
   }
 })
+
+onUnmounted(() => clearInterval(slideTimer))
 
 async function handleLogin() {
   errors.email = ''; errors.password = ''; errors.global = ''
@@ -152,61 +184,6 @@ async function handleLogin() {
     loading.value = false
   }
 }
-
-// ── Slider state ────────────────────────────────────────────────────────────
-const slides = [
-  {
-    title: 'Tu equipo, todo en una sola base',
-    description: 'Contratos, liquidaciones, finiquitos y horarios para estudios, agencias y productoras.',
-  },
-  {
-    title: 'Horarios sincronizados',
-    description: 'Marca entrada y salida desde un iPad. 42 turnos gestionados en Mayo.',
-  },
-  {
-    title: '"Creo liquidaciones en un paso y las organizo en proyectos."',
-    description: 'Vale — Vale Producciones',
-  },
-  {
-    title: 'Sueldo Empresarial',
-    description: 'Nueva figura tributaria para socios y dueños, con Acta y retención IUSC al día.',
-  },
-  {
-    title: '"Pongo un iPad al empezar la producción y la gente marca entrada y salida. Son cracks."',
-    description: 'Rafa — Conciertos SPA',
-  },
-  {
-    title: 'Liquidación lista',
-    description: '14 colaboradores listos para el cierre de mes.',
-  },
-]
-
-const step      = ref(1)
-const direction = ref('forward')
-let interval = null
-
-function goTo(newStep) {
-  direction.value =
-    newStep > step.value || (step.value === 6 && newStep === 1)
-      ? 'forward'
-      : 'backward'
-  step.value = newStep
-}
-
-function changeStep(newStep) {
-  goTo(newStep)
-  resetInterval()
-}
-
-function resetInterval() {
-  clearInterval(interval)
-  interval = setInterval(() => {
-    goTo(step.value === 6 ? 1 : step.value + 1)
-  }, 3000)
-}
-
-onMounted(() => { resetInterval() })
-onUnmounted(() => { clearInterval(interval) })
 </script>
 
 <style scoped>
@@ -214,143 +191,167 @@ onUnmounted(() => { clearInterval(interval) })
 
 * { box-sizing: border-box; }
 
-/* ── Página: fondo aún más oscuro que la card ──────────────────────── */
+/* ── Página: fondo oscuro neutro (igual que VX) ─────────────────── */
 .login-page {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   width: 100vw;
-  background: radial-gradient(ellipse at center, #083542 0%, #041B22 100%);
+  background: #0f1624;
   font-family: 'Inter Tight', system-ui, sans-serif;
   padding: 24px;
 }
 
 /* ── Card 820×620, grid 2 columnas ─────────────────────────────────── */
 .card {
-  background-color: #0A3845;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
-  border: 1px solid rgba(245,240,230,0.06);
+  background-color: #111d2e;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: 24px;
-  padding: 24px;
+  padding: 16px;
   width: 820px;
   height: 620px;
   display: grid;
   grid-template-columns: 1fr 360px;
-  column-gap: 48px;
+  gap: 0;
 }
 
-/* ── Slider izquierda ──────────────────────────────────────────────── */
-.slider {
+/* ── Panel carrusel (izquierda) ───────────────────────────────────── */
+.illus-panel {
   position: relative;
-  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+  background: #071e2b;
+  border-radius: 14px;
   overflow: hidden;
 }
-.bg-img {
+
+/* Foto de fondo */
+.slide-img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 16px;
-}
-.img-fade-enter-active,
-.img-fade-leave-active { transition: opacity 0.6s ease; }
-.img-fade-enter-from,
-.img-fade-leave-to { opacity: 0; }
-
-.slider-overlay {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-rows: 32px 1fr 4px;
-  height: 100%;
-  padding: 48px 24px;
-  row-gap: 24px;
-  background-color: rgba(0, 0, 0, 0.5);
+  object-position: center;
+  opacity: 0.22;
 }
 
-.slider-logo {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.slider-logo img {
-  height: 36px;
-  width: auto;
+/* Overlay para reforzar legibilidad */
+.slide-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(7, 30, 43, 0.6) 0%,
+    rgba(7, 30, 43, 0.75) 100%
+  );
 }
 
-.slider-texts {
+/* Transición foto */
+.slide-fade-enter-active, .slide-fade-leave-active { transition: opacity 1s ease; }
+.slide-fade-enter-from, .slide-fade-leave-to { opacity: 0; }
+
+/* Logo + app name */
+.slide-logo {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
 }
-.slider-texts h2 {
+.slide-logo img {
+  height: 28px;
+  width: auto;
+  display: block;
+  opacity: 0.95;
+}
+.app-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-weight: 600;
-  font-size: 24px;
-  line-height: 1.3;
-  color: #ffffff;
-  margin: 0;
-}
-.slider-texts span {
+  font-size: 17px;
   font-weight: 500;
-  font-size: 14px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.01em;
 }
 
-.slide-forward-enter-active,
-.slide-forward-leave-active,
-.slide-backward-enter-active,
-.slide-backward-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+/* Texto testimonio */
+.slide-content {
+  margin-top: auto;
+  position: relative;
+  z-index: 2;
 }
-.slide-forward-enter-from  { opacity: 0; transform: translateX(24px); }
-.slide-forward-leave-to    { opacity: 0; transform: translateX(-24px); }
-.slide-backward-enter-from { opacity: 0; transform: translateX(-24px); }
-.slide-backward-leave-to   { opacity: 0; transform: translateX(24px); }
+.slide-quote {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  margin: 0 0 16px;
+}
+.slide-author {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  margin: 0 0 24px;
+}
 
-.slider-controls {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 4px;
-  align-items: center;
-  padding: 0 24px;
+/* Dots de carrusel */
+.slide-dots {
+  display: flex;
+  gap: 6px;
 }
-.slider-controls button {
-  background-color: rgba(255, 255, 255, 0.3);
-  height: 4px;
-  border-radius: 10px;
+.dot {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
   border: none;
-  padding: 0;
-  transition: background-color 0.3s;
+  background: rgba(255,255,255,0.2);
   cursor: pointer;
+  padding: 0;
+  transition: background 0.3s, width 0.3s;
 }
-.slider-controls button.selected { background-color: #0DCFA8; }
-.slider-controls button:not(.selected):hover { background-color: rgba(255, 255, 255, 0.55); }
+.dot--active {
+  width: 40px;
+  background: #0DCFA8;
+}
+
+/* Transición de texto */
+.text-fade-enter-active, .text-fade-leave-active { transition: opacity 0.35s ease, transform 0.35s ease; }
+.text-fade-enter-from { opacity: 0; transform: translateY(12px); }
+.text-fade-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* Logo dentro del form panel */
+.form-logo {
+  height: 42px;
+  width: auto;
+  margin-bottom: 24px;
+  object-fit: contain;
+  object-position: left center;
+}
 
 /* ── Form derecha ──────────────────────────────────────────────────── */
 .login-form {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 24px 0;
+  padding: 36px 36px 28px 24px;
 }
 
 .title {
   color: #F5F0E6;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 28px;
+  font-size: 32px;
   line-height: 1.1;
-  font-weight: 600;
-  margin: 0 0 4px;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
-  color: rgba(245,240,230,0.55);
+  color: rgba(245,240,230,0.5);
   font-size: 14px;
   line-height: 1.4;
 }
@@ -358,8 +359,35 @@ onUnmounted(() => { clearInterval(interval) })
 form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  margin-top: 28px;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Footer "¿No tienes cuenta?" */
+.form-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 13px;
+}
+.form-footer-text { color: rgba(245,240,230,0.45); }
+.form-footer-link {
+  color: #0DCFA8;
+  font-weight: 600;
+  text-decoration: none;
+  font-family: 'Space Grotesk', sans-serif;
+}
+.form-footer-link:hover { opacity: 0.8; }
+
+/* ── Footer ────────────────────────────────────────────────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(245,240,230,0.4);
+  margin-top: 20px;
 }
 
 .field {
@@ -400,26 +428,66 @@ form {
 
 .input-wrap { position: relative; }
 .input-wrap input { padding-right: 72px; }
+/* Botón Google */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 46px;
+  margin-top: 20px;
+  background: rgba(245,240,230,0.06);
+  border: 1px solid rgba(245,240,230,0.12);
+  border-radius: 14px;
+  color: rgba(245,240,230,0.35);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.google-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  opacity: 0.5;
+}
+
+/* Divider "o" */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 0;
+  color: rgba(245,240,230,0.25);
+  font-size: 12px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(245,240,230,0.1);
+}
+
 .eye-btn {
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  height: 30px;
-  padding: 0 12px;
-  background: rgba(13,207,168,0.15);
-  color: #0DCFA8;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
   border: none;
-  border-radius: 10px;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: rgba(245,240,230,0.4);
   cursor: pointer;
-  transition: background 0.15s;
+  padding: 0;
+  transition: color 0.15s;
 }
-.eye-btn:hover { background: rgba(13,207,168,0.25); }
+.eye-btn:hover { color: rgba(245,240,230,0.75); }
 
 .options-row {
   display: flex;
@@ -505,15 +573,6 @@ form {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Footer ────────────────────────────────────────────────────────── */
-.footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: rgba(245,240,230,0.4);
-  margin-top: 16px;
-}
 .footer-dot { opacity: 0.5; }
 .footer-status {
   margin-left: auto;
@@ -537,14 +596,11 @@ form {
     height: auto;
     min-height: 560px;
   }
-  .slider { display: none; }
+  .illus-panel { display: none; }
+  .login-form { padding: 32px 28px 24px; }
 }
 @media only screen and (max-width: 560px) {
   .login-page { padding: 16px; }
-  .card {
-    width: 100%;
-    max-width: 400px;
-    padding: 20px;
-  }
+  .card { width: 100%; max-width: 420px; }
 }
 </style>
