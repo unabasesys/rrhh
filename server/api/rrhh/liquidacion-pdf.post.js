@@ -432,15 +432,28 @@ export default defineEventHandler(async (event) => {
 
   // ── Firma del trabajador ─────────────────────────────────────────────────
   // Si hay imagen de firma (canvas digital o foto manual), la dibujamos
-  // sobre la línea V°B°. Sino, ponemos el sello "PENDIENTE de firma".
+  // sobre la línea V°B° + fecha/hora de firma debajo. Sino, sello "PENDIENTE".
   if (firma.data) {
     try {
       const cleaned = String(firma.data).replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
       const firmaBuf = Buffer.from(cleaned, 'base64')
-      // Posicionada sobre la línea V°B°
       doc.image(firmaBuf, firmaX, firmaY - 42, { fit: [firmaW, 42] })
     } catch (e) {
       drawFirmaSello(doc, firmaX + 15, firmaY - 50, 'firmada', firmaFecha, firmaTipo)
+    }
+    // Fecha y hora de firma debajo del V°B°
+    if (firmaFecha) {
+      let stamp = ''
+      try {
+        const d = new Date(firmaFecha)
+        stamp = d.toLocaleString('es-CL', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        })
+      } catch {}
+      drawText(doc, `Firmado el ${stamp}`, firmaX, firmaY + 20, {
+        fontSize: 7.5, color: C.GRAY_TEXT, width: firmaW, align: 'center',
+      })
     }
   } else {
     drawFirmaSello(doc, firmaX + 15, firmaY - 50, firmaEstado, firmaFecha, firmaTipo)

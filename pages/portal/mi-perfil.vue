@@ -223,7 +223,10 @@
             <div v-for="c in contratos" :key="c._id" class="doc-card">
               <div class="doc-card__head">
                 <span class="doc-card__type">{{ tipoContratoLabel(c.tipo_contrato) }}</span>
-                <span v-if="c.firma_data" class="doc-card__badge firmada">✓ Firmada</span>
+                <div v-if="c.firma_data" class="doc-card__firma-info">
+                  <span class="doc-card__badge firmada">✓ Firmada</span>
+                  <span v-if="c.firma_fecha" class="doc-card__firma-fecha">{{ formatFirmaFecha(c.firma_fecha) }}</span>
+                </div>
                 <span v-else class="doc-card__badge sin-firma">Sin firmar</span>
               </div>
               <div class="doc-card__body">
@@ -263,7 +266,10 @@
             <div v-for="liq in liquidaciones" :key="liq._id" class="liq-card">
               <div class="liq-card__head">
                 <span class="liq-card__month">{{ mesNombre(liq.mes) }} {{ liq.anio }}</span>
-                <span v-if="liq.firma_data" class="liq-card__badge firmada">✓ Firmada</span>
+                <div v-if="liq.firma_data" class="liq-card__firma-info">
+                  <span class="liq-card__badge firmada">✓ Firmada</span>
+                  <span v-if="liq.firma_fecha" class="liq-card__firma-fecha">{{ formatFirmaFecha(liq.firma_fecha) }}</span>
+                </div>
                 <span v-else class="liq-card__badge sin-firma">Sin firmar</span>
               </div>
               <div class="liq-card__amount">{{ formatCLP(liq.liquido_a_pagar) }}</div>
@@ -503,6 +509,17 @@ function formatCLP(n) {
   return '$' + Math.round(Number(n) || 0).toLocaleString('es-CL')
 }
 function mesNombre(m) { return MESES_NAMES[(Number(m) || 1) - 1] }
+
+function formatFirmaFecha(d) {
+  if (!d) return ''
+  try {
+    const dt = new Date(d)
+    return dt.toLocaleString('es-CL', {
+      day: '2-digit', month: '2-digit', year: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '' }
+}
 function labelContrato(t) {
   const labels = {
     indefinido:         'Indefinido',
@@ -1456,6 +1473,21 @@ async function handleLogout() {
 .doc-card__badge.sin-firma {
   background: rgba(245, 158, 11, 0.14);
   color: #b45309;
+}
+/* Bloque firma info: badge + fecha en columna a la derecha del head */
+.liq-card__firma-info,
+.doc-card__firma-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.liq-card__firma-fecha,
+.doc-card__firma-fecha {
+  font-size: 10px;
+  color: #64748b;
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: 0.02em;
 }
 .liq-card__amount {
   margin-top: 14px;
