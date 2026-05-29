@@ -3888,11 +3888,22 @@ async function descargarLiqPDF(liq) {
     }
 
     // Estado de firma para el sello del PDF
-    const firmaDoc = getEstadoFirmaDoc(liq._id)
-    payload.firma = {
-      estado: firmaDoc?.estado === 'firmado' ? 'firmada' : 'pendiente',
-      fecha:  firmaDoc?.fecha || null,
-      tipo:   firmaDoc?.tipo  || 'digital',
+    // Prioridad: firma capturada por el trabajador desde el portal (liq.firma_data),
+    // sino el estado del flujo de firma externa (getEstadoFirmaDoc).
+    if (liq.firma_data) {
+      payload.firma = {
+        estado: 'firmada',
+        data:   liq.firma_data,
+        fecha:  liq.firma_fecha,
+        tipo:   liq.firma_tipo || 'digital',
+      }
+    } else {
+      const firmaDoc = getEstadoFirmaDoc(liq._id)
+      payload.firma = {
+        estado: firmaDoc?.estado === 'firmado' ? 'firmada' : 'pendiente',
+        fecha:  firmaDoc?.fecha || null,
+        tipo:   firmaDoc?.tipo  || 'digital',
+      }
     }
 
     const res = await $fetch('/api/rrhh/liquidacion-pdf', {

@@ -52,6 +52,10 @@ const ContratoSchema = new mongoose.Schema({
   pdf_generado:      { type: Boolean, default: false },
   // Org (multi-empresa)
   orgId:             { type: String, default: null, ref: 'Organization' },
+  // Firma del trabajador (capturada desde el portal)
+  firma_data:        { type: String, default: null },   // base64 PNG
+  firma_tipo:        { type: String, default: null },   // 'digital' | 'manual'
+  firma_fecha:       { type: Date,   default: null },
   // Metadatos
   creado:            { type: Date, default: Date.now },
   fecha_generacion:  { type: String },

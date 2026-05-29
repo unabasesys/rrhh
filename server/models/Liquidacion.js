@@ -50,6 +50,10 @@ const LiquidacionSchema = new mongoose.Schema({
   // Auditoría — quién creó la liquidación
   creado_por_id:        { type: String, default: null, ref: 'User' },
   creado_por_nombre:    { type: String, default: null },
+  // Firma del trabajador (capturada desde el portal)
+  firma_data:           { type: String, default: null },   // base64 PNG
+  firma_tipo:           { type: String, default: null },   // 'digital' | 'manual'
+  firma_fecha:          { type: Date,   default: null },
   // Metadatos
   creado:               { type: Date, default: Date.now },
 }, { _id: false, versionKey: false })

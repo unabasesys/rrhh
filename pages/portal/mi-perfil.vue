@@ -223,7 +223,8 @@
             <div v-for="c in contratos" :key="c._id" class="doc-card">
               <div class="doc-card__head">
                 <span class="doc-card__type">{{ tipoContratoLabel(c.tipo_contrato) }}</span>
-                <span class="doc-card__badge" :class="c.estado">{{ c.estado || '—' }}</span>
+                <span v-if="c.firma_data" class="doc-card__badge firmada">✓ Firmada</span>
+                <span v-else class="doc-card__badge sin-firma">Sin firmar</span>
               </div>
               <div class="doc-card__body">
                 <div class="doc-card__row">
@@ -243,10 +244,10 @@
                 <button class="btn-link" @click="descargarContrato(c)" title="Descarga el contrato firmado para tu registro personal">
                   <i class="u u-descargar"></i> Descargar contrato
                 </button>
-                <button class="btn-link btn-link--firma"
+                <button v-if="!c.firma_data" class="btn-link btn-link--firma"
                         @click="solicitarFirma('contrato', c._id, `${tipoContratoLabel(c.tipo_contrato)} (${c.fecha_inicio})`)"
-                        title="Firma este contrato online — recibirás un correo con el enlace seguro">
-                  <i class="u u-link"></i> Firmar contrato online
+                        title="Firma este contrato — digital o subiendo foto">
+                  <i class="u u-link"></i> Firmar contrato
                 </button>
               </div>
             </div>
@@ -262,7 +263,8 @@
             <div v-for="liq in liquidaciones" :key="liq._id" class="liq-card">
               <div class="liq-card__head">
                 <span class="liq-card__month">{{ mesNombre(liq.mes) }} {{ liq.anio }}</span>
-                <span class="liq-card__badge" :class="liq.estado">{{ liq.estado || '—' }}</span>
+                <span v-if="liq.firma_data" class="liq-card__badge firmada">✓ Firmada</span>
+                <span v-else class="liq-card__badge sin-firma">Sin firmar</span>
               </div>
               <div class="liq-card__amount">{{ formatCLP(liq.liquido_a_pagar) }}</div>
               <div class="liq-card__sub">Líquido a pagar</div>
@@ -270,10 +272,10 @@
                 <button class="btn-link" @click="descargarLiquidacion(liq._id, liq.mes, liq.anio)" title="Descarga tu comprobante mensual">
                   <i class="u u-descargar"></i> Descargar PDF
                 </button>
-                <button class="btn-link btn-link--firma"
+                <button v-if="!liq.firma_data" class="btn-link btn-link--firma"
                         @click="solicitarFirma('liquidacion', liq._id, `Liquidación ${mesNombre(liq.mes)} ${liq.anio}`)"
-                        title="Firma tu liquidación online — recibirás un correo con el enlace seguro">
-                  <i class="u u-link"></i> Firmar liquidación online
+                        title="Firma tu liquidación — digital o subiendo foto">
+                  <i class="u u-link"></i> Firmar liquidación
                 </button>
               </div>
             </div>
@@ -755,17 +757,39 @@ function onFirmaFoto(e) {
   reader.readAsDataURL(file)
 }
 
-// ── Guardar firma (mockup: solo confirma; TODO: POST al backend) ──────────
+// ── Guardar firma — POST real al backend ──────────────────────────────────
 async function guardarFirma() {
   firmaModal.value.guardando = true
   firmaModal.value.error = ''
   try {
-    // TODO: enviar a /api/portal/firmar — por ahora solo confirma localmente
-    await new Promise(r => setTimeout(r, 600))
-    alert('✓ Documento firmado correctamente.\nTu firma quedó registrada.')
+    const firmaData = firmaModal.value.modo === 'manual'
+      ? firmaModal.value.fotoData
+      : firmaModal.value.digitalData
+    if (!firmaData) {
+      firmaModal.value.error = 'Captura tu firma antes de enviar'
+      firmaModal.value.guardando = false
+      return
+    }
+    await $fetch('/api/portal/firmar', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: {
+        tipo:          firmaModal.value.tipo,
+        documento_id:  firmaModal.value.documentoId,
+        firma_data:    firmaData,
+        firma_tipo:    firmaModal.value.modo,
+      },
+    })
+    // Refrescar las listas para que aparezca el estado "Firmada"
+    if (firmaModal.value.tipo === 'liquidacion') await loadLiquidaciones()
+    if (firmaModal.value.tipo === 'contrato') {
+      // Recargar perfil entero (contratos vienen de /me)
+      const me = await $fetch('/api/portal/me', { headers: authHeaders() })
+      if (me?.ok) contratos.value = me.contratos || []
+    }
     firmaModal.value.open = false
   } catch (e) {
-    firmaModal.value.error = e?.message || 'No se pudo guardar la firma'
+    firmaModal.value.error = e?.data?.message || e?.message || 'No se pudo guardar la firma'
   } finally {
     firmaModal.value.guardando = false
   }
@@ -1423,6 +1447,16 @@ async function handleLogout() {
   color: #6b7280;
 }
 .liq-card__badge.pagada { background: rgba(13,207,168,0.14); color: #0DCFA8; }
+.liq-card__badge.firmada,
+.doc-card__badge.firmada {
+  background: rgba(13, 207, 168, 0.16);
+  color: #0DCFA8;
+}
+.liq-card__badge.sin-firma,
+.doc-card__badge.sin-firma {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
 .liq-card__amount {
   margin-top: 14px;
   font-size: 26px;

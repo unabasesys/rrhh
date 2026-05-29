@@ -153,8 +153,9 @@ export default defineEventHandler(async (event) => {
   const rut    = trab.rut || ''
 
   // Estado de firma para el sello: 'firmada' | 'pendiente' | 'sin_firma'
+  // Si hay firma.data (base64 PNG), se dibuja la firma real en el PDF.
   const firma = body.firma || liq.firma || {}
-  const firmaEstado = firma.estado || (firma.firmada ? 'firmada' : (liq.estado === 'pagada' ? 'firmada' : 'pendiente'))
+  const firmaEstado = firma.estado || (firma.data || firma.firmada ? 'firmada' : 'pendiente')
   const firmaFecha  = firma.fecha || null
   const firmaTipo   = firma.tipo  || 'digital'
 
@@ -429,9 +430,21 @@ export default defineEventHandler(async (event) => {
     fontSize: 9, color: C.DARK_TEXT, width: firmaW, align: 'center',
   })
 
-  // ── Sello de firma (firmada / pendiente) ────────────────────────────────
-  // Se posiciona sobre la línea V°B°, ligeramente desplazado
-  drawFirmaSello(doc, firmaX + 15, firmaY - 50, firmaEstado, firmaFecha, firmaTipo)
+  // ── Firma del trabajador ─────────────────────────────────────────────────
+  // Si hay imagen de firma (canvas digital o foto manual), la dibujamos
+  // sobre la línea V°B°. Sino, ponemos el sello "PENDIENTE de firma".
+  if (firma.data) {
+    try {
+      const cleaned = String(firma.data).replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
+      const firmaBuf = Buffer.from(cleaned, 'base64')
+      // Posicionada sobre la línea V°B°
+      doc.image(firmaBuf, firmaX, firmaY - 42, { fit: [firmaW, 42] })
+    } catch (e) {
+      drawFirmaSello(doc, firmaX + 15, firmaY - 50, 'firmada', firmaFecha, firmaTipo)
+    }
+  } else {
+    drawFirmaSello(doc, firmaX + 15, firmaY - 50, firmaEstado, firmaFecha, firmaTipo)
+  }
 
   // ── Pie "People by unabase" en todas las páginas ────────────────────────
   drawPeopleByFooter(doc)

@@ -73,6 +73,13 @@ export default defineEventHandler(async (event) => {
       liquido_a_pagar: liq.liquido_a_pagar,
       renta_imponible: liq.renta_imponible,
     },
+    // Pasamos la firma para que el PDF la dibuje en lugar del sello "PENDIENTE"
+    firma: liq.firma_data ? {
+      estado: 'firmada',
+      tipo:   liq.firma_tipo || 'digital',
+      fecha:  liq.firma_fecha,
+      data:   liq.firma_data,
+    } : { estado: 'pendiente' },
   }
 
   // Llamamos al endpoint POST internamente vía $fetch
