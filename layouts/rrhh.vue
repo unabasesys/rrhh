@@ -78,9 +78,18 @@ const badgeAsistencia = computed(() => {
   if (hora < 8 || hora >= 20) return 0
 
   const hoy = ahora.toISOString().slice(0, 10)
-  // Scope por org activa: solo cuenta trabajadores y marcaciones de esa org
+  // Scope por org activa
   const oid = rrhhStore.currentOrgId
   const inOrg = (item) => !oid || !item.orgId || item.orgId === oid
+
+  // Solo cuenta trabajadores con turno asignado en algún contrato vigente.
+  // Si la empresa no usa marcaciones (sin turnos asignados), badge = 0.
+  const conTurno = new Set(
+    (rrhhStore.contratos || [])
+      .filter(c => c.estado === 'vigente' && c.turno_id && inOrg(c))
+      .map(c => c.trabajador_id)
+  )
+  if (conTurno.size === 0) return 0
 
   const marcadas = new Set(
     (asistencia.marcaciones || [])
@@ -88,7 +97,7 @@ const badgeAsistencia = computed(() => {
       .map(m => m.trabajador_id)
   )
   const activos = (rrhhStore.trabajadores || []).filter(t =>
-    (t.estado === 'activo' || t.estado === 'Activo') && inOrg(t)
+    (t.estado === 'activo' || t.estado === 'Activo') && inOrg(t) && conTurno.has(t._id || t.id)
   )
   return activos.filter(t => !marcadas.has(t._id || t.id)).length
 })
