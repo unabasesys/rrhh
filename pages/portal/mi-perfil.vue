@@ -217,6 +217,46 @@
         </section>
 
         <!-- ═══════ Tab: Liquidaciones ═══════ -->
+        <!-- ═══════ Tab: Contratos ═══════ -->
+        <section v-else-if="activeTab === 'contratos'" class="tab-section">
+          <div v-if="contratos.length" class="doc-grid">
+            <div v-for="c in contratos" :key="c._id" class="doc-card">
+              <div class="doc-card__head">
+                <span class="doc-card__type">{{ tipoContratoLabel(c.tipo_contrato) }}</span>
+                <span class="doc-card__badge" :class="c.estado">{{ c.estado || '—' }}</span>
+              </div>
+              <div class="doc-card__body">
+                <div class="doc-card__row">
+                  <span>Inicio</span>
+                  <strong>{{ c.fecha_inicio || '—' }}</strong>
+                </div>
+                <div class="doc-card__row">
+                  <span>Término</span>
+                  <strong>{{ c.fecha_termino || 'Indefinido' }}</strong>
+                </div>
+                <div class="doc-card__row">
+                  <span>Cargo</span>
+                  <strong>{{ c.cargo || '—' }}</strong>
+                </div>
+              </div>
+              <div class="doc-card__actions">
+                <button class="btn-link" @click="descargarContrato(c)" title="Descarga el contrato firmado para tu registro personal">
+                  <i class="u u-descargar"></i> Descargar contrato
+                </button>
+                <button class="btn-link btn-link--firma"
+                        @click="solicitarFirma('contrato', c._id, `${tipoContratoLabel(c.tipo_contrato)} (${c.fecha_inicio})`)"
+                        title="Firma este contrato online — recibirás un correo con el enlace seguro">
+                  <i class="u u-link"></i> Firmar contrato online
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            <i class="u u-folder-open" style="font-size:36px;color:#374151"></i>
+            <p>No tienes contratos registrados.</p>
+          </div>
+        </section>
+
         <section v-else-if="activeTab === 'liquidaciones'" class="tab-section">
           <div v-if="liquidaciones.length" class="liq-grid">
             <div v-for="liq in liquidaciones" :key="liq._id" class="liq-card">
@@ -226,9 +266,16 @@
               </div>
               <div class="liq-card__amount">{{ formatCLP(liq.liquido_a_pagar) }}</div>
               <div class="liq-card__sub">Líquido a pagar</div>
-              <button class="btn-link" @click="descargarLiquidacion(liq._id, liq.mes, liq.anio)">
-                <i class="u u-descargar"></i> Descargar PDF
-              </button>
+              <div class="liq-card__actions">
+                <button class="btn-link" @click="descargarLiquidacion(liq._id, liq.mes, liq.anio)" title="Descarga tu comprobante mensual">
+                  <i class="u u-descargar"></i> Descargar PDF
+                </button>
+                <button class="btn-link btn-link--firma"
+                        @click="solicitarFirma('liquidacion', liq._id, `Liquidación ${mesNombre(liq.mes)} ${liq.anio}`)"
+                        title="Firma tu liquidación online — recibirás un correo con el enlace seguro">
+                  <i class="u u-link"></i> Firmar liquidación online
+                </button>
+              </div>
             </div>
           </div>
           <div v-else class="empty-state">
@@ -312,6 +359,7 @@ const marcMes  = ref(now.getMonth() + 1)
 const tabs = [
   { id: 'home',          label: 'Inicio',        icon: 'u u-home' },
   { id: 'datos',         label: 'Mis datos',     icon: 'u u-usuarios' },
+  { id: 'contratos',     label: 'Contratos',     icon: 'u u-folder-open' },
   { id: 'liquidaciones', label: 'Liquidaciones', icon: 'u u-cobros-y-pagos' },
   { id: 'marcar',        label: 'Marcar',        icon: 'u u-check' },
   { id: 'marcaciones',   label: 'Marcaciones',   icon: 'u u-clock' },
@@ -517,6 +565,45 @@ async function descargarLiquidacion(id, mes, anio) {
   } catch (e) {
     alert(e?.data?.message || 'No se pudo descargar el PDF')
   }
+}
+
+async function descargarContrato(contrato) {
+  try {
+    const blob = await $fetch(`/api/portal/contrato-pdf?id=${contrato._id}`, {
+      headers: authHeaders(),
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `contrato_${contrato.tipo_contrato || 'doc'}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 100)
+  } catch (e) {
+    alert(e?.data?.message || 'No se pudo descargar el contrato')
+  }
+}
+
+// Mockup: solicitar firma de un documento (contrato o liquidación)
+function solicitarFirma(tipo, id, descripcion) {
+  // TODO: integrar con el sistema de firma real (DocuSign / FirmaVirtual / etc.)
+  alert(`Solicitud de firma enviada\n\n` +
+        `Documento: ${descripcion}\n` +
+        `Recibirás un correo con el enlace para firmar electrónicamente.`)
+}
+
+function tipoContratoLabel(t) {
+  const map = {
+    indefinido:          'Contrato Indefinido',
+    plazo_fijo:          'Contrato a Plazo Fijo',
+    proyecto:            'Contrato por Proyecto/Obra',
+    jornada:             'Contrato por Jornada',
+    part_time:           'Contrato Part Time',
+    honorarios:          'Boleta de Honorarios',
+    sueldo_empresarial:  'Sueldo Empresarial',
+  }
+  return map[t] || t
 }
 
 async function handleLogout() {
@@ -891,6 +978,75 @@ async function handleLogout() {
 .contrato-badge.ok     { background: rgba(13,207,168,0.12);  color: #0DCFA8; }
 .contrato-badge.danger { background: rgba(239,68,68,0.12);   color: #ef4444; }
 .contrato-badge.muted  { background: rgba(107,114,128,0.12); color: #6b7280; }
+
+/* ─── Tab Contratos (portal trabajador) ──────────────────────────────── */
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.doc-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.doc-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.doc-card__type {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.doc-card__badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-weight: 700;
+  background: rgba(107,114,128,0.12);
+  color: #6b7280;
+}
+.doc-card__badge.vigente,
+.doc-card__badge.activo { background: rgba(13,207,168,0.14); color: #0DCFA8; }
+.doc-card__body { display: flex; flex-direction: column; gap: 6px; }
+.doc-card__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.doc-card__row span { color: #64748b; }
+.doc-card__row strong { color: #0f172a; font-weight: 600; }
+.doc-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* Botón "Firmar online" — secundario con icono cadena */
+.btn-link--firma {
+  color: #0DCFA8 !important;
+  font-weight: 600;
+}
+.btn-link--firma:hover { background: rgba(13, 207, 168, 0.08); }
+
+/* Acciones del card liquidación: stack vertical para incluir firma */
+.liq-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
 
 /* ─── Liquidaciones ──────────────────────────────────────────────────── */
 .liq-grid {
