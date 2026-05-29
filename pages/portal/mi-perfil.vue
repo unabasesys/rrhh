@@ -57,8 +57,50 @@
           </button>
         </nav>
 
+        <!-- ═══════ Tab: Inicio / Bienvenida ═══════ -->
+        <section v-if="activeTab === 'home'" class="tab-section">
+          <div class="welcome-card">
+            <h2 class="welcome-title">¡Hola, {{ trabajador.nombre || 'colaborador' }}! 👋</h2>
+            <p class="welcome-lede">
+              Aquí puedes consultar tus datos, descargar tus liquidaciones, marcar
+              asistencia y enviar solicitudes administrativas.
+            </p>
+          </div>
+
+          <div class="home-grid">
+            <!-- Vacaciones acumuladas -->
+            <div class="home-card home-card--vacaciones">
+              <div class="home-card__icon"><i class="u u-calendar"></i></div>
+              <div class="home-card__body">
+                <span class="home-card__label">Vacaciones acumuladas</span>
+                <span class="home-card__value">{{ vacacionesAcumuladas }} <small>días</small></span>
+                <span class="home-card__hint">Legal: 15 días hábiles por año trabajado</span>
+              </div>
+            </div>
+
+            <!-- Solicitudes -->
+            <div class="home-card home-card--solicitudes">
+              <div class="home-card__header">
+                <h3>Mis solicitudes</h3>
+                <button class="btn-text" disabled title="Próximamente">+ Nueva</button>
+              </div>
+              <div class="home-card__list" v-if="solicitudesMock.length">
+                <div v-for="s in solicitudesMock" :key="s.id" class="solicitud-row">
+                  <span class="solicitud-tipo" :class="`solicitud-tipo--${s.tipo}`">{{ s.tipo }}</span>
+                  <span class="solicitud-fecha">{{ s.fecha }}</span>
+                  <span class="solicitud-estado" :class="`estado-${s.estado}`">{{ s.estado }}</span>
+                </div>
+              </div>
+              <div v-else class="home-card__empty">
+                <p>Aún no tienes solicitudes.</p>
+                <p class="muted">Tipos disponibles: <strong>Permiso</strong> · <strong>Administrativo</strong> · <strong>Vacaciones</strong></p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- ═══════ Tab: Marcar entrada/salida ═══════ -->
-        <section v-if="activeTab === 'marcar'" class="tab-section">
+        <section v-else-if="activeTab === 'marcar'" class="tab-section">
           <div class="marcar-card">
             <div class="marcar-clock">{{ horaActualStr }}</div>
             <div class="marcar-date">{{ fechaActualStr }}</div>
@@ -81,7 +123,7 @@
             <div class="marcar-actions">
               <button
                 class="btn btn--marcar btn--entrada"
-                :disabled="marking || (marcacionHoy && marcacionHoy.entrada)"
+                :disabled="!puedeMarcar || marking || (marcacionHoy && marcacionHoy.entrada)"
                 @click="marcar('entrada')"
               >
                 <i class="u u-check"></i>
@@ -89,7 +131,7 @@
               </button>
               <button
                 class="btn btn--marcar btn--salida"
-                :disabled="marking || !marcacionHoy?.entrada || marcacionHoy?.salida"
+                :disabled="!puedeMarcar || marking || !marcacionHoy?.entrada || marcacionHoy?.salida"
                 @click="marcar('salida')"
               >
                 <i class="u u-clock"></i>
@@ -97,6 +139,9 @@
               </button>
             </div>
 
+            <div v-if="!puedeMarcar" class="marcar-warning">
+              {{ motivoNoPuedeMarcar }}
+            </div>
             <div v-if="marcarError" class="error-msg">
               {{ marcarError }}
             </div>
@@ -256,7 +301,7 @@ const orgPagoPendiente = ref(false)
 const liquidaciones = ref([])
 const marcaciones   = ref([])
 const marcacionHoy  = ref(null)
-const activeTab     = ref('marcar')
+const activeTab     = ref('home')
 const marking       = ref(false)
 const marcarError   = ref('')
 
@@ -265,11 +310,44 @@ const marcAnio = ref(now.getFullYear())
 const marcMes  = ref(now.getMonth() + 1)
 
 const tabs = [
-  { id: 'marcar',        label: 'Marcar',        icon: 'u u-check' },
+  { id: 'home',          label: 'Inicio',        icon: 'u u-home' },
   { id: 'datos',         label: 'Mis datos',     icon: 'u u-usuarios' },
   { id: 'liquidaciones', label: 'Liquidaciones', icon: 'u u-cobros-y-pagos' },
+  { id: 'marcar',        label: 'Marcar',        icon: 'u u-check' },
   { id: 'marcaciones',   label: 'Marcaciones',   icon: 'u u-clock' },
 ]
+
+// ─── Contrato vigente + capacidad de marcar ────────────────────────────────
+// Solo trabajadores subordinados con turno asignado pueden marcar.
+// Honorarios / sueldo_empresarial NO marcan (no son relación laboral).
+const TIPOS_QUE_MARCAN = ['indefinido', 'plazo_fijo', 'proyecto', 'jornada', 'part_time']
+const contratoVigente = computed(() =>
+  (contratos.value || []).find(c => c.estado === 'vigente' || c.estado === 'activo') || null
+)
+const puedeMarcar = computed(() => {
+  const c = contratoVigente.value
+  if (!c) return false
+  if (!TIPOS_QUE_MARCAN.includes(c.tipo_contrato)) return false
+  return !!c.turno_id
+})
+const motivoNoPuedeMarcar = computed(() => {
+  const c = contratoVigente.value
+  if (!c) return 'No tienes contrato vigente para marcar.'
+  if (!TIPOS_QUE_MARCAN.includes(c.tipo_contrato)) return 'Tu tipo de contrato no requiere marcación.'
+  if (!c.turno_id) return 'Tu contrato no tiene turno asignado. Coordina con tu encargado.'
+  return ''
+})
+
+// ─── Vacaciones acumuladas (cálculo simple basado en antigüedad) ───────────
+const vacacionesAcumuladas = computed(() => {
+  // Vacaciones legales: 15 días hábiles por año trabajado (Chile)
+  // Cálculo simplificado: trabajador.vacaciones_dias guardado en BBDD, o
+  // 0 si no se ha calculado/almacenado.
+  return trabajador.value?.vacaciones_dias ?? 0
+})
+
+// Solicitudes mockup (por ahora vacío — UI lista para integrar)
+const solicitudesMock = ref([])
 
 // ── Reloj en vivo ──────────────────────────────────────────────────────────
 const horaActual = ref(new Date())
@@ -540,6 +618,165 @@ async function handleLogout() {
 
 .tab-section { animation: fadeIn 0.18s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ─── Tab Inicio (Home) ───────────────────────────────────────────────── */
+.welcome-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 24px 28px;
+  margin-bottom: 18px;
+}
+.welcome-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+.welcome-lede {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 640px;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 18px;
+}
+@media (max-width: 700px) {
+  .home-grid { grid-template-columns: 1fr; }
+}
+.home-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.home-card--vacaciones {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+.home-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(13, 207, 168, 0.12);
+  color: #0DCFA8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.home-card__body { display: flex; flex-direction: column; gap: 4px; }
+.home-card__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.home-card__value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.home-card__value small {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 4px;
+}
+.home-card__hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.home-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.home-card__header h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  color: #0f172a;
+}
+.btn-text {
+  background: none;
+  border: none;
+  color: #0DCFA8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.btn-text:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.home-card__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.solicitud-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.solicitud-tipo {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.solicitud-tipo--permiso { color: #f97316; }
+.solicitud-tipo--administrativo { color: #0DCFA8; }
+.solicitud-tipo--vacaciones { color: #6366f1; }
+.solicitud-fecha { color: #64748b; font-size: 12px; }
+.solicitud-estado {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.estado-pendiente { background: #fef3c7; color: #92400e; }
+.estado-aprobado  { background: #d1fae5; color: #065f46; }
+.estado-rechazado { background: #fee2e2; color: #991b1b; }
+
+.home-card__empty {
+  font-size: 13px;
+  color: #64748b;
+}
+.home-card__empty p { margin: 0 0 6px; }
+.home-card__empty .muted { color: #94a3b8; font-size: 12px; }
+.home-card__empty strong { color: #475569; }
+
+/* Aviso "no puedes marcar" en tab Marcar */
+.marcar-warning {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  text-align: center;
+}
 
 /* ─── Marcar entrada/salida ─────────────────────────────────────────── */
 .marcar-card {
