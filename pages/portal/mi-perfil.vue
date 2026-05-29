@@ -327,6 +327,71 @@
         </section>
       </template>
     </main>
+
+    <!-- ═══════ Modal de Firma ═══════ -->
+    <div v-if="firmaModal.open" class="firma-overlay" @click.self="cerrarFirma">
+      <div class="firma-box">
+        <div class="firma-header">
+          <h3>Firmar documento</h3>
+          <button class="firma-close" @click="cerrarFirma">×</button>
+        </div>
+        <p class="firma-sub">{{ firmaModal.descripcion }}</p>
+
+        <!-- Tabs de modo de firma -->
+        <div class="firma-tabs">
+          <button :class="['firma-tab', firmaModal.modo === 'digital' && 'active']" @click="firmaModal.modo = 'digital'">
+            ✏️ Firma digital
+          </button>
+          <button :class="['firma-tab', firmaModal.modo === 'manual' && 'active']" @click="firmaModal.modo = 'manual'">
+            📷 Firma a mano (foto)
+          </button>
+        </div>
+
+        <!-- Digital: canvas -->
+        <div v-if="firmaModal.modo === 'digital'" class="firma-canvas-wrap">
+          <p class="firma-hint">Dibuja tu firma con el dedo o el mouse:</p>
+          <canvas
+            ref="firmaCanvasEl"
+            class="firma-canvas"
+            width="500"
+            height="180"
+            @mousedown="canvasStart"
+            @mousemove="canvasMove"
+            @mouseup="canvasEnd"
+            @mouseleave="canvasEnd"
+            @touchstart.prevent="canvasStart"
+            @touchmove.prevent="canvasMove"
+            @touchend.prevent="canvasEnd"
+          ></canvas>
+          <button class="btn-clear" @click="canvasClear" type="button">Borrar y reintentar</button>
+        </div>
+
+        <!-- Manual: upload de imagen -->
+        <div v-else-if="firmaModal.modo === 'manual'" class="firma-upload">
+          <p class="firma-hint">Sube una foto clara de tu firma sobre papel blanco:</p>
+          <label class="firma-upload-btn">
+            <i class="u u-image"></i> Seleccionar foto
+            <input type="file" accept="image/*" @change="onFirmaFoto" hidden />
+          </label>
+          <div v-if="firmaModal.fotoData" class="firma-preview">
+            <img :src="firmaModal.fotoData" alt="Tu firma" />
+          </div>
+        </div>
+
+        <div v-if="firmaModal.error" class="firma-error">{{ firmaModal.error }}</div>
+
+        <div class="firma-actions">
+          <button class="btn-ghost" @click="cerrarFirma" :disabled="firmaModal.guardando">Cancelar</button>
+          <button
+            class="btn-firmar"
+            :disabled="firmaModal.guardando || !firmaPuedeGuardar"
+            @click="guardarFirma"
+          >
+            {{ firmaModal.guardando ? 'Guardando...' : '✓ Firmar y enviar' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -585,12 +650,125 @@ async function descargarContrato(contrato) {
   }
 }
 
-// Mockup: solicitar firma de un documento (contrato o liquidación)
+// ─── Modal de firma — abre canvas (digital) o upload (manual) ──────────────
+const firmaCanvasEl = ref(null)
+const firmaModal = ref({
+  open:        false,
+  modo:        'digital',         // 'digital' | 'manual'
+  tipo:        '',                // 'contrato' | 'liquidacion'
+  documentoId: '',
+  descripcion: '',
+  fotoData:    null,
+  digitalData: null,
+  guardando:   false,
+  error:       '',
+})
+
 function solicitarFirma(tipo, id, descripcion) {
-  // TODO: integrar con el sistema de firma real (DocuSign / FirmaVirtual / etc.)
-  alert(`Solicitud de firma enviada\n\n` +
-        `Documento: ${descripcion}\n` +
-        `Recibirás un correo con el enlace para firmar electrónicamente.`)
+  firmaModal.value = {
+    open: true,
+    modo: 'digital',
+    tipo,
+    documentoId: id,
+    descripcion,
+    fotoData: null,
+    digitalData: null,
+    guardando: false,
+    error: '',
+  }
+  // Resetear canvas en el siguiente tick (cuando esté montado)
+  setTimeout(canvasClear, 50)
+}
+
+function cerrarFirma() {
+  if (firmaModal.value.guardando) return
+  firmaModal.value.open = false
+}
+
+const firmaPuedeGuardar = computed(() => {
+  if (firmaModal.value.modo === 'digital') return !!firmaModal.value.digitalData
+  return !!firmaModal.value.fotoData
+})
+
+// ── Canvas para firma digital ──────────────────────────────────────────────
+let canvasCtx = null
+let canvasDrawing = false
+let canvasLast = null
+
+function canvasInit() {
+  const c = firmaCanvasEl.value
+  if (!c) return
+  canvasCtx = c.getContext('2d')
+  canvasCtx.lineWidth = 2.5
+  canvasCtx.lineCap = 'round'
+  canvasCtx.lineJoin = 'round'
+  canvasCtx.strokeStyle = '#0f172a'
+}
+
+function canvasPoint(e) {
+  const c = firmaCanvasEl.value
+  if (!c) return null
+  const rect = c.getBoundingClientRect()
+  const t = e.touches?.[0] || e
+  return {
+    x: (t.clientX - rect.left) * (c.width / rect.width),
+    y: (t.clientY - rect.top)  * (c.height / rect.height),
+  }
+}
+function canvasStart(e) {
+  if (!canvasCtx) canvasInit()
+  canvasDrawing = true
+  canvasLast = canvasPoint(e)
+}
+function canvasMove(e) {
+  if (!canvasDrawing || !canvasCtx) return
+  const p = canvasPoint(e)
+  if (!p || !canvasLast) return
+  canvasCtx.beginPath()
+  canvasCtx.moveTo(canvasLast.x, canvasLast.y)
+  canvasCtx.lineTo(p.x, p.y)
+  canvasCtx.stroke()
+  canvasLast = p
+  firmaModal.value.digitalData = firmaCanvasEl.value.toDataURL('image/png')
+}
+function canvasEnd() {
+  canvasDrawing = false
+  canvasLast = null
+}
+function canvasClear() {
+  if (!firmaCanvasEl.value) return
+  if (!canvasCtx) canvasInit()
+  canvasCtx.clearRect(0, 0, firmaCanvasEl.value.width, firmaCanvasEl.value.height)
+  firmaModal.value.digitalData = null
+}
+
+// ── Upload de foto firmada ────────────────────────────────────────────────
+function onFirmaFoto(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) {
+    firmaModal.value.error = 'La foto debe pesar menos de 5 MB'
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => { firmaModal.value.fotoData = reader.result }
+  reader.readAsDataURL(file)
+}
+
+// ── Guardar firma (mockup: solo confirma; TODO: POST al backend) ──────────
+async function guardarFirma() {
+  firmaModal.value.guardando = true
+  firmaModal.value.error = ''
+  try {
+    // TODO: enviar a /api/portal/firmar — por ahora solo confirma localmente
+    await new Promise(r => setTimeout(r, 600))
+    alert('✓ Documento firmado correctamente.\nTu firma quedó registrada.')
+    firmaModal.value.open = false
+  } catch (e) {
+    firmaModal.value.error = e?.message || 'No se pudo guardar la firma'
+  } finally {
+    firmaModal.value.guardando = false
+  }
 }
 
 function tipoContratoLabel(t) {
@@ -984,6 +1162,168 @@ async function handleLogout() {
 .contrato-badge.ok     { background: rgba(13,207,168,0.12);  color: #0DCFA8; }
 .contrato-badge.danger { background: rgba(239,68,68,0.12);   color: #ef4444; }
 .contrato-badge.muted  { background: rgba(107,114,128,0.12); color: #6b7280; }
+
+/* ─── Modal de Firma ──────────────────────────────────────────────────── */
+.firma-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.firma-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px 26px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+}
+.firma-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.firma-header h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: #0f172a;
+}
+.firma-close {
+  background: none; border: none;
+  font-size: 26px; line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.firma-sub {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 16px;
+}
+.firma-tabs {
+  display: flex; gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.firma-tab {
+  flex: 1;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.firma-tab.active {
+  background: #fff;
+  color: #0DCFA8;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.firma-hint {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 10px;
+}
+.firma-canvas-wrap {
+  display: flex; flex-direction: column; gap: 10px; align-items: stretch;
+}
+.firma-canvas {
+  width: 100%;
+  height: 180px;
+  background: #f9fafb;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  cursor: crosshair;
+  touch-action: none;
+}
+.btn-clear {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid #e5e7eb;
+  color: #64748b;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-clear:hover { background: #f3f4f6; }
+
+.firma-upload {
+  display: flex; flex-direction: column; gap: 12px; align-items: stretch;
+}
+.firma-upload-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 16px;
+  background: #f1f5f9;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.firma-upload-btn:hover { background: #e2e8f0; }
+.firma-preview {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex; justify-content: center;
+}
+.firma-preview img {
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.firma-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.firma-actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  color: #64748b;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-firmar {
+  background: #0DCFA8;
+  border: 1px solid #0DCFA8;
+  color: #fff;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-firmar:hover:not(:disabled) { background: #15dab3; }
+.btn-firmar:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ─── Tab Contratos (portal trabajador) ──────────────────────────────── */
 .doc-grid {
