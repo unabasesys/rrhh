@@ -1092,17 +1092,31 @@ async function handleLogout() {
 }
 .liq-card__sub { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
 .btn-link {
-  margin-top: 14px;
-  background: transparent;
-  border: 1px solid #e5e7eb;
-  color: #1f2937;
-  padding: 7px 12px;
+  background: #0DCFA8;
+  border: 1px solid #0DCFA8;
+  color: #ffffff;
+  padding: 8px 14px;
   border-radius: 8px;
   font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all 0.15s;
 }
-.btn-link:hover { background: #f3f4f6; }
+.btn-link:hover {
+  background: #15dab3;
+  border-color: #15dab3;
+}
+/* Variante secundaria para "Firmar online" — outline teal */
+.btn-link--firma {
+  background: transparent !important;
+  border: 1px solid #0DCFA8 !important;
+  color: #0DCFA8 !important;
+}
+.btn-link--firma:hover {
+  background: rgba(13, 207, 168, 0.1) !important;
+  color: #0DCFA8 !important;
+}
 
 /* ─── Marcaciones ────────────────────────────────────────────────────── */
 .marc-toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
