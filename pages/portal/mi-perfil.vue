@@ -621,12 +621,18 @@ async function handleLogout() {
 
 <style scoped>
 .portal-page {
-  min-height: 100vh;
+  height: 100vh;
   background: #f5f7f9;
   display: flex;
   flex-direction: column;
   color: #1f2937;
+  /* Scroll vertical interno — el body global tiene overflow:hidden y no
+     permite scroll en páginas standalone como este portal. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
+.portal-header { flex-shrink: 0; position: sticky; top: 0; z-index: 10; }
 
 /* ─── Header ─────────────────────────────────────────────────────────── */
 .portal-header {
@@ -1162,6 +1168,17 @@ async function handleLogout() {
   .marcar-clock { font-size: 48px; }
   .marcar-actions { grid-template-columns: 1fr; }
   .data-row { grid-template-columns: 110px 1fr; font-size: 12.5px; }
-  .portal-main { padding: 16px; }
+  .portal-main { padding: 16px; padding-bottom: 80px; /* safe area iOS */ }
+  /* Tabs en móvil: scroll horizontal + iconos más compactos */
+  .portal-tabs {
+    margin: 0 -16px 18px;
+    padding: 0 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .portal-tab {
+    padding: 10px 12px;
+    font-size: 13px;
+    gap: 5px;
+  }
 }
 </style>
