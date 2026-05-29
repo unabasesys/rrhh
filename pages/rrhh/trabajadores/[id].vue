@@ -644,7 +644,11 @@
                     {{ getEstadoFirmaDoc(liq._id).estado === 'firmado' ? '✓' : '⏳' }}
                   </span>
                 </template>
-                <button class="btn-icon btn-firma-doc" title="Enviar a firmar"
+                <div v-if="liq.firma_data" class="firma-info-stack" title="Liquidación firmada por el trabajador">
+                  <span class="firma-info-badge">✓ Firmada</span>
+                  <span v-if="liq.firma_fecha" class="firma-info-date">{{ formatFechaHora(liq.firma_fecha) }}</span>
+                </div>
+                <button v-else class="btn-icon btn-firma-doc" title="Enviar a firmar"
                   @click="abrirFirmaModal('liquidacion', liq._id, { titulo: `Liquidación ${liq.mes}/${liq.anio}`, periodo: `${liq.mes}/${liq.anio}`, sueldo_base: liq.sueldo_base, liquido_pagar: liq.liquido_a_pagar })">
                   <i class="u u-link"></i>
                 </button>
@@ -748,7 +752,11 @@
                   {{ getEstadoFirmaDoc(c._id).estado === 'firmado' ? '✓ Firmado' : getEstadoFirmaDoc(c._id).estado === 'pendiente' ? '⏳ Firma pend.' : '✕ Rechazado' }}
                 </span>
               </template>
-              <button class="btn-icon btn-firma-doc" title="Enviar a firmar"
+              <div v-if="c.firma_data" class="firma-info-stack" title="Contrato firmado por el trabajador">
+                <span class="firma-info-badge">✓ Firmado</span>
+                <span v-if="c.firma_fecha" class="firma-info-date">{{ formatFechaHora(c.firma_fecha) }}</span>
+              </div>
+              <button v-else class="btn-icon btn-firma-doc" title="Enviar a firmar"
                 @click="abrirFirmaModal('contrato', c._id, { titulo: `Contrato ${labelContrato(c.tipo_contrato)} — ${c.nombre_proyecto || c.negocio_nombre || ''}`.trim(), cargo: c.cargo, fecha_inicio: c.fecha_inicio, fecha_termino: c.fecha_termino, sueldo_base: c.sueldo_base, negocio: c.negocio_nombre })">
                 <i class="u u-link"></i>
               </button>
@@ -5368,6 +5376,34 @@ onMounted(async () => {
 
 .data-table tbody tr:hover td {
   background: var(--neutral-background-strong, #2a3a4a);
+}
+
+/* Info de firma (badge + fecha) inline en acciones */
+.firma-info-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0 6px;
+  vertical-align: middle;
+}
+.firma-info-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0DCFA8;
+  background: rgba(13, 207, 168, 0.14);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.firma-info-date {
+  font-size: 9px;
+  color: var(--neutral-text-muted, #9ca3af);
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 /* Columna "Creado por" — autor en primera línea, fecha/hora abajo */
