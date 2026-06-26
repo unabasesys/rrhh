@@ -6,35 +6,35 @@
  */
 import { defineStore } from 'pinia'
 
-// ── Indicadores por defecto: Remuneraciones Mayo 2026 ─────────────────────────
+// ── Indicadores por defecto: Remuneraciones Junio 2026 ────────────────────────
 // Fuente: https://www.previred.com/indicadores-previsionales/
-// Vigencia: cotizaciones a pagar en Junio 2026
-// Verificado el 2026-05-20 con el PDF oficial de Previred Mayo 2026.
+// Vigencia: cotizaciones a pagar en Julio 2026
+// Verificado el 2026-06-26 con el PDF oficial de Previred Junio 2026.
 const DEFAULTS = {
-  periodo:        'Mayo 2026',
-  pago:           'Junio 2026',
+  periodo:        'Junio 2026',
+  pago:           'Julio 2026',
   fuente:         'https://www.previred.com/indicadores-previsionales/',
-  actualizado:    '2026-05-20',
+  actualizado:    '2026-06-26',
 
   // ── Unidades de valor ──────────────────────────────────────────────────────
-  uf_actual:      40610.69,    // UF al 31 de Mayo 2026
-  uf_fecha:       '31 de Mayo 2026',
-  uf_anterior:    40120.20,    // UF al 30 de Abril 2026
-  uf_fecha_ant:   '30 de Abril 2026',
-  utm:            70588,       // UTM Mayo 2026
-  uta:            847056,      // UTA Mayo 2026
-  smm:            539000,      // Sueldo Mínimo Mensual (renta mínima imponible)
+  uf_actual:      40820.31,    // UF al 30 de Junio 2026
+  uf_fecha:       '30 de Junio 2026',
+  uf_anterior:    40610.69,    // UF al 31 de Mayo 2026
+  uf_fecha_ant:   '31 de Mayo 2026',
+  utm:            71506,       // UTM Junio 2026
+  uta:            858072,      // UTA Junio 2026
+  smm:            553553,      // Sueldo Mínimo Mensual (renta mínima imponible)
 
   // ── Rentas topes imponibles ────────────────────────────────────────────────
-  tope_afp:       3654962,     // 90 UF
-  tope_ips:       2407212,     // 60 UF (ex INP)
-  tope_cesantia:  5490565,     // 135,2 UF
+  tope_afp:       3673828,     // 90 UF
+  tope_ips:       2436641,     // 60 UF (ex INP)
+  tope_cesantia:  5518906,     // 135,2 UF
 
   // ── Rentas mínimas imponibles ──────────────────────────────────────────────
-  renta_min_dependiente: 539000,
-  renta_min_menor_65:    402082,
-  renta_min_casa_part:   539000,
-  renta_min_no_remun:    347434,
+  renta_min_dependiente: 553553,
+  renta_min_menor_65:    412938,
+  renta_min_casa_part:   553553,
+  renta_min_no_remun:    356815,
 
   // ── SIS (Seguro de Invalidez y Sobrevivencia) ──────────────────────────────
   // Oficio Ordinario N° 7429, publicado 14-04-2026
@@ -81,15 +81,15 @@ const DEFAULTS = {
   },
 
   // ── APV ───────────────────────────────────────────────────────────────────
-  apv_tope_mensual:      2030535,  // 50 UF
-  apv_tope_anual:       24366414,  // 600 UF
-  deposito_convenido:   36549621,  // 900 UF
+  apv_tope_mensual:      2041016,  // 50 UF
+  apv_tope_anual:       24492186,  // 600 UF
+  deposito_convenido:   36738279,  // 900 UF
 
   // ── Asignación familiar ────────────────────────────────────────────────────
   asignacion_familiar: [
-    { tramo: 'A', monto: 22007, renta_max: 631976  },
-    { tramo: 'B', monto: 13505, renta_max: 923067  },
-    { tramo: 'C', monto:  4267, renta_max: 1439668 },
+    { tramo: 'A', monto: 22601, renta_max: 649039  },
+    { tramo: 'B', monto: 13870, renta_max: 947990  },
+    { tramo: 'C', monto:  4382, renta_max: 1478539 },
     { tramo: 'D', monto:     0, renta_max: null     },
   ],
 
