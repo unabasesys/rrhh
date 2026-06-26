@@ -114,7 +114,14 @@ export const useIndicadoresStore = defineStore('indicadores', {
       const saved = localStorage.getItem(LS_KEY)
       if (saved) {
         const parsed = JSON.parse(saved)
-        // Merge con defaults para garantizar que campos nuevos existan
+        // Si los DEFAULTS son más recientes que el cache (publicación
+        // nueva de Previred), descartamos el cache. Si no, hacemos merge
+        // (preserva ediciones manuales del usuario).
+        const newer = !parsed?.actualizado || (parsed.actualizado < DEFAULTS.actualizado)
+        if (newer) {
+          try { localStorage.setItem(LS_KEY, JSON.stringify(DEFAULTS)) } catch (_) {}
+          return { ...DEFAULTS }
+        }
         return { ...DEFAULTS, ...parsed }
       }
     } catch (_) {}
