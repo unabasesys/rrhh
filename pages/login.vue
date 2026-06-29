@@ -115,7 +115,7 @@
 
         <div class="form-footer">
           <span class="form-footer-text">¿No tienes cuenta aún?</span>
-          <a class="form-footer-link" href="#">Crea una cuenta aquí</a>
+          <a class="form-footer-link" @click.prevent="router.push('/register')" href="/register">Crea una cuenta aquí</a>
         </div>
       </div>
     </div>
