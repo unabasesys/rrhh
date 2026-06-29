@@ -5,6 +5,7 @@
  * Al integrar con Unabase OS, se conectará vía props/events al sistema central.
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import OnboardingWizard from '@/components/OnboardingWizard.vue'
 import { useRoute, useRouter } from 'vue-router'
 import useRrhhStore   from '@/stores/rrhh'
 import { useAsistenciaStore } from '@/stores/asistencia'
@@ -16,6 +17,16 @@ const asistencia   = useAsistenciaStore()
 const indicadores  = useIndicadoresStore()
 const route   = useRoute()
 const router  = useRouter()
+
+// Mapea label de nav → identificador estable para tooltips del wizard
+const TOUR_LABELS = {
+  'Home':        'home',
+  'Personas':    'personas',
+  'Marcaciones': 'marcaciones',
+  'Reportes':    'reportes',
+  'Indicadores': 'indicadores',
+}
+function tourKey(item) { return TOUR_LABELS[item.label] || null }
 
 const indicadoresUltimaFechaCorta = computed(() => {
   const iso = indicadores.actualizado
@@ -407,6 +418,7 @@ onUnmounted(() => {
             :key="item.path"
             class="nav-item"
             :class="{ active: isActive(item) }"
+            :data-tour="tourKey(item)"
             @click="goTo(item.path)"
             :title="(!sidebarExpanded && !isMobile) ? item.label : ''"
           >
@@ -652,6 +664,8 @@ onUnmounted(() => {
       </main>
     </div>
 
+    <!-- Onboarding wizard: se autodetecta si el usuario ya lo completó -->
+    <OnboardingWizard />
   </div>
 </template>
 
