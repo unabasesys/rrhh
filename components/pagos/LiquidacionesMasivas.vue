@@ -34,12 +34,12 @@
               <tr>
                 <th class="col-trab">Trabajador</th>
                 <th class="col-base">Sueldo Base</th>
-                <th class="col-dias">Días trab.</th>
-                <th class="col-horas">Horas extra</th>
-                <th class="col-bono">Bono imp.</th>
-                <th class="col-bono">Bono no imp.</th>
-                <th class="col-desc">Descuento</th>
-                <th class="col-note">Concepto</th>
+                <th class="col-dias">Días</th>
+                <th class="col-horas">H. extra</th>
+                <th class="col-bono-tipo">Tipo bono</th>
+                <th class="col-bono-monto">Monto bono</th>
+                <th class="col-desc-tipo">Tipo descuento</th>
+                <th class="col-desc-monto">Monto desc.</th>
               </tr>
             </thead>
             <tbody>
@@ -60,17 +60,28 @@
                 <td>
                   <input type="number" v-model.number="fila.horas_extra" min="0" step="0.5" />
                 </td>
-                <td>
-                  <input type="number" v-model.number="fila.bono_imponible" min="0" />
+                <td class="col-bono-tipo">
+                  <div class="lm-tipo-cell">
+                    <select v-model="fila.bono_tipo" class="lm-tipo-select">
+                      <option value="">—</option>
+                      <option v-for="b in TIPOS_BONOS" :key="b.tipo" :value="b.tipo">{{ b.nombre }}</option>
+                    </select>
+                    <span v-if="fila.bono_tipo" class="lm-imp-chip" :class="bonoChipClass(fila.bono_tipo)">
+                      {{ bonoEsImponible(fila.bono_tipo) ? 'Imp' : 'No imp' }}
+                    </span>
+                  </div>
                 </td>
                 <td>
-                  <input type="number" v-model.number="fila.bono_no_imponible" min="0" />
+                  <input type="number" v-model.number="fila.bono_monto" min="0" :disabled="!fila.bono_tipo" />
+                </td>
+                <td class="col-desc-tipo">
+                  <select v-model="fila.descuento_tipo" class="lm-tipo-select">
+                    <option value="">—</option>
+                    <option v-for="d in TIPOS_DESCUENTOS" :key="d.tipo" :value="d.tipo">{{ d.nombre }}</option>
+                  </select>
                 </td>
                 <td>
-                  <input type="number" v-model.number="fila.descuento" min="0" />
-                </td>
-                <td>
-                  <input type="text" v-model="fila.concepto" placeholder="Nota libre" />
+                  <input type="number" v-model.number="fila.descuento_monto" min="0" :disabled="!fila.descuento_tipo" />
                 </td>
               </tr>
               <tr v-if="!filas.length">
@@ -165,12 +176,30 @@
       <div v-if="showMasivoForm" class="lm-mini-overlay" @click.self="showMasivoForm = false">
         <div class="lm-mini">
           <h3>Aplicar a todos los seleccionados</h3>
-          <p class="muted">Sobrescribe los valores actuales de bono/descuento de cada fila.</p>
+          <p class="muted">Sobrescribe el bono y/o descuento de cada fila. Deja en blanco lo que no quieras cambiar.</p>
           <div class="lm-mini-grid">
-            <label><span>Bono imponible</span><input type="number" v-model.number="masivo.bono_imponible" /></label>
-            <label><span>Bono no imp.</span><input type="number" v-model.number="masivo.bono_no_imponible" /></label>
-            <label><span>Descuento</span><input type="number" v-model.number="masivo.descuento" /></label>
-            <label><span>Concepto</span><input type="text" v-model="masivo.concepto" placeholder="Aguinaldo, etc."/></label>
+            <label>
+              <span>Tipo de bono</span>
+              <select v-model="masivo.bono_tipo">
+                <option value="">— No cambiar —</option>
+                <option v-for="b in TIPOS_BONOS" :key="b.tipo" :value="b.tipo">{{ b.nombre }}</option>
+              </select>
+            </label>
+            <label>
+              <span>Monto bono</span>
+              <input type="number" v-model.number="masivo.bono_monto" />
+            </label>
+            <label>
+              <span>Tipo de descuento</span>
+              <select v-model="masivo.descuento_tipo">
+                <option value="">— No cambiar —</option>
+                <option v-for="d in TIPOS_DESCUENTOS" :key="d.tipo" :value="d.tipo">{{ d.nombre }}</option>
+              </select>
+            </label>
+            <label>
+              <span>Monto descuento</span>
+              <input type="number" v-model.number="masivo.descuento_monto" />
+            </label>
           </div>
           <div class="lm-mini-actions">
             <button class="lm-btn lm-btn--ghost" @click="showMasivoForm = false">Cancelar</button>
@@ -184,7 +213,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { calcularLiquidacion } from '@/stores/rrhh'
+import { calcularLiquidacion, TIPOS_BONOS, TIPOS_DESCUENTOS } from '@/stores/rrhh'
 import { useIndicadoresStore } from '@/stores/indicadores'
 
 const props = defineProps({
@@ -227,28 +256,52 @@ onMounted(async () => {
     anticiposPorTrabajador.value = map
   } catch { anticiposPorTrabajador.value = {} }
 
-  // Build filas
+  // Build filas — un bono y un descuento por fila (con tipo + monto).
+  // Si después necesitamos varios bonos/descuentos por fila, ahí pensamos
+  // otra UI lateral; por ahora MVP simple.
   filas.value = props.trabajadores.map(t => ({
-    trabajador_id:      t._id,
-    nombre:             [t.nombre, t.apellido, t.apellido_paterno, t.apellido_materno].filter(Boolean).join(' '),
-    contrato:           t.contrato,
-    excluida:           false,
-    dias_trabajados:    30,
-    horas_extra:        0,
-    bono_imponible:     0,
-    bono_no_imponible:  0,
-    descuento:          0,
-    concepto:           '',
+    trabajador_id:    t._id,
+    nombre:           [t.nombre, t.apellido, t.apellido_paterno, t.apellido_materno].filter(Boolean).join(' '),
+    contrato:         t.contrato,
+    excluida:         false,
+    dias_trabajados:  30,
+    horas_extra:      0,
+    bono_tipo:        '',
+    bono_monto:       0,
+    descuento_tipo:   '',
+    descuento_monto:  0,
   }))
 })
+
+// Helpers de tipos
+function bonoEsImponible(tipo) {
+  return TIPOS_BONOS.find(b => b.tipo === tipo)?.imponible ?? false
+}
+function bonoNombre(tipo) {
+  return TIPOS_BONOS.find(b => b.tipo === tipo)?.nombre || tipo
+}
+function descuentoNombre(tipo) {
+  return TIPOS_DESCUENTOS.find(d => d.tipo === tipo)?.nombre || tipo
+}
+function bonoChipClass(tipo) {
+  return bonoEsImponible(tipo) ? 'lm-imp-chip--imp' : 'lm-imp-chip--no-imp'
+}
 
 const filasIncluidas = computed(() => filas.value.filter(f => !f.excluida))
 
 const preview = computed(() => filasIncluidas.value.map(f => {
   const bonos = []
-  if (f.bono_imponible    > 0) bonos.push({ nombre: f.concepto || 'Bono',  monto: f.bono_imponible,    imponible: true })
-  if (f.bono_no_imponible > 0) bonos.push({ nombre: 'Asignación no imp.',  monto: f.bono_no_imponible, imponible: false })
-  const descuentos = f.descuento > 0 ? [{ nombre: f.concepto || 'Descuento', monto: f.descuento }] : []
+  if (f.bono_tipo && f.bono_monto > 0) {
+    bonos.push({
+      tipo:      f.bono_tipo,
+      nombre:    bonoNombre(f.bono_tipo),
+      monto:     f.bono_monto,
+      imponible: bonoEsImponible(f.bono_tipo),
+    })
+  }
+  const descuentos = (f.descuento_tipo && f.descuento_monto > 0)
+    ? [{ tipo: f.descuento_tipo, nombre: descuentoNombre(f.descuento_tipo), monto: f.descuento_monto }]
+    : []
 
   let calc = {}
   try {
@@ -292,19 +345,23 @@ function irAPreview() { paso.value = 'preview' }
 
 // ── Aplicar masivamente ───────────────────────────────────────────────
 const showMasivoForm = ref(false)
-const masivo = ref({ bono_imponible: 0, bono_no_imponible: 0, descuento: 0, concepto: '' })
+const masivo = ref({ bono_tipo: '', bono_monto: 0, descuento_tipo: '', descuento_monto: 0 })
 
 function aplicarMasivo() { showMasivoForm.value = true }
 function aplicarMasivoConfirm() {
   for (const f of filas.value) {
     if (f.excluida) continue
-    if (masivo.value.bono_imponible    > 0) f.bono_imponible    = masivo.value.bono_imponible
-    if (masivo.value.bono_no_imponible > 0) f.bono_no_imponible = masivo.value.bono_no_imponible
-    if (masivo.value.descuento         > 0) f.descuento         = masivo.value.descuento
-    if (masivo.value.concepto)              f.concepto          = masivo.value.concepto
+    if (masivo.value.bono_tipo) {
+      f.bono_tipo  = masivo.value.bono_tipo
+      f.bono_monto = masivo.value.bono_monto || 0
+    }
+    if (masivo.value.descuento_tipo) {
+      f.descuento_tipo  = masivo.value.descuento_tipo
+      f.descuento_monto = masivo.value.descuento_monto || 0
+    }
   }
   showMasivoForm.value = false
-  masivo.value = { bono_imponible: 0, bono_no_imponible: 0, descuento: 0, concepto: '' }
+  masivo.value = { bono_tipo: '', bono_monto: 0, descuento_tipo: '', descuento_monto: 0 }
 }
 
 // ── Generación ────────────────────────────────────────────────────────
@@ -498,7 +555,8 @@ function formatCLP(n) {
   vertical-align: middle;
 }
 .lm-grid input[type="number"],
-.lm-grid input[type="text"] {
+.lm-grid input[type="text"],
+.lm-grid select {
   width: 100%;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06);
@@ -508,18 +566,40 @@ function formatCLP(n) {
   font-size: 12px;
   font-family: inherit;
 }
-.lm-grid input:focus {
+.lm-grid input:focus,
+.lm-grid select:focus {
   outline: none;
   border-color: #0DCFA8;
   background: rgba(13,207,168,0.05);
 }
-.col-trab { min-width: 200px; }
-.col-base { color: #d1d5db; font-weight: 500; }
-.col-dias  { width: 80px; }
-.col-horas { width: 80px; }
-.col-bono  { width: 110px; }
-.col-desc  { width: 110px; }
-.col-note  { min-width: 140px; }
+.lm-grid input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.col-trab       { min-width: 200px; }
+.col-base       { color: #d1d5db; font-weight: 500; }
+.col-dias       { width: 70px; }
+.col-horas      { width: 70px; }
+.col-bono-tipo  { min-width: 180px; }
+.col-bono-monto { width: 110px; }
+.col-desc-tipo  { min-width: 170px; }
+.col-desc-monto { width: 110px; }
+
+.lm-tipo-cell {
+  display: flex; align-items: center; gap: 6px;
+}
+.lm-tipo-select { flex: 1; min-width: 0; }
+.lm-imp-chip {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+.lm-imp-chip--imp    { background: rgba(74,163,255,0.12); color: #4AA3FF; border: 1px solid rgba(74,163,255,0.3); }
+.lm-imp-chip--no-imp { background: rgba(245,200,66,0.12); color: #F5C842; border: 1px solid rgba(245,200,66,0.3); }
 .lm-row--excluida {
   opacity: 0.35;
 }
@@ -646,7 +726,8 @@ function formatCLP(n) {
   font-size: 11px; color: #9ca3af;
   text-transform: uppercase; letter-spacing: 0.04em;
 }
-.lm-mini-grid input {
+.lm-mini-grid input,
+.lm-mini-grid select {
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 6px;
