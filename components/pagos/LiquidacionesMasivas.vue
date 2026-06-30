@@ -40,52 +40,84 @@
                 <th class="col-bono-monto">Monto bono</th>
                 <th class="col-desc-tipo">Tipo descuento</th>
                 <th class="col-desc-monto">Monto desc.</th>
+                <th class="col-acciones"></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(fila, i) in filas" :key="fila.trabajador_id" :class="{ 'lm-row--excluida': fila.excluida }">
-                <td class="col-trab">
-                  <label class="lm-check">
-                    <input type="checkbox" :checked="!fila.excluida" @change="fila.excluida = !fila.excluida" />
-                    <div class="lm-trab-info">
-                      <span class="lm-trab-nombre">{{ fila.nombre }}</span>
-                      <span class="lm-trab-cargo">{{ fila.contrato?.cargo || '—' }}</span>
+              <template v-for="fila in filas" :key="fila.trabajador_id">
+                <tr
+                  v-for="(linea, j) in fila.lineas"
+                  :key="j"
+                  :class="[
+                    { 'lm-row--excluida': fila.excluida },
+                    { 'lm-row--sub': j > 0 },
+                    j === fila.lineas.length - 1 ? 'lm-row--last' : null,
+                  ]"
+                >
+                  <!-- Primera línea: cabecera del trabajador con rowspan -->
+                  <td v-if="j === 0" class="col-trab" :rowspan="fila.lineas.length">
+                    <label class="lm-check">
+                      <input type="checkbox" :checked="!fila.excluida" @change="fila.excluida = !fila.excluida" />
+                      <div class="lm-trab-info">
+                        <span class="lm-trab-nombre">{{ fila.nombre }}</span>
+                        <span class="lm-trab-cargo">{{ fila.contrato?.cargo || '—' }}</span>
+                      </div>
+                    </label>
+                  </td>
+                  <td v-if="j === 0" class="col-base" :rowspan="fila.lineas.length">
+                    {{ formatCLP(fila.contrato?.sueldo_base) }}
+                  </td>
+                  <td v-if="j === 0" :rowspan="fila.lineas.length">
+                    <input type="number" v-model.number="fila.dias_trabajados" min="0" max="31" />
+                  </td>
+                  <td v-if="j === 0" :rowspan="fila.lineas.length">
+                    <input type="number" v-model.number="fila.horas_extra" min="0" step="0.5" />
+                  </td>
+
+                  <!-- Tipo + monto de bono y descuento — por línea -->
+                  <td class="col-bono-tipo">
+                    <div class="lm-tipo-cell">
+                      <select v-model="linea.bono_tipo" class="lm-tipo-select">
+                        <option value="">—</option>
+                        <option v-for="b in TIPOS_BONOS" :key="b.tipo" :value="b.tipo">{{ b.nombre }}</option>
+                      </select>
+                      <span v-if="linea.bono_tipo" class="lm-imp-chip" :class="bonoChipClass(linea.bono_tipo)">
+                        {{ bonoEsImponible(linea.bono_tipo) ? 'Imp' : 'No imp' }}
+                      </span>
                     </div>
-                  </label>
-                </td>
-                <td class="col-base">{{ formatCLP(fila.contrato?.sueldo_base) }}</td>
-                <td>
-                  <input type="number" v-model.number="fila.dias_trabajados" min="0" max="31" />
-                </td>
-                <td>
-                  <input type="number" v-model.number="fila.horas_extra" min="0" step="0.5" />
-                </td>
-                <td class="col-bono-tipo">
-                  <div class="lm-tipo-cell">
-                    <select v-model="fila.bono_tipo" class="lm-tipo-select">
+                  </td>
+                  <td>
+                    <input type="number" v-model.number="linea.bono_monto" min="0" :disabled="!linea.bono_tipo" />
+                  </td>
+                  <td class="col-desc-tipo">
+                    <select v-model="linea.descuento_tipo" class="lm-tipo-select">
                       <option value="">—</option>
-                      <option v-for="b in TIPOS_BONOS" :key="b.tipo" :value="b.tipo">{{ b.nombre }}</option>
+                      <option v-for="d in TIPOS_DESCUENTOS" :key="d.tipo" :value="d.tipo">{{ d.nombre }}</option>
                     </select>
-                    <span v-if="fila.bono_tipo" class="lm-imp-chip" :class="bonoChipClass(fila.bono_tipo)">
-                      {{ bonoEsImponible(fila.bono_tipo) ? 'Imp' : 'No imp' }}
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <input type="number" v-model.number="fila.bono_monto" min="0" :disabled="!fila.bono_tipo" />
-                </td>
-                <td class="col-desc-tipo">
-                  <select v-model="fila.descuento_tipo" class="lm-tipo-select">
-                    <option value="">—</option>
-                    <option v-for="d in TIPOS_DESCUENTOS" :key="d.tipo" :value="d.tipo">{{ d.nombre }}</option>
-                  </select>
-                </td>
-                <td>
-                  <input type="number" v-model.number="fila.descuento_monto" min="0" :disabled="!fila.descuento_tipo" />
-                </td>
-              </tr>
+                  </td>
+                  <td>
+                    <input type="number" v-model.number="linea.descuento_monto" min="0" :disabled="!linea.descuento_tipo" />
+                  </td>
+
+                  <!-- Botones + / − para gestionar líneas -->
+                  <td class="col-acciones">
+                    <button
+                      v-if="j === fila.lineas.length - 1"
+                      class="lm-row-btn lm-row-btn--add"
+                      title="Agregar otro bono/descuento"
+                      @click="agregarLinea(fila)"
+                    >＋</button>
+                    <button
+                      v-if="fila.lineas.length > 1 || linea.bono_tipo || linea.descuento_tipo"
+                      class="lm-row-btn lm-row-btn--rm"
+                      :title="fila.lineas.length > 1 ? 'Quitar esta línea' : 'Limpiar'"
+                      @click="quitarLinea(fila, j)"
+                    >−</button>
+                  </td>
+                </tr>
+              </template>
               <tr v-if="!filas.length">
-                <td colspan="8" class="lm-empty">
+                <td colspan="9" class="lm-empty">
                   No hay trabajadores pendientes de liquidar para este mes.
                 </td>
               </tr>
@@ -256,9 +288,9 @@ onMounted(async () => {
     anticiposPorTrabajador.value = map
   } catch { anticiposPorTrabajador.value = {} }
 
-  // Build filas — un bono y un descuento por fila (con tipo + monto).
-  // Si después necesitamos varios bonos/descuentos por fila, ahí pensamos
-  // otra UI lateral; por ahora MVP simple.
+  // Build filas — cada trabajador tiene un arreglo de "lineas" donde cada
+  // línea es un par bono+descuento. Por default arranca con 1 línea vacía;
+  // el usuario agrega/quita con los botones + / − en cada fila.
   filas.value = props.trabajadores.map(t => ({
     trabajador_id:    t._id,
     nombre:           [t.nombre, t.apellido, t.apellido_paterno, t.apellido_materno].filter(Boolean).join(' '),
@@ -266,12 +298,20 @@ onMounted(async () => {
     excluida:         false,
     dias_trabajados:  30,
     horas_extra:      0,
-    bono_tipo:        '',
-    bono_monto:       0,
-    descuento_tipo:   '',
-    descuento_monto:  0,
+    lineas:           [nuevaLinea()],
   }))
 })
+
+function nuevaLinea() {
+  return { bono_tipo: '', bono_monto: 0, descuento_tipo: '', descuento_monto: 0 }
+}
+function agregarLinea(fila) {
+  fila.lineas.push(nuevaLinea())
+}
+function quitarLinea(fila, idx) {
+  if (fila.lineas.length > 1) fila.lineas.splice(idx, 1)
+  else fila.lineas[0] = nuevaLinea()   // si era la única, la "limpia"
+}
 
 // Helpers de tipos
 function bonoEsImponible(tipo) {
@@ -290,18 +330,27 @@ function bonoChipClass(tipo) {
 const filasIncluidas = computed(() => filas.value.filter(f => !f.excluida))
 
 const preview = computed(() => filasIncluidas.value.map(f => {
+  // Aplanar todas las líneas en arreglos de bonos y descuentos para el
+  // motor de cálculo de liquidación.
   const bonos = []
-  if (f.bono_tipo && f.bono_monto > 0) {
-    bonos.push({
-      tipo:      f.bono_tipo,
-      nombre:    bonoNombre(f.bono_tipo),
-      monto:     f.bono_monto,
-      imponible: bonoEsImponible(f.bono_tipo),
-    })
+  const descuentos = []
+  for (const linea of (f.lineas || [])) {
+    if (linea.bono_tipo && linea.bono_monto > 0) {
+      bonos.push({
+        tipo:      linea.bono_tipo,
+        nombre:    bonoNombre(linea.bono_tipo),
+        monto:     linea.bono_monto,
+        imponible: bonoEsImponible(linea.bono_tipo),
+      })
+    }
+    if (linea.descuento_tipo && linea.descuento_monto > 0) {
+      descuentos.push({
+        tipo:   linea.descuento_tipo,
+        nombre: descuentoNombre(linea.descuento_tipo),
+        monto:  linea.descuento_monto,
+      })
+    }
   }
-  const descuentos = (f.descuento_tipo && f.descuento_monto > 0)
-    ? [{ tipo: f.descuento_tipo, nombre: descuentoNombre(f.descuento_tipo), monto: f.descuento_monto }]
-    : []
 
   let calc = {}
   try {
@@ -349,15 +398,19 @@ const masivo = ref({ bono_tipo: '', bono_monto: 0, descuento_tipo: '', descuento
 
 function aplicarMasivo() { showMasivoForm.value = true }
 function aplicarMasivoConfirm() {
+  // Aplica los valores del masivo a la PRIMERA línea de cada fila.
+  // Si la primera línea ya tenía datos, se sobrescribe.
   for (const f of filas.value) {
     if (f.excluida) continue
+    if (!f.lineas || !f.lineas.length) f.lineas = [nuevaLinea()]
+    const l = f.lineas[0]
     if (masivo.value.bono_tipo) {
-      f.bono_tipo  = masivo.value.bono_tipo
-      f.bono_monto = masivo.value.bono_monto || 0
+      l.bono_tipo  = masivo.value.bono_tipo
+      l.bono_monto = masivo.value.bono_monto || 0
     }
     if (masivo.value.descuento_tipo) {
-      f.descuento_tipo  = masivo.value.descuento_tipo
-      f.descuento_monto = masivo.value.descuento_monto || 0
+      l.descuento_tipo  = masivo.value.descuento_tipo
+      l.descuento_monto = masivo.value.descuento_monto || 0
     }
   }
   showMasivoForm.value = false
@@ -600,6 +653,39 @@ function formatCLP(n) {
 }
 .lm-imp-chip--imp    { background: rgba(74,163,255,0.12); color: #4AA3FF; border: 1px solid rgba(74,163,255,0.3); }
 .lm-imp-chip--no-imp { background: rgba(245,200,66,0.12); color: #F5C842; border: 1px solid rgba(245,200,66,0.3); }
+
+/* Sub-rows: líneas adicionales del mismo trabajador, sin separador grueso */
+.lm-row--sub td { border-bottom-color: rgba(255,255,255,0.025); }
+.lm-row--last td { border-bottom: 1px solid rgba(255,255,255,0.08); }
+:root.light-theme .lm-row--sub td  { border-bottom-color: #f8fafc; }
+:root.light-theme .lm-row--last td { border-bottom-color: #e5e7eb; }
+
+/* Botones + / − en la última columna */
+.col-acciones { width: 70px; white-space: nowrap; text-align: right; padding-right: 12px; }
+.lm-row-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  font-size: 14px; font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  margin-left: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #9ca3af;
+  line-height: 1;
+}
+.lm-row-btn:hover { color: #f3f4f6; background: rgba(255,255,255,0.08); }
+.lm-row-btn--add:hover { color: #0DCFA8; border-color: rgba(13,207,168,0.4); background: rgba(13,207,168,0.1); }
+.lm-row-btn--rm:hover  { color: #f87171; border-color: rgba(239,68,68,0.4);  background: rgba(239,68,68,0.1); }
+:root.light-theme .lm-row-btn {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+:root.light-theme .lm-row-btn:hover { background: #e2e8f0; color: #0f172a; }
+:root.light-theme .lm-row-btn--add:hover { background: rgba(13,207,168,0.12); border-color: rgba(13,207,168,0.4); color: #0aa688; }
+:root.light-theme .lm-row-btn--rm:hover  { background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.4); color: #dc2626; }
 .lm-row--excluida {
   opacity: 0.35;
 }
