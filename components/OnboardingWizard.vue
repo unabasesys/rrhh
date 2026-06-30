@@ -1,22 +1,44 @@
 <template>
   <!-- ── Modal de bienvenida (Step 0) ──────────────────────────────────── -->
   <div v-if="step === 0" class="ow-overlay" @click.self="cerrar">
-    <div class="ow-modal">
+    <div class="ow-modal ow-modal--wide">
       <div class="ow-modal__hero">
         <div class="ow-modal__logo">
           <img src="/img/logo-unabase-white.png" alt="unabase" />
-          <span>Personas</span>
+          <span>People</span>
         </div>
-        <h2>¡Bienvenido a Unabase Personas!</h2>
+        <h2>Te damos la bienvenida a People 👋</h2>
         <p>
-          El módulo de RRHH para estudios, agencias y productoras chilenas.
-          Contratos, liquidaciones, marcaciones y firma electrónica — todo en
-          un solo lugar.
+          <strong>People</strong> es el módulo de recursos humanos de unabase:
+          el espacio donde gestionas a las personas que hacen funcionar tu
+          empresa. Desde aquí administras a tu equipo, generas contratos y
+          liquidaciones, calculas sueldos, controlas turnos y horarios, y
+          asocias a cada persona a los proyectos en los que participa, todo
+          desde un mismo lugar y conectado con el resto de tu operación.
         </p>
+
+        <h3>Esto es lo que puedes hacer:</h3>
+        <ul class="ow-list">
+          <li><strong>Arma tu equipo</strong> — registra a cada colaborador y mantén su información ordenada y al día: datos personales, cargo, fechas y todo lo que necesitas tener a mano.</li>
+          <li><strong>Asocia a tu equipo a proyectos</strong> — vincula a cada persona a los proyectos o presupuestos en los que trabaja, estén o no conectados a unabase. Así sabes quién participa en qué y cómo se distribuyen los costos de tu equipo.</li>
+          <li><strong>Genera contratos</strong> — crea, edita y guarda los contratos de tu equipo de forma simple, dejando todo documentado en un solo lugar.</li>
+          <li><strong>Calcula sueldos y liquidaciones</strong> — procesa las remuneraciones de tu equipo y emite sus liquidaciones sin perder tiempo en planillas.</li>
+          <li><strong>Controla turnos y horarios</strong> — organiza la jornada de cada persona y lleva el registro de asistencia para que nada se te escape.</li>
+        </ul>
+
+        <h3>¿Por dónde empezar?</h3>
+        <ol class="ow-list ow-list--steps">
+          <li><strong>Agrega a tu primer colaborador</strong> — comienza armando tu equipo. Es el punto de partida para todo lo demás.</li>
+          <li><strong>Completa la información de cada persona</strong> — mientras más completo el perfil, más fácil será generar contratos y liquidaciones después.</li>
+          <li><strong>Asócialos a un proyecto o presupuesto</strong> — conecta a tu equipo con los proyectos en los que participa, dentro o fuera de unabase, para tener visibilidad de costos y dedicación.</li>
+          <li><strong>Define turnos y horarios</strong> — configura las jornadas de tu equipo para empezar a llevar el control de asistencia.</li>
+          <li><strong>Genera tu primer contrato o liquidación</strong> — con tu equipo cargado, ya puedes emitir documentos en minutos.</li>
+        </ol>
+
         <p class="ow-modal__lede">
-          Te dejamos una <strong>empresa DEMO</strong> precargada con 7 trabajadores,
-          3 proyectos y 7 contratos vigentes para que explores libremente sin
-          configurar nada.
+          Tómate tu tiempo para explorar. <strong>People crece contigo</strong>:
+          mientras más uses el módulo, más ordenada y simple se vuelve la
+          gestión de tu equipo.
         </p>
       </div>
 
@@ -189,16 +211,75 @@ onUnmounted(() => {
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px;
   width: 100%; max-width: 540px;
-  overflow: hidden;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 24px 60px rgba(0,0,0,0.6);
   animation: ow-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ow-modal--wide { max-width: 680px; }
+.ow-modal__hero {
+  overflow-y: auto;
+  flex: 1;
 }
 @keyframes ow-pop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 .ow-modal__hero {
   padding: 32px 32px 24px;
-  background: radial-gradient(ellipse at top, rgba(13, 207, 168, 0.18), transparent 60%);
+  background: radial-gradient(ellipse at top, rgba(13, 207, 168, 0.18), transparent 40%);
+  overflow-y: auto;
+  flex: 1;
 }
+.ow-modal__hero h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0DCFA8;
+  margin: 20px 0 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ow-list {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ow-list li {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(245, 240, 230, 0.78);
+  padding-left: 22px;
+  position: relative;
+}
+.ow-list li::before {
+  content: '';
+  position: absolute;
+  left: 4px; top: 9px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(13, 207, 168, 0.7);
+}
+.ow-list li strong { color: #f5f0e6; font-weight: 600; }
+.ow-list--steps { counter-reset: ow-step; }
+.ow-list--steps li::before {
+  counter-increment: ow-step;
+  content: counter(ow-step);
+  position: absolute;
+  left: -2px; top: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(13, 207, 168, 0.16);
+  color: #0DCFA8;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ow-list--steps li { padding-left: 28px; }
 .ow-modal__logo {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 18px;
