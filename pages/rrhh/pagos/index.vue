@@ -227,12 +227,16 @@ async function cargar() {
       $fetch(`/api/rrhh/liquidaciones?${params}`, { headers: authHeaders() }).catch(() => []),
       $fetch(`/api/rrhh/anticipos?${params}`, { headers: authHeaders() }).catch(() => []),
     ])
+    // Defensa en profundidad: el backend ya filtra por orgId del usuario,
+    // pero acá descartamos cualquier registro que no matchee exactamente la
+    // org activa. Para admin global sin orgId fijada, mostramos todo.
+    const esAdminGlobal = authStore?.user?.rol === 'admin' && !orgId
     liquidacionesMes.value = (Array.isArray(liqs) ? liqs : []).filter(l =>
       Number(l.mes) === mes.value && Number(l.anio) === anio.value &&
-      (!orgId || l.orgId === orgId)
+      (esAdminGlobal || l.orgId === orgId)
     )
     anticiposMes.value = (Array.isArray(antis) ? antis : []).filter(a =>
-      (!orgId || a.orgId === orgId)
+      esAdminGlobal || a.orgId === orgId
     )
 
     // Cargar trabajadores y contratos si no están en el store
