@@ -47,14 +47,23 @@
         <h2 class="title">Iniciar Sesión</h2>
         <span class="subtitle">Introduce tu correo y contraseña para ingresar</span>
 
-        <!-- Google Sign-In: botón oficial montado por Google Identity Services -->
-        <div v-if="googleClientId" class="google-wrap">
-          <div id="g_id_signin"></div>
-        </div>
-        <button v-else type="button" class="google-btn" disabled title="Configura GOOGLE_CLIENT_ID en .env">
-          <img src="/img/googlelogo.png" alt="Google" class="google-icon" />
-          Continuar con Google
-        </button>
+        <!-- Google Sign-In: client-only para evitar hydration mismatch
+             (el botón oficial lo renderiza el SDK de Google en cliente) -->
+        <ClientOnly>
+          <div v-if="googleClientId" class="google-wrap">
+            <div id="g_id_signin"></div>
+          </div>
+          <button v-else type="button" class="google-btn" disabled title="Configura GOOGLE_CLIENT_ID en .env">
+            <img src="/img/googlelogo.png" alt="Google" class="google-icon" />
+            Continuar con Google
+          </button>
+          <template #fallback>
+            <button type="button" class="google-btn" disabled>
+              <img src="/img/googlelogo.png" alt="Google" class="google-icon" />
+              Cargando…
+            </button>
+          </template>
+        </ClientOnly>
 
         <div class="divider"><span>o</span></div>
 
