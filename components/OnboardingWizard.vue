@@ -9,21 +9,6 @@
         </div>
         <h2>Te damos la bienvenida a People 👋</h2>
 
-        <div class="ow-demo-callout">
-          <span class="ow-demo-callout__badge">DEMO</span>
-          <div class="ow-demo-callout__text">
-            Estás entrando a una empresa de prueba llamada
-            <strong>Empresa DEMO SPA</strong>, con datos simulados — trabajadores,
-            contratos, proyectos y liquidaciones ya cargadas para que explores
-            el módulo sin partir de cero.
-            <br><br>
-            Cuando estés listo para usar tus propios datos,
-            <strong>crea tu empresa real</strong> desde el menú de tu cuenta
-            (esquina superior derecha → <em>Crear nueva empresa</em>). Te
-            mostraremos cómo al final del tour.
-          </div>
-        </div>
-
         <p>
           <strong>People</strong> es el módulo de recursos humanos de unabase:
           el espacio donde gestionas a las personas que hacen funcionar tu
