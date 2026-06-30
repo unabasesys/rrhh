@@ -518,7 +518,7 @@ onUnmounted(() => {
             <span v-else>🌙</span>
           </button>
           <!-- Selector de org activa (admin siempre, manager con más de 1 org) -->
-          <div v-if="authStore?.canSwitchOrg && allOrgs.length > 0" class="org-selector-wrap">
+          <div v-if="authStore?.canSwitchOrg && allOrgs.length > 0" class="org-selector-wrap" data-tour="org">
             <button class="org-chip org-chip--btn" @click="showOrgMenu = !showOrgMenu">
               <span v-if="currentOrg?.logo" class="org-chip-logo">
                 <img :src="currentOrg.logo" alt="" />
@@ -572,12 +572,12 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
-          <span v-else class="org-chip">
+          <span v-else class="org-chip" data-tour="org">
             <i class="u u-empresa"></i>
             {{ currentOrg?.nombre || orgName }}
           </span>
           <!-- Usuario actual -->
-          <div v-if="currentUser" class="user-menu-wrap">
+          <div v-if="currentUser" class="user-menu-wrap" data-tour="user-menu">
             <button class="user-chip" @click="showUserMenu = !showUserMenu">
               <span class="user-avatar">{{ userInitial(currentUser.nombre) }}</span>
               <span class="user-name">{{ currentUser.nombre }}</span>

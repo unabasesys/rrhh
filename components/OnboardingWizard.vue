@@ -8,6 +8,22 @@
           <span>People</span>
         </div>
         <h2>Te damos la bienvenida a People 👋</h2>
+
+        <div class="ow-demo-callout">
+          <span class="ow-demo-callout__badge">DEMO</span>
+          <div class="ow-demo-callout__text">
+            Estás entrando a una empresa de prueba llamada
+            <strong>Empresa DEMO SPA</strong>, con datos simulados — trabajadores,
+            contratos, proyectos y liquidaciones ya cargadas para que explores
+            el módulo sin partir de cero.
+            <br><br>
+            Cuando estés listo para usar tus propios datos,
+            <strong>crea tu empresa real</strong> desde el menú de tu cuenta
+            (esquina superior derecha → <em>Crear nueva empresa</em>). Te
+            mostraremos cómo al final del tour.
+          </div>
+        </div>
+
         <p>
           <strong>People</strong> es el módulo de recursos humanos de unabase:
           el espacio donde gestionas a las personas que hacen funcionar tu
@@ -115,6 +131,18 @@ const tooltips = [
     body:   'UTM, UF, sueldo mínimo, comisiones AFP, tasa SIS — siempre al día. El sistema se actualiza automáticamente 2 veces al mes desde Previred.',
     side:   'right',
   },
+  {
+    target: '[data-tour="org"]',
+    titulo: 'Empresa DEMO SPA',
+    body:   'Esta es la empresa de prueba en la que estás parado ahora. Tiene datos simulados — explorala libremente, nada de lo que hagas afecta producción real.',
+    side:   'bottom',
+  },
+  {
+    target: '[data-tour="user-menu"]',
+    titulo: 'Crea tu empresa real',
+    body:   'Cuando quieras dejar la demo, abre este menú y elige "Crear nueva empresa". Desde ahí cargas tu razón social, RUT y datos, y empiezas a trabajar con tu equipo real.',
+    side:   'bottom',
+  },
 ]
 
 const step = ref(-1)   // -1 = no inicializado, 0 = modal welcome, 1+ = tooltips
@@ -132,10 +160,23 @@ function updateTooltipPos() {
   }
   const r = el.getBoundingClientRect()
   const margin = 14
-  // Lado derecho del item del sidebar
-  tooltipPos.value = {
-    top:  `${Math.max(20, r.top + r.height / 2 - 80)}px`,
-    left: `${r.right + margin}px`,
+  const tooltipW = 320 // ancho aprox del tooltip — para clamping
+  if (current.value.side === 'bottom') {
+    // Debajo del target — usado para items del header
+    const left = Math.min(
+      Math.max(20, r.left + r.width / 2 - tooltipW / 2),
+      window.innerWidth - tooltipW - 20,
+    )
+    tooltipPos.value = {
+      top:  `${r.bottom + margin}px`,
+      left: `${left}px`,
+    }
+  } else {
+    // Lado derecho — usado para items del sidebar
+    tooltipPos.value = {
+      top:  `${Math.max(20, r.top + r.height / 2 - 80)}px`,
+      left: `${r.right + margin}px`,
+    }
   }
   // Resaltar el target
   document.querySelectorAll('.ow-target').forEach(n => n.classList.remove('ow-target'))
@@ -310,6 +351,51 @@ onUnmounted(() => {
   margin-top: 6px !important;
 }
 .ow-modal__lede strong { color: #0DCFA8; }
+
+/* ── Callout DEMO en el modal de bienvenida ─────────────────────────── */
+.ow-demo-callout {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: rgba(224, 120, 86, 0.10);
+  border: 1px solid rgba(224, 120, 86, 0.35);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 4px 0 18px;
+}
+.ow-demo-callout__badge {
+  flex-shrink: 0;
+  background: #E07856;
+  color: #1a0f0a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px; font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  align-self: center;
+}
+.ow-demo-callout__text {
+  font-size: 13px; line-height: 1.55;
+  color: rgba(245, 240, 230, 0.85);
+}
+.ow-demo-callout__text strong { color: #f5f0e6; }
+.ow-demo-callout__text em {
+  font-style: normal;
+  background: rgba(255,255,255,0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  color: #f5f0e6;
+}
+:root.light-theme .ow-demo-callout {
+  background: rgba(224, 120, 86, 0.08);
+  border-color: rgba(224, 120, 86, 0.4);
+}
+:root.light-theme .ow-demo-callout__text { color: #475569; }
+:root.light-theme .ow-demo-callout__text strong { color: #0f172a; }
+:root.light-theme .ow-demo-callout__text em {
+  background: #f1f5f9;
+  color: #0f172a;
+}
 
 .ow-modal__actions {
   display: flex; gap: 10px; justify-content: flex-end;
