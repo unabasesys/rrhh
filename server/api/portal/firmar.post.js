@@ -15,6 +15,7 @@ import { requireDb } from '../../utils/db.js'
 import { requireAuth } from '../../utils/requireAuth.js'
 import Liquidacion from '../../models/Liquidacion.js'
 import Contrato    from '../../models/Contrato.js'
+import Vacacion    from '../../models/Vacacion.js'
 
 const MAX_BASE64 = 1.5 * 1024 * 1024  // ~1.5 MB de base64 ≈ 1 MB de imagen
 
@@ -26,8 +27,8 @@ export default defineEventHandler(async (event) => {
   }
   const body = await readBody(event)
 
-  if (!['liquidacion', 'contrato'].includes(body?.tipo)) {
-    throw createError({ statusCode: 400, message: 'tipo debe ser "liquidacion" o "contrato"' })
+  if (!['liquidacion', 'contrato', 'vacacion'].includes(body?.tipo)) {
+    throw createError({ statusCode: 400, message: 'tipo debe ser "liquidacion", "contrato" o "vacacion"' })
   }
   if (!body?.documento_id) throw createError({ statusCode: 400, message: 'documento_id requerido' })
   if (!body?.firma_data || !/^data:image\/[a-z+]+;base64,/.test(body.firma_data)) {
@@ -37,7 +38,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 413, message: 'Firma muy grande. Máx 1 MB.' })
   }
 
-  const Model = body.tipo === 'liquidacion' ? Liquidacion : Contrato
+  const Model = body.tipo === 'liquidacion' ? Liquidacion
+              : body.tipo === 'contrato'    ? Contrato
+              :                                Vacacion
   const doc = await Model.findById(body.documento_id).lean()
   if (!doc) throw createError({ statusCode: 404, message: 'Documento no encontrado' })
   if (doc.trabajador_id !== me.trabajador_id) {

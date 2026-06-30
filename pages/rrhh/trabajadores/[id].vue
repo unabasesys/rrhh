@@ -400,6 +400,9 @@
                 </span>
               </div>
               <div class="account-actions">
+                <button class="btn btn-secondary btn-sm" @click="enviarAccesoEmail" :disabled="enviandoAcceso">
+                  <i class="u u-link"></i> {{ enviandoAcceso ? 'Enviando…' : 'Reenviar acceso por email' }}
+                </button>
                 <button class="btn btn-secondary btn-sm" @click="openResetPasswordModal">
                   <i class="u u-key"></i> Cambiar contraseña
                 </button>
@@ -407,10 +410,21 @@
                   <i class="u u-close"></i> Desvincular
                 </button>
               </div>
+              <div v-if="accesoMsg" class="acceso-msg" :class="{ ok: accesoMsgOk }">{{ accesoMsg }}</div>
             </div>
-            <div v-else class="contrato-vigente-card empty-cv" style="margin-top:0" @click="openCreateAccountModal">
-              <i class="u u-key"></i>
-              <span>Crear cuenta de acceso al portal</span>
+            <div v-else>
+              <div class="contrato-vigente-card empty-cv" style="margin-top:0" @click="openCreateAccountModal">
+                <i class="u u-key"></i>
+                <span>Crear cuenta de acceso al portal</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" style="margin-top:10px;width:100%" @click="enviarAccesoEmail" :disabled="enviandoAcceso || !trabajador?.email">
+                <i class="u u-link"></i>
+                {{ enviandoAcceso ? 'Enviando…' : 'Enviar link de portal por email' }}
+              </button>
+              <p v-if="!trabajador?.email" style="font-size:11px;color:#9ca3af;margin:6px 0 0">
+                Carga el email del trabajador para poder enviar el acceso.
+              </p>
+              <div v-if="accesoMsg" class="acceso-msg" :class="{ ok: accesoMsgOk }">{{ accesoMsg }}</div>
             </div>
           </div>
         </div>
@@ -474,6 +488,126 @@
             <button class="btn btn-secondary" @click="showResetPassword = false">Cancelar</button>
             <button class="btn btn-primary" :disabled="resetPwd.saving" @click="handleResetPassword">
               {{ resetPwd.saving ? 'Guardando…' : 'Cambiar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Vacaciones -->
+      <div v-if="activeTab === 'vacaciones'" class="tab-content">
+        <div class="liq-toolbar">
+          <h3>Vacaciones</h3>
+          <button class="btn btn-primary" @click="abrirSolicitudVacaciones">
+            <i class="u u-agregar"></i> Nueva solicitud
+          </button>
+        </div>
+
+        <!-- Cards de resumen -->
+        <div class="vac-grid">
+          <div class="vac-stat">
+            <span class="vac-stat__label">Acumulados</span>
+            <span class="vac-stat__valor">{{ vacBalance.acumulado ?? 0 }}<small>días</small></span>
+            <span class="vac-stat__sub">{{ vacBalance.antiguedadMeses ?? 0 }} meses · {{ vacBalance.diasPorAnio ?? 15 }} día/año</span>
+          </div>
+          <div class="vac-stat vac-stat--pendiente">
+            <span class="vac-stat__label">Solicitados (pendientes)</span>
+            <span class="vac-stat__valor">{{ vacBalance.pendientes ?? 0 }}<small>días</small></span>
+            <span class="vac-stat__sub">esperan aprobación</span>
+          </div>
+          <div class="vac-stat vac-stat--aprobado">
+            <span class="vac-stat__label">Aprobados a futuro</span>
+            <span class="vac-stat__valor">{{ vacBalance.aprobadas ?? 0 }}<small>días</small></span>
+            <span class="vac-stat__sub">programados</span>
+          </div>
+          <div class="vac-stat vac-stat--tomado">
+            <span class="vac-stat__label">Realizados</span>
+            <span class="vac-stat__valor">{{ vacBalance.tomadas ?? 0 }}<small>días</small></span>
+            <span class="vac-stat__sub">ya gozados</span>
+          </div>
+          <div class="vac-stat vac-stat--disponible">
+            <span class="vac-stat__label">Disponibles</span>
+            <span class="vac-stat__valor">{{ vacBalance.disponible ?? 0 }}<small>días</small></span>
+            <span class="vac-stat__sub">para solicitar</span>
+          </div>
+        </div>
+
+        <!-- Tabla de solicitudes -->
+        <h4 class="vac-section-title">Historial de solicitudes</h4>
+        <table class="data-table" v-if="vacSolicitudes.length">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Días</th>
+              <th>Estado</th>
+              <th>Motivo</th>
+              <th>Solicitado por</th>
+              <th class="th-acciones">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="v in vacSolicitudes" :key="v._id">
+              <td><strong>{{ v.fecha_inicio }}</strong> → {{ v.fecha_fin }}</td>
+              <td>{{ v.dias_habiles }}</td>
+              <td>
+                <span class="vac-badge" :class="`vac-badge--${vacEstadoVisible(v).codigo}`">
+                  {{ vacEstadoVisible(v).label }}
+                </span>
+              </td>
+              <td class="vac-motivo">{{ v.motivo || '—' }}</td>
+              <td class="vac-quien">
+                {{ v.solicitado_por === 'trabajador' ? 'Portal' : (v.solicitado_por_nombre || 'Admin') }}
+              </td>
+              <td class="td-acciones">
+                <button v-if="v.estado === 'pendiente'" class="btn btn-success btn-xs" @click="aprobarVacacion(v)" title="Aprobar">
+                  <i class="u u-check"></i>
+                </button>
+                <button v-if="v.estado === 'pendiente'" class="btn btn-danger btn-xs" @click="rechazarVacacion(v)" title="Rechazar">
+                  ✕
+                </button>
+                <button v-if="v.estado === 'aprobada'" class="btn btn-link btn-xs" @click="descargarPdfVacacion(v)" title="Descargar comprobante PDF">
+                  <i class="u u-folder-open"></i> PDF
+                </button>
+                <span v-if="v.firma_data" class="vac-firma-tag" title="Firmado por el trabajador">✓ firmado</span>
+                <button v-if="v.estado !== 'pendiente'" class="btn btn-link btn-xs" @click="eliminarVacacion(v)" title="Eliminar">
+                  <i class="u u-trash"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="vac-empty">
+          Aún no hay solicitudes registradas para este trabajador.
+        </div>
+      </div>
+
+      <!-- Modal: Nueva solicitud de vacaciones -->
+      <div v-if="showVacModal" class="modal-overlay" @click.self="showVacModal = false">
+        <div class="modal-box vac-modal-box">
+          <div class="modal-header">
+            <h2>Nueva solicitud de vacaciones</h2>
+            <button class="modal-close" @click="showVacModal = false">×</button>
+          </div>
+          <div class="vac-modal-body">
+            <div class="vac-modal-row">
+              <label>Desde</label>
+              <input type="date" v-model="nuevaVac.fecha_inicio" />
+            </div>
+            <div class="vac-modal-row">
+              <label>Hasta</label>
+              <input type="date" v-model="nuevaVac.fecha_fin" />
+            </div>
+            <div class="vac-modal-row">
+              <label>Motivo (opcional)</label>
+              <textarea v-model="nuevaVac.motivo" rows="3" placeholder="Vacaciones familiares, viaje, etc."></textarea>
+            </div>
+            <div class="vac-modal-info" v-if="nuevaVacDias > 0">
+              {{ nuevaVacDias }} día(s) hábil(es) — disponibles: {{ vacBalance.disponible ?? 0 }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" @click="showVacModal = false">Cancelar</button>
+            <button class="btn btn-primary" :disabled="!puedeGuardarVac" @click="guardarSolicitudVacaciones">
+              Crear solicitud
             </button>
           </div>
         </div>
@@ -2422,6 +2556,165 @@ const loading = ref(true)
 const loadingPDF = ref(false)
 const liqPdfLoading = ref(null) // _id de la liq que se está descargando
 const activeTab = ref('ficha')
+
+// ── Vacaciones ─────────────────────────────────────────────────────────────
+const vacSolicitudes = ref([])
+const vacBalance     = ref({})
+const showVacModal   = ref(false)
+const nuevaVac       = ref({ fecha_inicio: '', fecha_fin: '', motivo: '' })
+
+function _vacAuth() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {}
+  } catch { return {} }
+}
+
+async function cargarVacaciones() {
+  if (!import.meta.client || !route.params.id) return
+  try {
+    const [solRes, balRes] = await Promise.all([
+      $fetch(`/api/rrhh/vacaciones?trabajador_id=${route.params.id}`, { headers: _vacAuth() }),
+      $fetch(`/api/rrhh/vacaciones/balance?trabajador_id=${route.params.id}`, { headers: _vacAuth() }),
+    ])
+    vacSolicitudes.value = Array.isArray(solRes) ? solRes : []
+    vacBalance.value     = balRes || {}
+  } catch (e) {
+    vacSolicitudes.value = []
+    vacBalance.value     = {}
+  }
+}
+
+watch(activeTab, (t) => { if (t === 'vacaciones') cargarVacaciones() })
+
+const nuevaVacDias = computed(() => {
+  const { fecha_inicio, fecha_fin } = nuevaVac.value
+  if (!fecha_inicio || !fecha_fin || fecha_fin < fecha_inicio) return 0
+  let dias = 0
+  const cur = new Date(fecha_inicio + 'T00:00:00')
+  const fin = new Date(fecha_fin    + 'T00:00:00')
+  while (cur <= fin) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6) dias++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return dias
+})
+
+const puedeGuardarVac = computed(() =>
+  nuevaVac.value.fecha_inicio && nuevaVac.value.fecha_fin && nuevaVacDias.value > 0
+)
+
+function abrirSolicitudVacaciones() {
+  nuevaVac.value = { fecha_inicio: '', fecha_fin: '', motivo: '' }
+  showVacModal.value = true
+}
+
+async function guardarSolicitudVacaciones() {
+  try {
+    await $fetch('/api/rrhh/vacaciones', {
+      method: 'POST',
+      headers: _vacAuth(),
+      body: {
+        trabajador_id: route.params.id,
+        fecha_inicio:  nuevaVac.value.fecha_inicio,
+        fecha_fin:     nuevaVac.value.fecha_fin,
+        motivo:        nuevaVac.value.motivo,
+      },
+    })
+    showVacModal.value = false
+    await cargarVacaciones()
+  } catch (e) {
+    alert(e?.data?.message || 'No se pudo crear la solicitud')
+  }
+}
+
+async function aprobarVacacion(v) {
+  await $fetch(`/api/rrhh/vacaciones/${v._id}`, {
+    method: 'PUT', headers: _vacAuth(),
+    body: { estado: 'aprobada' },
+  })
+  await cargarVacaciones()
+}
+
+async function rechazarVacacion(v) {
+  const motivo = prompt('Nota para el trabajador (opcional):', '')
+  if (motivo === null) return  // cancelado
+  await $fetch(`/api/rrhh/vacaciones/${v._id}`, {
+    method: 'PUT', headers: _vacAuth(),
+    body: { estado: 'rechazada', notas_aprobacion: motivo },
+  })
+  await cargarVacaciones()
+}
+
+async function eliminarVacacion(v) {
+  if (!confirm('¿Eliminar este registro permanentemente?')) return
+  await $fetch(`/api/rrhh/vacaciones/${v._id}`, { method: 'DELETE', headers: _vacAuth() })
+  await cargarVacaciones()
+}
+
+// ── Enviar acceso al portal por email ──────────────────────────────────────
+const enviandoAcceso = ref(false)
+const accesoMsg      = ref('')
+const accesoMsgOk    = ref(false)
+
+async function enviarAccesoEmail() {
+  enviandoAcceso.value = true
+  accesoMsg.value      = ''
+  try {
+    const id = trabajador.value?._id || trabajador.value?.id
+    const res = await $fetch(`/api/rrhh/trabajadores/${id}/enviar-acceso`, {
+      method: 'POST',
+      headers: _vacAuth(),
+      body: {},
+    })
+    accesoMsgOk.value = true
+    accesoMsg.value = res.mode === 'sent'
+      ? `Email enviado a ${res.email}`
+      : res.mode === 'logged'
+        ? `Email simulado (sin RESEND_API_KEY) — destino: ${res.email}`
+        : 'No se pudo enviar el email'
+  } catch (e) {
+    accesoMsgOk.value = false
+    accesoMsg.value = e?.data?.message || 'Error al enviar el acceso'
+  } finally {
+    enviandoAcceso.value = false
+    // Auto-clear después de 5s
+    setTimeout(() => { accesoMsg.value = '' }, 5000)
+  }
+}
+
+async function descargarPdfVacacion(v) {
+  try {
+    const blob = await $fetch('/api/rrhh/vacacion-pdf', {
+      method: 'POST',
+      headers: _vacAuth(),
+      body: { vacacion_id: v._id },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `certificado-vacaciones-${v._id}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert(e?.data?.message || 'No se pudo generar el PDF')
+  }
+}
+
+function vacEstadoVisible(v) {
+  if (v.estado === 'aprobada') {
+    const fin = new Date(v.fecha_fin + 'T00:00:00')
+    if (!isNaN(fin) && fin <= new Date()) return { codigo: 'realizada', label: 'Realizada' }
+    return { codigo: 'aprobada', label: 'Aprobada' }
+  }
+  if (v.estado === 'pendiente')  return { codigo: 'pendiente', label: 'Pendiente' }
+  if (v.estado === 'rechazada')  return { codigo: 'rechazada', label: 'Rechazada' }
+  if (v.estado === 'cancelada')  return { codigo: 'cancelada', label: 'Cancelada' }
+  return { codigo: 'pendiente', label: v.estado }
+}
 const showNewLiq = ref(false)
 const showUploadDoc = ref(false)
 const showGenContrato = ref(false)
@@ -2642,6 +2935,7 @@ const tabs = [
   { id: 'ficha',        label: 'Ficha Personal', icon: 'u u-usuarios'        },
   { id: 'contratos',   label: 'Contratos',       icon: 'u u-ventas'          },
   { id: 'liquidaciones',label: 'Liquidaciones',  icon: 'u u-cobros-y-pagos'  },
+  { id: 'vacaciones',  label: 'Vacaciones',      icon: 'u u-clock'           },
   { id: 'documentos',  label: 'Documentos',      icon: 'u u-folder-open'     },
 ]
 
@@ -6526,5 +6820,161 @@ onMounted(async () => {
 
 .tsb.active strong {
   color: var(--color-primary, #3ac7a5);
+}
+
+/* ── Tab Vacaciones ───────────────────────────────────────────────────── */
+.vac-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 4px 0 20px;
+}
+.vac-stat {
+  background: var(--neutral-background-subtle, #0f1a26);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 9px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.vac-stat__label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--neutral-text-muted, #9ca3af);
+  text-transform: uppercase;
+}
+.vac-stat__valor {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px; font-weight: 700; line-height: 1.1;
+  color: var(--neutral-text-title, #f3f4f6);
+}
+.vac-stat__valor small {
+  font-size: 10px; font-weight: 500;
+  color: var(--neutral-text-muted, #9ca3af);
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.vac-stat__sub { font-size: 10px; color: var(--neutral-text-muted, #94a3b8); }
+@media (max-width: 1100px) {
+  .vac-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .vac-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.vac-stat--pendiente  { border-left: 3px solid #F5C842; }
+.vac-stat--aprobado   { border-left: 3px solid #4AA3FF; }
+.vac-stat--tomado     { border-left: 3px solid rgba(255,255,255,0.2); }
+.vac-stat--disponible { border-left: 3px solid #0DCFA8; background: rgba(13, 207, 168, 0.04); }
+
+.vac-section-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--neutral-text-muted, #9ca3af);
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+.vac-badge {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+  display: inline-block;
+}
+.vac-badge--pendiente { background: rgba(245, 200, 66, 0.12); color: #F5C842; border: 1px solid rgba(245, 200, 66, 0.35); }
+.vac-badge--aprobada  { background: rgba(74, 163, 255, 0.12); color: #4AA3FF; border: 1px solid rgba(74, 163, 255, 0.35); }
+.vac-badge--realizada { background: rgba(255,255,255,0.06);   color: var(--neutral-text-muted, #9ca3af); border: 1px solid rgba(255,255,255,0.12); }
+.vac-badge--rechazada { background: rgba(224, 120, 86, 0.12); color: #E07856; border: 1px solid rgba(224, 120, 86, 0.35); }
+.vac-badge--cancelada { background: rgba(255,255,255,0.04);   color: var(--neutral-text-muted, #6b7280); border: 1px solid rgba(255,255,255,0.10); }
+
+.vac-firma-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px; font-weight: 600;
+  color: #0DCFA8;
+  background: rgba(13, 207, 168, 0.08);
+  border: 1px solid rgba(13, 207, 168, 0.3);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.acceso-msg {
+  margin-top: 10px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.acceso-msg.ok {
+  background: rgba(13, 207, 168, 0.1);
+  color: #0DCFA8;
+  border-color: rgba(13, 207, 168, 0.3);
+}
+
+.vac-motivo { max-width: 260px; color: var(--neutral-text-body, #d1d5db); }
+.vac-quien  { font-size: 12px; color: var(--neutral-text-muted, #9ca3af); }
+.vac-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--neutral-text-muted, #9ca3af);
+  background: var(--neutral-background-subtle, #0f1a26);
+  border-radius: 12px;
+  border: 1px dashed rgba(255,255,255,0.08);
+}
+.vac-modal-info {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #0DCFA8;
+  background: rgba(13, 207, 168, 0.08);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.vac-modal-box { max-width: 480px; width: 100%; }
+.vac-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.vac-modal-row { display: flex; flex-direction: column; gap: 6px; }
+.vac-modal-row label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--neutral-text-muted, #9ca3af);
+  text-transform: uppercase;
+}
+.vac-modal-row input,
+.vac-modal-row textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--neutral-text-body, #d1d5db);
+  font-family: inherit;
+  font-size: 14px;
+}
+.vac-modal-row input:focus,
+.vac-modal-row textarea:focus {
+  outline: none;
+  border-color: #0DCFA8;
+  background: rgba(13, 207, 168, 0.04);
+}
+.vac-modal-row textarea { resize: vertical; min-height: 64px; }
+:root.light-theme .vac-modal-row input,
+:root.light-theme .vac-modal-row textarea {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #0f172a;
+}
+
+:root.light-theme .vac-stat {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+:root.light-theme .vac-stat__valor { color: #0f172a; }
+:root.light-theme .vac-stat--disponible { background: rgba(13, 207, 168, 0.06); }
+:root.light-theme .vac-empty {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
 }
 </style>

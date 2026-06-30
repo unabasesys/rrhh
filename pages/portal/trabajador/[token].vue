@@ -28,6 +28,47 @@ const lineaSel     = ref('')
 const turnoSel     = ref('')
 const ubicacion    = ref(null)
 
+// ── Vacaciones ──────────────────────────────────────────────────────
+const vacBalance     = ref({})
+const vacSolicitudes = ref([])
+const vacFormOpen    = ref(false)
+const vacReq         = ref({ fecha_inicio: '', fecha_fin: '', motivo: '' })
+const vacSubmitting  = ref(false)
+const vacMsg         = ref('')
+const vacMsgOk       = ref(false)
+
+async function cargarVacaciones() {
+  try {
+    const data = await $fetch(`/api/portal/by-token/${tokenStr.value}/vacaciones`)
+    vacBalance.value     = data.balance || {}
+    vacSolicitudes.value = data.solicitudes || []
+  } catch {
+    vacBalance.value = {}
+    vacSolicitudes.value = []
+  }
+}
+
+async function solicitarVacaciones() {
+  vacSubmitting.value = true
+  vacMsg.value = ''
+  try {
+    await $fetch(`/api/portal/by-token/${tokenStr.value}/vacaciones`, {
+      method: 'POST',
+      body: { ...vacReq.value },
+    })
+    vacMsgOk.value = true
+    vacMsg.value = '¡Solicitud enviada! Te avisarán cuando se apruebe.'
+    vacReq.value = { fecha_inicio: '', fecha_fin: '', motivo: '' }
+    await cargarVacaciones()
+    setTimeout(() => { vacFormOpen.value = false; vacMsg.value = '' }, 2000)
+  } catch (e) {
+    vacMsgOk.value = false
+    vacMsg.value = e?.data?.message || 'No se pudo enviar la solicitud'
+  } finally {
+    vacSubmitting.value = false
+  }
+}
+
 // Helpers de fecha
 function fechaHoy() {
   const d = new Date()
@@ -85,6 +126,9 @@ onMounted(async () => {
     if (!m || !m.entrada)   step.value = 'select'
     else if (!m.salida)     step.value = 'dentro'
     else                    step.value = 'fuera'
+
+    // Cargar vacaciones en paralelo (no bloqueante para el flujo principal)
+    cargarVacaciones()
   } catch (e) {
     error.value = e?.data?.message || 'El link no es válido o ha expirado. Solicita uno nuevo a tu encargado de RRHH.'
     step.value  = 'error'
@@ -364,6 +408,62 @@ function hoyLabel() {
       </div>
 
     </template>
+
+    <!-- ── Vacaciones ───────────────────────────────────────────────── -->
+    <div v-if="step !== 'loading' && step !== 'error'" class="vac-section">
+      <div class="vac-section__head">
+        <h3>Vacaciones</h3>
+        <button class="vac-btn" @click="vacFormOpen = !vacFormOpen">
+          {{ vacFormOpen ? 'Cerrar' : 'Solicitar días' }}
+        </button>
+      </div>
+
+      <div class="vac-mini-grid">
+        <div class="vac-mini">
+          <span class="vac-mini__num">{{ vacBalance.disponible ?? 0 }}</span>
+          <span class="vac-mini__label">Disponibles</span>
+        </div>
+        <div class="vac-mini vac-mini--pen">
+          <span class="vac-mini__num">{{ vacBalance.pendientes ?? 0 }}</span>
+          <span class="vac-mini__label">Pendientes</span>
+        </div>
+        <div class="vac-mini vac-mini--apr">
+          <span class="vac-mini__num">{{ vacBalance.aprobadas ?? 0 }}</span>
+          <span class="vac-mini__label">Aprobadas</span>
+        </div>
+      </div>
+
+      <form v-if="vacFormOpen" class="vac-form" @submit.prevent="solicitarVacaciones">
+        <label class="vac-form__row">
+          <span>Desde</span>
+          <input type="date" v-model="vacReq.fecha_inicio" required />
+        </label>
+        <label class="vac-form__row">
+          <span>Hasta</span>
+          <input type="date" v-model="vacReq.fecha_fin" required />
+        </label>
+        <label class="vac-form__row">
+          <span>Motivo (opcional)</span>
+          <textarea v-model="vacReq.motivo" rows="2" placeholder="Ej: viaje familiar"></textarea>
+        </label>
+        <button type="submit" class="vac-form__submit" :disabled="!vacReq.fecha_inicio || !vacReq.fecha_fin || vacSubmitting">
+          {{ vacSubmitting ? 'Enviando…' : 'Enviar solicitud' }}
+        </button>
+        <p v-if="vacMsg" class="vac-form__msg" :class="{ ok: vacMsgOk }">{{ vacMsg }}</p>
+      </form>
+
+      <div v-if="vacSolicitudes.length" class="vac-history">
+        <div v-for="v in vacSolicitudes" :key="v._id" class="vac-history__item" :class="`vac-history__item--${v.estado}`">
+          <div class="vac-history__row1">
+            <span class="vac-history__fechas">{{ v.fecha_inicio }} → {{ v.fecha_fin }}</span>
+            <span class="vac-history__estado">{{ v.estado }}</span>
+          </div>
+          <div class="vac-history__row2">{{ v.dias_habiles }} día(s) hábil(es){{ v.motivo ? ' · ' + v.motivo : '' }}</div>
+          <div v-if="v.notas_aprobacion" class="vac-history__nota">"{{ v.notas_aprobacion }}"</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -628,4 +728,96 @@ function hoyLabel() {
   .clock-time { font-size: 40px; }
   .portal-card, .worker-card { margin: 0 12px; }
 }
+
+/* ── Vacaciones (portal trabajador) ─────────────────────────────────── */
+.vac-section {
+  margin: 24px 16px 32px;
+  padding: 18px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+}
+.vac-section__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.vac-section__head h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #f3f4f6;
+}
+.vac-btn {
+  background: #0DCFA8; color: #062D3A;
+  border: none; border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.vac-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.vac-mini {
+  background: rgba(13, 207, 168, 0.08);
+  border: 1px solid rgba(13, 207, 168, 0.25);
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+}
+.vac-mini--pen { background: rgba(245, 200, 66, 0.08); border-color: rgba(245, 200, 66, 0.3); }
+.vac-mini--apr { background: rgba(74, 163, 255, 0.08); border-color: rgba(74, 163, 255, 0.3); }
+.vac-mini__num { display: block; font-size: 22px; font-weight: 700; color: #f3f4f6; }
+.vac-mini__label { display: block; font-size: 10px; letter-spacing: 0.06em; color: #9ca3af; margin-top: 2px; text-transform: uppercase; }
+
+.vac-form {
+  margin-top: 14px;
+  padding: 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 10px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.vac-form__row { display: flex; flex-direction: column; gap: 4px; }
+.vac-form__row span { font-size: 11px; color: #9ca3af; letter-spacing: 0.06em; text-transform: uppercase; }
+.vac-form__row input,
+.vac-form__row textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #f3f4f6;
+  font-family: inherit;
+  font-size: 14px;
+}
+.vac-form__submit {
+  background: #0DCFA8; color: #062D3A;
+  border: none; border-radius: 8px;
+  padding: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.vac-form__submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.vac-form__msg { margin: 6px 0 0; font-size: 13px; color: #E07856; }
+.vac-form__msg.ok { color: #0DCFA8; }
+
+.vac-history { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.vac-history__item {
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border-left: 3px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+}
+.vac-history__item--pendiente { border-left-color: #F5C842; }
+.vac-history__item--aprobada  { border-left-color: #4AA3FF; }
+.vac-history__item--rechazada { border-left-color: #E07856; }
+.vac-history__row1 { display: flex; justify-content: space-between; font-size: 13px; color: #f3f4f6; }
+.vac-history__estado {
+  text-transform: uppercase;
+  font-size: 10px; letter-spacing: 0.08em;
+  color: #9ca3af;
+}
+.vac-history__row2 { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+.vac-history__nota { font-size: 12px; color: #94a3b8; font-style: italic; margin-top: 4px; }
 </style>
