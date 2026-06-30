@@ -56,6 +56,7 @@ export const TIPOS_CONTRATO = [
 export const TIPOS_BONOS = [
   { tipo: "comision_venta",      nombre: "Comisión Venta",         imponible: true  },
   { tipo: "semana_corrida",      nombre: "Semana Corrida",         imponible: true, autoCalc: true },
+  { tipo: "diferencia_gratif",   nombre: "Diferencia de Gratificación", imponible: true  },
   { tipo: "aguinaldo_navidad",   nombre: "Aguinaldo Navidad",      imponible: false },
   { tipo: "aguinaldo_fiestas",   nombre: "Aguinaldo Fiestas Patrias", imponible: false },
   { tipo: "bono_desempeno",      nombre: "Bono Desempeño Anual",   imponible: true  },
