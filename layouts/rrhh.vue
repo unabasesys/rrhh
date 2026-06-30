@@ -173,6 +173,14 @@ const navSections = computed(() => [
         badge:   badgeAsistencia.value > 0 ? badgeAsistencia.value : null,
         badgeColor: 'red',
       },
+      {
+        label:   'Pagos',
+        icon:    'u u-cobros-y-pagos',
+        path:    '/rrhh/pagos',
+        matches: (p) => p.startsWith('/rrhh/pagos'),
+        badge:   null,
+        badgeColor: null,
+      },
     ],
   },
   {
