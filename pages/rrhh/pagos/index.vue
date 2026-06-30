@@ -165,6 +165,44 @@
       @close="showAnticipoModal = false"
       @creado="onAnticipoCreado"
     />
+
+    <!-- ── Modal: Enviar liquidación por email ───────────────────────────── -->
+    <div v-if="showEmailModal" class="ant-overlay" @click.self="showEmailModal = false">
+      <div class="ant-modal">
+        <div class="ant-header">
+          <h2>Enviar liquidación por email</h2>
+          <button class="ant-close" @click="showEmailModal = false">×</button>
+        </div>
+        <div class="ant-body">
+          <p class="ant-info">
+            Vamos a enviar el PDF de la liquidación de
+            <strong>{{ emailLiq?.trabajador_nombre }}</strong> ({{ emailLiq?.mes }}/{{ emailLiq?.anio }})
+            como adjunto al correo que indiques.
+          </p>
+
+          <div class="ant-field">
+            <label>Email destino</label>
+            <input type="email" v-model="emailForm.email" placeholder="trabajador@empresa.cl" />
+            <small style="font-size:11px;color:#9ca3af;margin-top:4px;display:block">
+              Por defecto autocompletado con el email del trabajador. Puedes cambiarlo para probar.
+            </small>
+          </div>
+
+          <div class="ant-field">
+            <label>Mensaje opcional</label>
+            <textarea v-model="emailForm.mensaje" rows="2" placeholder="Texto adicional que se incluye en el cuerpo del email"></textarea>
+          </div>
+
+          <div v-if="emailMsg" class="ant-error" :class="{ 'ant-ok': emailMsgOk }">{{ emailMsg }}</div>
+        </div>
+        <div class="ant-footer">
+          <button class="ant-btn ant-btn--ghost" @click="showEmailModal = false">Cancelar</button>
+          <button class="ant-btn ant-btn--primary" :disabled="enviandoEmail || !emailForm.email" @click="confirmarEnvioEmail">
+            {{ enviandoEmail ? 'Enviando…' : 'Enviar email' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -307,17 +345,84 @@ function formatCLP(n) {
   return '$' + v.toLocaleString('es-CL')
 }
 
-function descargarPdf(liq) {
-  // La página de Liquidaciones ya tiene wired el PDF (con el body completo).
-  // Por ahora redirigimos ahí con el id en query — atajo simple sin
-  // duplicar la lógica del PDF.
-  if (typeof window !== 'undefined') {
-    window.open(`/rrhh/liquidaciones?pdf=${liq._id}`, '_blank')
+async function descargarPdf(liq) {
+  try {
+    const blob = await $fetch('/api/rrhh/liquidacion-pdf', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: { liquidacion_id: liq._id },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `liquidacion-${(liq.trabajador_nombre || 'doc').replace(/\s+/g, '-')}-${liq.anio}-${String(liq.mes).padStart(2,'0')}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert(e?.data?.message || 'No se pudo generar el PDF')
   }
 }
 
+// ── Modal envío por email ───────────────────────────────────────────────
+const showEmailModal = ref(false)
+const emailLiq       = ref(null)
+const emailForm      = ref({ email: '', mensaje: '' })
+const enviandoEmail  = ref(false)
+const emailMsg       = ref('')
+const emailMsgOk     = ref(false)
+
 function enviarEmail(liq) {
-  alert('Envío por email — próximamente. Por ahora descargá el PDF y mandalo manualmente.')
+  emailLiq.value = liq
+  // Autofill: el email del trabajador si está cargado en su ficha
+  const trab = (rrhhStore.trabajadores || []).find(t => t._id === liq.trabajador_id)
+  emailForm.value = {
+    email:   trab?.email || '',
+    mensaje: '',
+  }
+  emailMsg.value = ''
+  showEmailModal.value = true
+}
+
+async function confirmarEnvioEmail() {
+  if (!emailForm.value.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailForm.value.email)) {
+    emailMsg.value = 'Ingresa un email válido'
+    emailMsgOk.value = false
+    return
+  }
+  enviandoEmail.value = true
+  emailMsg.value = ''
+  try {
+    const res = await $fetch('/api/rrhh/liquidacion-email', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: {
+        liquidacion_id: emailLiq.value._id,
+        email:          emailForm.value.email,
+        mensaje:        emailForm.value.mensaje,
+        nombreDestinatario: emailLiq.value.trabajador_nombre,
+      },
+    })
+    if (res.mode === 'sent') {
+      emailMsgOk.value = true
+      emailMsg.value = `Email enviado a ${res.email}`
+      setTimeout(() => { showEmailModal.value = false }, 1500)
+    } else if (res.mode === 'logged') {
+      emailMsgOk.value = true
+      emailMsg.value = `Email simulado (sin BREVO_API_KEY) → ${res.email}`
+      setTimeout(() => { showEmailModal.value = false }, 2000)
+    } else {
+      emailMsgOk.value = false
+      emailMsg.value = res.error
+        ? `Falló: ${res.error}`
+        : 'No se pudo enviar el email'
+    }
+  } catch (e) {
+    emailMsgOk.value = false
+    emailMsg.value = e?.data?.message || 'Error al enviar'
+  } finally {
+    enviandoEmail.value = false
+  }
 }
 
 function verDetalle(liq) {
@@ -659,4 +764,118 @@ function onAnticipoCreado() {
 @media (max-width: 900px) {
   .pagos-actions, .pagos-kpis { grid-template-columns: 1fr; }
 }
+
+/* ── Modal "Enviar por email" (reusa estilos del modal Crear anticipo) ─── */
+.ant-overlay {
+  position: fixed; inset: 0;
+  background: rgba(7,17,26,0.78);
+  backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.ant-modal {
+  background: #0f1a26;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  width: 100%; max-width: 500px;
+  display: flex; flex-direction: column;
+}
+.ant-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ant-header h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px; font-weight: 700;
+  color: #f3f4f6;
+  margin: 0;
+}
+.ant-close {
+  background: none; border: none; color: #9ca3af;
+  font-size: 26px; cursor: pointer; line-height: 1;
+}
+.ant-body {
+  padding: 18px 22px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.ant-info {
+  font-size: 13px;
+  color: #cbd5e1;
+  background: rgba(74,163,255,0.08);
+  border: 1px solid rgba(74,163,255,0.25);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0; line-height: 1.5;
+}
+.ant-info strong { color: #f3f4f6; }
+.ant-field { display: flex; flex-direction: column; gap: 5px; }
+.ant-field label {
+  font-size: 11px;
+  font-family: 'Space Grotesk', sans-serif;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.ant-field input,
+.ant-field textarea {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 9px 11px;
+  color: #f3f4f6;
+  font-family: inherit;
+  font-size: 14px;
+}
+.ant-field textarea { resize: vertical; min-height: 60px; }
+.ant-error {
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.ant-error.ant-ok {
+  background: rgba(13,207,168,0.12);
+  border-color: rgba(13,207,168,0.3);
+  color: #0DCFA8;
+}
+.ant-footer {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 14px 22px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.ant-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px;
+  padding: 9px 16px;
+  color: #d1d5db;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.ant-btn:hover:not(:disabled) { background: rgba(255,255,255,0.07); }
+.ant-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ant-btn--primary {
+  background: #0DCFA8; color: #062D3A;
+  border-color: #0DCFA8;
+}
+.ant-btn--primary:hover:not(:disabled) { background: #0aa688; }
+.ant-btn--ghost { background: transparent; }
+
+:root.light-theme .ant-modal { background: #ffffff; border-color: #e5e7eb; }
+:root.light-theme .ant-header h2 { color: #0f172a; }
+:root.light-theme .ant-info { background: rgba(74,163,255,0.06); color: #475569; border-color: rgba(74,163,255,0.3); }
+:root.light-theme .ant-info strong { color: #0f172a; }
+:root.light-theme .ant-field input,
+:root.light-theme .ant-field textarea {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #0f172a;
+}
+:root.light-theme .ant-btn { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
+:root.light-theme .ant-btn--ghost { background: transparent; color: #475569; }
 </style>

@@ -21,6 +21,8 @@
 import PDFDocument from 'pdfkit'
 import { PassThrough } from 'stream'
 import { drawPeopleByFooter } from '../../utils/pdfFooter.js'
+import { buildLiquidacionPdfBody } from '../../utils/buildLiquidacionPdfBody.js'
+import { requireDb } from '../../utils/db.js'
 
 // ── Paleta Unabase ──────────────────────────────────────────────────────────
 const C = {
@@ -132,7 +134,21 @@ function measureTextHeight(doc, text, opts = {}) {
 
 // ── Handler ─────────────────────────────────────────────────────────────────
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
+  let body = await readBody(event)
+
+  // Shortcut: si viene solo { liquidacion_id }, armar el body desde la DB.
+  // Esto deja que el módulo Pagos pida el PDF sin tener que replicar toda
+  // la lógica de armado del body (haberes, descuentos legales, etc.) que
+  // vive en pages/rrhh/liquidaciones.
+  if (body?.liquidacion_id && !body.liquidacion) {
+    requireDb(event)
+    try {
+      body = await buildLiquidacionPdfBody(body.liquidacion_id)
+    } catch (e) {
+      throw createError({ statusCode: 404, message: e.message || 'Liquidación no encontrada' })
+    }
+  }
+
   const org  = body.organizacion || {}
   const trab = body.trabajador   || {}
   const liq  = body.liquidacion  || {}

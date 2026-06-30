@@ -38,9 +38,16 @@ function normalizeRecipients(to) {
 
 /**
  * Envía un email. No falla si no hay credenciales — loguea y sigue.
+ * @param {Object} opts
+ * @param {string|string[]} opts.to
+ * @param {string} opts.subject
+ * @param {string} opts.html
+ * @param {string} [opts.from]
+ * @param {Array<{name:string, content:Buffer|string}>} [opts.attachments]
+ *   content puede ser Buffer (se convierte a base64) o ya un string base64.
  * @returns {Promise<{ok: boolean, mode: 'sent'|'logged'|'failed', error?: string}>}
  */
-export async function enviarEmail({ to, subject, html, from }) {
+export async function enviarEmail({ to, subject, html, from, attachments }) {
   const apiKey = process.env.BREVO_API_KEY
   const sender = parseSender(from || process.env.MAIL_FROM)
 
@@ -49,8 +56,26 @@ export async function enviarEmail({ to, subject, html, from }) {
     console.log(`  → To:      ${Array.isArray(to) ? to.join(', ') : to}`)
     console.log(`  → Subject: ${subject}`)
     console.log(`  → From:    ${sender.name ? `${sender.name} <${sender.email}>` : sender.email}`)
+    if (attachments?.length) {
+      console.log(`  → Adjuntos: ${attachments.map(a => a.name).join(', ')}`)
+    }
     return { ok: true, mode: 'logged' }
   }
+
+  // Normalizar adjuntos al formato Brevo: { name, content } donde content
+  // debe ser base64 string (no Buffer ni data URL).
+  const brevoAttachments = (attachments || []).map(a => ({
+    name:    a.name,
+    content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : String(a.content),
+  }))
+
+  const payload = {
+    sender,
+    to:          normalizeRecipients(to),
+    subject,
+    htmlContent: html,
+  }
+  if (brevoAttachments.length) payload.attachment = brevoAttachments
 
   try {
     const res = await fetch(BREVO_ENDPOINT, {
@@ -60,12 +85,7 @@ export async function enviarEmail({ to, subject, html, from }) {
         'accept':       'application/json',
         'api-key':      apiKey,
       },
-      body: JSON.stringify({
-        sender,
-        to:          normalizeRecipients(to),
-        subject,
-        htmlContent: html,
-      }),
+      body: JSON.stringify(payload),
     })
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
