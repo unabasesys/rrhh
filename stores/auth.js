@@ -70,8 +70,9 @@ export const useAuthStore = defineStore('auth', {
     // ── Capacidades específicas ──────────────────────────────────────────
     canManageOrgs:    (s) => s.user?.rol === ROLES.ADMIN,
     canManageBilling: (s) => s.user?.rol === ROLES.ADMIN,
-    // Manager y admin pueden gestionar usuarios; viewer no.
-    canManageUsers:   (s) => s.user?.rol === ROLES.ADMIN || s.user?.rol === ROLES.MANAGER,
+    // Solo admin global gestiona usuarios — manager queda en modo lectura
+    // sobre su propia cuenta y no puede crear/editar otros usuarios.
+    canManageUsers:   (s) => s.user?.rol === ROLES.ADMIN,
     // Solo admin puede crear/editar otros admins.
     canManageAdmins:  (s) => s.user?.rol === ROLES.ADMIN,
     // Muestra el selector de org si el usuario tiene acceso a más de una

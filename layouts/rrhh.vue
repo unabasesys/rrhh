@@ -255,14 +255,17 @@ onMounted(async () => {
 
   // Org activa
   allOrgs.value = orgStore.orgs
-  // Si no hay org activa pero hay una por defecto, activarla automáticamente
-  const orgToUse = authStore.currentOrgId || defaultOrgId.value
-  if (orgToUse) {
-    authStore.switchOrg(orgToUse)
-    currentOrg.value = orgStore.getById(orgToUse)
+  // Validar que la org candidata (sesión actual o default guardada) sigue siendo
+  // accesible para este usuario — si no, ignorar para no quedar en estado roto
+  // al cambiar de cuenta en el mismo navegador.
+  const candidate = authStore.currentOrgId || defaultOrgId.value
+  const candidateValido = candidate && allOrgs.value.some(o => o.id === candidate)
+  if (candidateValido) {
+    authStore.switchOrg(candidate)
+    currentOrg.value = orgStore.getById(candidate)
     orgName.value    = currentOrg.value?.nombre || orgName.value
-  } else if (allOrgs.value.length === 1) {
-    // Si solo hay una org, activarla automáticamente
+  } else if (allOrgs.value.length >= 1) {
+    // Sin candidato válido: usar la primera org accesible
     const soloOrg = allOrgs.value[0]
     authStore.switchOrg(soloOrg.id)
     currentOrg.value = soloOrg
@@ -698,8 +701,9 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Onboarding wizard: se autodetecta si el usuario ya lo completó -->
-    <OnboardingWizard />
+    <!-- Onboarding wizard: storage scopado por usuario para que cada cuenta
+         nueva vea el tour la primera vez -->
+    <OnboardingWizard :storage-key="`rrhh_wizard_done_${currentUser?._id || 'anon'}`" />
 
     <!-- Modal: Crear nueva empresa ─────────────────────────────────── -->
     <div v-if="showNewOrgModal" class="modal-overlay" @click.self="showNewOrgModal = false">

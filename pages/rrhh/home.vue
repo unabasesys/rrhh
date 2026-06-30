@@ -43,48 +43,95 @@
       </div>
     </section>
 
-    <!-- ── TUTORIALES ────────────────────────────────────────────── -->
+    <!-- ── COSTO EMPRESA POR MES ─────────────────────────────────── -->
     <section class="block">
       <div class="block-head">
         <div>
-          <span class="block-kicker">01 TUTORIAL · PRIMEROS PASOS</span>
-          <h2 class="block-title">Configura tu cuenta en 3 pasos</h2>
+          <span class="block-kicker">01 COSTO EMPRESA · {{ anioActual }}</span>
+          <h2 class="block-title">Costo total mensual por persona</h2>
+        </div>
+        <div class="costo-totales">
+          <div class="costo-stat">
+            <span class="costo-stat__label">Acumulado año</span>
+            <span class="costo-stat__valor">{{ formatoCLP(totalAnio) }}</span>
+          </div>
+          <div class="costo-stat">
+            <span class="costo-stat__label">Promedio mensual</span>
+            <span class="costo-stat__valor">{{ formatoCLP(promedioMensual) }}</span>
+          </div>
         </div>
       </div>
 
-      <div class="tutorial-grid">
-        <article v-for="(tut, i) in tutoriales" :key="tut.id" class="tutorial-card">
-          <div class="tut-media" @click="abrirVideo(tut)">
-            <iframe
-              v-if="tut.videoActivo && tut.youtubeId && videoAbierto === tut.id"
-              :src="`https://www.youtube.com/embed/${tut.youtubeId}?autoplay=1`"
-              frameborder="0"
-              allow="autoplay; encrypted-media"
-              allowfullscreen
-              class="tut-iframe"
-            ></iframe>
-            <template v-else>
-              <div class="tut-stripes"></div>
-              <div class="tut-play" :class="`tut-play--${tut.color}`">
-                <i class="u u-play"></i>
-              </div>
-              <span class="tut-dur">{{ tut.duracion }}</span>
-              <span class="tut-tag">video · {{ tut.tag }}</span>
-            </template>
+      <div class="costo-card">
+        <div v-if="!datosChart.tieneData" class="costo-empty">
+          <p>Aún no hay liquidaciones generadas para {{ anioActual }}.</p>
+          <button class="btn btn-primary" @click="$router.push('/rrhh/liquidaciones')">
+            Generar primera liquidación →
+          </button>
+        </div>
+
+        <div v-else class="costo-chart-wrap">
+          <svg :viewBox="`0 0 ${chartW} ${chartH}`" class="costo-chart" preserveAspectRatio="none">
+            <!-- Grid horizontal -->
+            <g class="grid">
+              <line v-for="g in 4" :key="g"
+                    :x1="paddingLeft" :x2="chartW - paddingRight"
+                    :y1="paddingTop + ((chartH - paddingTop - paddingBottom) * g / 4)"
+                    :y2="paddingTop + ((chartH - paddingTop - paddingBottom) * g / 4)" />
+            </g>
+            <!-- Eje Y labels -->
+            <g class="axis-y">
+              <text v-for="g in 5" :key="g"
+                    :x="paddingLeft - 8"
+                    :y="paddingTop + ((chartH - paddingTop - paddingBottom) * (g - 1) / 4) + 4"
+                    text-anchor="end">
+                {{ formatoCLPCorto(maxValor * (1 - (g - 1) / 4)) }}
+              </text>
+            </g>
+            <!-- Barras apiladas -->
+            <g v-for="(barra, mIdx) in datosChart.barras" :key="mIdx">
+              <rect v-for="seg in barra.segmentos" :key="seg.trabajadorId"
+                    :x="barra.x" :y="seg.y" :width="barWidth" :height="seg.h"
+                    :fill="seg.color"
+                    :data-tooltip="`${seg.nombre}: ${formatoCLP(seg.valor)}`"
+                    @mouseenter="tooltipActivo = { x: barra.x + barWidth / 2, y: seg.y, label: `${seg.nombre} · ${barra.mesLabel}`, valor: seg.valor }"
+                    @mouseleave="tooltipActivo = null" />
+              <!-- Total mes encima de la barra -->
+              <text v-if="barra.total > 0"
+                    :x="barra.x + barWidth / 2"
+                    :y="barra.topY - 6"
+                    text-anchor="middle"
+                    class="bar-total">
+                {{ formatoCLPCorto(barra.total) }}
+              </text>
+            </g>
+            <!-- Eje X labels -->
+            <g class="axis-x">
+              <text v-for="(barra, mIdx) in datosChart.barras" :key="mIdx"
+                    :x="barra.x + barWidth / 2"
+                    :y="chartH - paddingBottom + 18"
+                    text-anchor="middle">
+                {{ barra.mesLabel }}
+              </text>
+            </g>
+          </svg>
+
+          <!-- Tooltip flotante -->
+          <div v-if="tooltipActivo" class="costo-tooltip"
+               :style="{ left: `${(tooltipActivo.x / chartW) * 100}%`, top: `${(tooltipActivo.y / chartH) * 100}%` }">
+            <div class="costo-tooltip__label">{{ tooltipActivo.label }}</div>
+            <div class="costo-tooltip__valor">{{ formatoCLP(tooltipActivo.valor) }}</div>
           </div>
-          <div class="tut-body">
-            <span class="tut-step">{{ String(i + 1).padStart(2, '0') }}</span>
-            <span class="tut-clock">⏱ {{ tut.minutos }}</span>
-            <h3 class="tut-title">{{ tut.titulo }}</h3>
-            <p class="tut-desc">{{ tut.descripcion }}</p>
-            <ul class="tut-features">
-              <li v-for="f in tut.features" :key="f">✓ {{ f }}</li>
-            </ul>
-            <button class="btn tut-cta" :class="i === 0 ? 'btn-primary' : 'btn-outline'" @click="$router.push(tut.ruta)">
-              {{ i === 0 ? 'Empezar acá' : 'Ver tutorial' }} →
-            </button>
+        </div>
+
+        <!-- Leyenda -->
+        <div v-if="datosChart.tieneData" class="costo-legend">
+          <div v-for="t in datosChart.trabajadoresOrdenados" :key="t.id" class="costo-legend__item">
+            <span class="costo-legend__dot" :style="{ background: t.color }"></span>
+            <span class="costo-legend__nombre">{{ t.nombre }}</span>
+            <span class="costo-legend__monto">{{ formatoCLP(t.totalAnio) }}</span>
           </div>
-        </article>
+        </div>
       </div>
     </section>
 
@@ -145,10 +192,10 @@ onMounted(async () => {
     fechaCreacionCuenta.value = authStore.user?.createdAt || authStore.user?.created || null
   } catch (e) {}
 
-  // Asegurar data cargada
-  if (!rrhhStore.trabajadores?.length) await rrhhStore.fetchTrabajadores?.()
-  if (!rrhhStore.contratos?.length)    await rrhhStore.fetchContratos?.()
-  if (!rrhhStore.liquidaciones?.length) await rrhhStore.fetchLiquidaciones?.()
+  // Asegurar data cargada (los métodos del store son getX, no fetchX)
+  if (!rrhhStore.trabajadores?.length)  await rrhhStore.getTrabajadores?.()
+  if (!rrhhStore.contratos?.length)     await rrhhStore.getContratos?.()
+  if (!rrhhStore.liquidaciones?.length) await rrhhStore.getLiquidaciones?.()
   // Asistencia y firmas (localStorage por ahora)
   try { asistencia.init?.() } catch {}
   try { firmas.init?.() } catch {}
@@ -225,53 +272,149 @@ function irAlSiguientePaso() {
   router.push(rutas[pendiente.id] || '/rrhh/trabajadores')
 }
 
-// ── Tutoriales ─────────────────────────────────────────────────────────────
-const videoAbierto = ref(null)
-function abrirVideo(tut) {
-  if (tut.videoActivo && tut.youtubeId) videoAbierto.value = tut.id
+// ── Costo empresa por mes ──────────────────────────────────────────────────
+const anioActual = new Date().getFullYear()
+
+// Paleta de colores para personas (12 tonos distinguibles, ciclan si hay más)
+const PALETA_COLORES = [
+  '#0DCFA8', '#E07856', '#F5C842', '#7C5BFC', '#FF3D7F', '#4AA3FF',
+  '#6ECB63', '#FF8C42', '#B16BFF', '#2DD4BF', '#F472B6', '#60A5FA',
+]
+
+const MES_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+// Dimensiones del gráfico (viewBox)
+const chartW = 880
+const chartH = 320
+const paddingLeft = 60
+const paddingRight = 16
+const paddingTop = 24
+const paddingBottom = 32
+const barWidth = 42
+const tooltipActivo = ref(null)
+
+const liquidacionesAnio = computed(() => {
+  const oid = rrhhStore.currentOrgId
+  return (rrhhStore.liquidaciones || []).filter(l => {
+    const sameAnio = Number(l.anio) === anioActual
+    const sameOrg = !oid || l.orgId === oid || !l.orgId
+    return sameAnio && sameOrg
+  })
+})
+
+const trabajadoresPorId = computed(() => {
+  const map = new Map()
+  for (const t of rrhhStore.trabajadores || []) map.set(t._id, t)
+  return map
+})
+
+function resolverNombre(l) {
+  if (l.trabajador_nombre && l.trabajador_nombre.trim()) return l.trabajador_nombre
+  const t = trabajadoresPorId.value.get(l.trabajador_id)
+  if (!t) return 'Sin nombre'
+  const partes = [t.nombre, t.apellido_paterno, t.apellido_materno].filter(Boolean)
+  return partes.join(' ') || t.nombres || t.rut || 'Sin nombre'
 }
 
-const tutoriales = [
-  {
-    id: 'crear-trabajadores',
-    titulo: 'Crea tus trabajadores',
-    tag: 'alta de personas',
-    color: 'teal',
-    duracion: '2:14',
-    minutos: '4 min',
-    descripcion: 'Importa desde planilla, agrega uno a uno o copia desde otro sistema. Datos previsionales, modalidad, sueldo y centro de costo en una sola vista.',
-    features: ['Carga masiva CSV / Excel', 'Datos AFP, salud, AFC', 'Asignación a proyecto y CECO'],
-    ruta: '/rrhh/trabajadores',
-    youtubeId: 'lYCX-Dg1vP8',
-    videoActivo: true,
-  },
-  {
-    id: 'crear-contratos',
-    titulo: 'Genera contratos',
-    tag: 'contratos y firma',
-    color: 'gold',
-    duracion: '2:14',
-    minutos: '3 min',
-    descripcion: 'Plantillas chilenas pre-validadas — indefinido, plazo fijo, por proyecto, honorarios — con firma electrónica y anexos automáticos.',
-    features: ['Plantillas Dirección del Trabajo', 'Firma electrónica avanzada', 'Anexos por modificación'],
-    ruta: '/rrhh/contratos',
-    youtubeId: '',
-    videoActivo: false,
-  },
-  {
-    id: 'gestiona-dia',
-    titulo: 'Gestiona el día a día',
-    tag: 'gestión mensual',
-    color: 'coral',
-    duracion: '2:14',
-    minutos: '5 min',
-    descripcion: 'Marcaciones, vacaciones, anticipos, liquidaciones, informes para DT y Previred. Todo desde un solo panel mensual.',
-    features: ['Marcaciones GPS y app', 'Liquidación masiva (<4 s para 500 personas)', 'Informes F29, Previred, libro electrónico'],
-    ruta: '/rrhh/asistencia',
-    youtubeId: '',
-    videoActivo: false,
-  },
-]
+const datosChart = computed(() => {
+  const liqs = liquidacionesAnio.value
+  if (!liqs.length) return { tieneData: false, barras: [], trabajadoresOrdenados: [] }
+
+  // Acumular por trabajador y por mes
+  const porTrabajador = new Map() // id -> { id, nombre, totalAnio, porMes: {1..12} }
+  for (const l of liqs) {
+    const id = l.trabajador_id
+    const nombre = resolverNombre(l)
+    const costo = Number(l.costo_empresa || 0)
+    const mes = Number(l.mes || 0)
+    if (!id || mes < 1 || mes > 12) continue
+    if (!porTrabajador.has(id)) {
+      porTrabajador.set(id, { id, nombre, totalAnio: 0, porMes: {} })
+    }
+    const t = porTrabajador.get(id)
+    t.totalAnio += costo
+    t.porMes[mes] = (t.porMes[mes] || 0) + costo
+  }
+
+  // Ordenar trabajadores por costo total descendente y asignar color
+  const trabajadoresOrdenados = Array.from(porTrabajador.values())
+    .sort((a, b) => b.totalAnio - a.totalAnio)
+    .map((t, i) => ({ ...t, color: PALETA_COLORES[i % PALETA_COLORES.length] }))
+
+  // Max valor mensual (suma de todos los trabajadores en un mes)
+  let maxValorLocal = 0
+  for (let m = 1; m <= 12; m++) {
+    const total = trabajadoresOrdenados.reduce((acc, t) => acc + (t.porMes[m] || 0), 0)
+    if (total > maxValorLocal) maxValorLocal = total
+  }
+  if (maxValorLocal === 0) return { tieneData: false, barras: [], trabajadoresOrdenados: [] }
+
+  // Redondear hacia arriba para que las grid lines queden lindas
+  const orden = Math.pow(10, Math.floor(Math.log10(maxValorLocal)))
+  const maxRedondeado = Math.ceil(maxValorLocal / orden) * orden
+
+  const usableW = chartW - paddingLeft - paddingRight
+  const usableH = chartH - paddingTop - paddingBottom
+  const gap = (usableW - 12 * barWidth) / 13 // espacio entre barras y bordes
+
+  // Construir barras
+  const barras = []
+  for (let m = 1; m <= 12; m++) {
+    const x = paddingLeft + gap + (m - 1) * (barWidth + gap)
+    const segmentos = []
+    let yAcum = paddingTop + usableH // empezamos desde abajo
+    let total = 0
+    for (const t of trabajadoresOrdenados) {
+      const valor = t.porMes[m] || 0
+      if (valor <= 0) continue
+      const h = (valor / maxRedondeado) * usableH
+      yAcum -= h
+      segmentos.push({
+        trabajadorId: t.id,
+        nombre: t.nombre,
+        valor,
+        color: t.color,
+        y: yAcum,
+        h,
+      })
+      total += valor
+    }
+    barras.push({
+      x,
+      mesLabel: MES_LABELS[m - 1],
+      segmentos,
+      total,
+      topY: total > 0 ? yAcum : paddingTop + usableH,
+    })
+  }
+
+  return { tieneData: true, barras, trabajadoresOrdenados, maxValor: maxRedondeado }
+})
+
+const maxValor = computed(() => datosChart.value.maxValor || 0)
+
+const totalAnio = computed(() =>
+  datosChart.value.trabajadoresOrdenados.reduce((acc, t) => acc + t.totalAnio, 0)
+)
+
+const promedioMensual = computed(() => {
+  const liqs = liquidacionesAnio.value
+  if (!liqs.length) return 0
+  const mesesUnicos = new Set(liqs.map(l => l.mes)).size || 1
+  return Math.round(totalAnio.value / mesesUnicos)
+})
+
+function formatoCLP(n) {
+  if (!n) return '$0'
+  return '$' + Math.round(n).toLocaleString('es-CL')
+}
+
+function formatoCLPCorto(n) {
+  if (!n) return '$0'
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1) + 'M'
+  if (n >= 1_000) return '$' + Math.round(n / 1_000) + 'k'
+  return '$' + Math.round(n)
+}
 
 // ── Tips ¿Sabías que…? ─────────────────────────────────────────────────────
 const tips = [
@@ -424,92 +567,106 @@ const tipsVisible = computed(() => {
 .carousel-btn:hover:not(:disabled) { background: rgba(13,207,168,0.12); border-color: rgba(13,207,168,0.4); color: #0DCFA8; }
 .carousel-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-/* ── Tutoriales ────────────────────────────────────────────────────── */
-.tutorial-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+/* ── Costo empresa chart ───────────────────────────────────────────── */
+.costo-totales { display: flex; gap: 24px; }
+.costo-stat { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.costo-stat__label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+  color: var(--neutral-text-muted, #9ca3af);
+  text-transform: uppercase;
 }
-.tutorial-card {
+.costo-stat__valor {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px; font-weight: 700;
+  color: var(--neutral-text-title, #f3f4f6);
+}
+
+.costo-card {
   background: var(--neutral-background-subtle, #0f1a26);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 14px;
-  overflow: hidden;
-  display: flex; flex-direction: column;
+  padding: 24px 24px 20px;
+  display: flex; flex-direction: column; gap: 18px;
 }
-.tut-media {
-  aspect-ratio: 16/9;
-  position: relative;
-  background: linear-gradient(135deg, #0a1b22 0%, #062d3a 100%);
-  cursor: pointer;
-  overflow: hidden;
+.costo-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 32px 0;
+  color: var(--neutral-text-muted, #9ca3af);
+  text-align: center;
 }
-.tut-stripes {
-  position: absolute; inset: 0;
-  background-image: repeating-linear-gradient(135deg, transparent 0 12px, rgba(255,255,255,0.025) 12px 14px);
+.costo-chart-wrap { position: relative; width: 100%; }
+.costo-chart {
+  width: 100%; height: auto;
+  display: block;
+  font-family: 'Space Grotesk', sans-serif;
 }
-.tut-play {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 52px; height: 52px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(13, 207, 168, 0.12);
-  border: 1px solid rgba(13, 207, 168, 0.35);
-  color: #0DCFA8;
-  font-size: 18px;
-  transition: all 0.15s;
+.costo-chart .grid line {
+  stroke: rgba(255,255,255,0.06);
+  stroke-dasharray: 2 4;
 }
-.tut-play--teal,
-.tut-play--gold,
-.tut-play--coral {
-  /* Todas las variantes ahora son teal sutil — color unificado */
-  background: rgba(13, 207, 168, 0.12);
-  border-color: rgba(13, 207, 168, 0.35);
-  color: #0DCFA8;
-  box-shadow: none;
+.costo-chart .axis-x text,
+.costo-chart .axis-y text {
+  font-size: 10px;
+  fill: var(--neutral-text-muted, #9ca3af);
 }
-.tut-media:hover .tut-play {
-  background: rgba(13, 207, 168, 0.2);
-  transform: translate(-50%, -50%) scale(1.05);
+.costo-chart .bar-total {
+  font-size: 9px; font-weight: 600;
+  fill: var(--neutral-text-title, #f3f4f6);
 }
-.tut-dur {
-  position: absolute; top: 12px; right: 12px;
+.costo-chart rect { cursor: pointer; transition: opacity 0.15s; }
+.costo-chart rect:hover { opacity: 0.85; }
+
+.costo-tooltip {
+  position: absolute;
+  transform: translate(-50%, -110%);
+  background: rgba(6, 45, 58, 0.95);
+  border: 1px solid rgba(13, 207, 168, 0.4);
+  border-radius: 8px;
+  padding: 8px 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+}
+.costo-tooltip__label {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 11px; font-weight: 600;
-  color: rgba(255,255,255,0.7);
+  color: #f5f0e6;
+  margin-bottom: 2px;
 }
-.tut-tag {
-  position: absolute; bottom: 12px; left: 12px;
+.costo-tooltip__valor {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px; letter-spacing: 0.06em;
-  color: rgba(255,255,255,0.55);
-}
-.tut-iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
-
-.tut-body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-.tut-step {
-  display: inline-block; align-self: flex-start;
-  background: rgba(13,207,168,0.12);
+  font-size: 13px; font-weight: 700;
   color: #0DCFA8;
+}
+
+.costo-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.costo-legend__item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+}
+.costo-legend__dot {
+  width: 10px; height: 10px; border-radius: 3px;
+  flex-shrink: 0;
+}
+.costo-legend__nombre {
+  flex: 1;
+  color: var(--neutral-text-body, #d1d5db);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.costo-legend__monto {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px; font-weight: 700;
-  padding: 3px 8px; border-radius: 5px;
-  letter-spacing: 0.04em;
+  font-size: 11px; font-weight: 600;
+  color: var(--neutral-text-muted, #9ca3af);
 }
-.tut-clock {
-  position: absolute; right: 20px; margin-top: 2px;
-  font-size: 11px; color: var(--neutral-text-muted, #9ca3af);
-}
-.tut-title {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 17px; font-weight: 700;
-  color: var(--neutral-text-title, #f3f4f6);
-  margin: 4px 0 0;
-}
-.tut-desc { font-size: 13px; line-height: 1.5; color: var(--neutral-text-body, #9ca3af); margin: 0; }
-.tut-features { list-style: none; padding: 0; margin: 4px 0 12px; display: flex; flex-direction: column; gap: 4px; }
-.tut-features li { font-size: 12px; color: var(--neutral-text-body, #d1d5db); }
-.tut-cta { margin-top: auto; justify-content: center; }
 
 /* ── Tips ──────────────────────────────────────────────────────────── */
 .tips-grid {
@@ -578,8 +735,13 @@ const tipsVisible = computed(() => {
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .hero { grid-template-columns: 1fr; }
-  .tutorial-grid { grid-template-columns: 1fr; }
   .tips-grid { grid-template-columns: repeat(2, 1fr); }
+  .costo-totales { gap: 16px; }
+}
+@media (max-width: 720px) {
+  .block-head { flex-direction: column; align-items: flex-start; }
+  .costo-totales { width: 100%; justify-content: space-between; }
+  .costo-stat { text-align: left; }
 }
 @media (max-width: 640px) {
   .home-page { padding: 16px 16px 32px; }
@@ -601,15 +763,27 @@ const tipsVisible = computed(() => {
 :root.light-theme .onb-label { color: #334155; }
 :root.light-theme .onb-item.done .onb-label { color: #0f172a; }
 :root.light-theme .block-title { color: #0f172a; }
-:root.light-theme .tutorial-card,
-:root.light-theme .tip-card {
+:root.light-theme .tip-card,
+:root.light-theme .costo-card {
   background: #ffffff;
   border-color: #e5e7eb;
 }
-:root.light-theme .tut-title,
 :root.light-theme .tip-title { color: #0f172a; }
-:root.light-theme .tut-desc,
 :root.light-theme .tip-body { color: #64748b; }
-:root.light-theme .tut-features li { color: #334155; }
 :root.light-theme .carousel-btn { background: #ffffff; border-color: #e5e7eb; color: #475569; }
+:root.light-theme .costo-stat__valor { color: #0f172a; }
+:root.light-theme .costo-stat__label { color: #64748b; }
+:root.light-theme .costo-chart .grid line { stroke: #e5e7eb; }
+:root.light-theme .costo-chart .axis-x text,
+:root.light-theme .costo-chart .axis-y text { fill: #64748b; }
+:root.light-theme .costo-chart .bar-total { fill: #0f172a; }
+:root.light-theme .costo-tooltip {
+  background: #ffffff;
+  border-color: rgba(13, 207, 168, 0.5);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+}
+:root.light-theme .costo-tooltip__label { color: #0f172a; }
+:root.light-theme .costo-legend { border-top-color: #e5e7eb; }
+:root.light-theme .costo-legend__nombre { color: #334155; }
+:root.light-theme .costo-legend__monto { color: #64748b; }
 </style>

@@ -418,4 +418,64 @@ onUnmounted(() => {
   padding: 7px 14px; font-size: 12px;
   border-radius: 8px;
 }
+
+/* ── Modo claro (light theme) ────────────────────────────────────────── */
+:root.light-theme .ow-modal,
+:root.light-theme .ow-tooltip {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+:root.light-theme .ow-tooltip {
+  border-color: rgba(13, 207, 168, 0.4);
+}
+:root.light-theme .ow-tooltip::before {
+  background: #ffffff;
+  border-color: rgba(13, 207, 168, 0.4);
+}
+:root.light-theme .ow-modal__hero {
+  background: radial-gradient(ellipse at top, rgba(13, 207, 168, 0.10), transparent 50%);
+}
+:root.light-theme .ow-modal__hero h2,
+:root.light-theme .ow-tooltip__title {
+  color: #0f172a;
+}
+:root.light-theme .ow-modal__logo span,
+:root.light-theme .ow-list li,
+:root.light-theme .ow-modal__hero p,
+:root.light-theme .ow-tooltip__body {
+  color: #475569;
+}
+:root.light-theme .ow-list li strong,
+:root.light-theme .ow-modal__hero p strong { color: #0f172a; }
+:root.light-theme .ow-modal__hero h3 { color: #0DCFA8; }
+:root.light-theme .ow-modal__lede {
+  background: rgba(13, 207, 168, 0.06);
+  border-color: rgba(13, 207, 168, 0.25);
+  color: #334155;
+}
+:root.light-theme .ow-modal__actions {
+  border-top-color: #f1f5f9;
+}
+:root.light-theme .ow-tooltip__close {
+  color: #94a3b8;
+}
+:root.light-theme .ow-tooltip__close:hover { color: #0f172a; }
+:root.light-theme .ow-btn--ghost,
+:root.light-theme .ow-btn--ghost-sm {
+  color: #475569;
+  border-color: #d1d5db;
+}
+:root.light-theme .ow-btn--ghost:hover,
+:root.light-theme .ow-btn--ghost-sm:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+/* Logo: en light usar versión color en lugar de la blanca */
+:root.light-theme .ow-modal__logo img {
+  /* Sin filtros: el PNG blanco no se ve en fondo blanco. Usamos uno color
+     vía content alternativo en el template no es trivial, así que aquí
+     invertimos el blanco al navy del brand */
+  filter: invert(1) brightness(0.3) sepia(1) hue-rotate(165deg) saturate(2);
+}
 </style>
