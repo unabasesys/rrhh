@@ -8,7 +8,10 @@ export default defineNuxtConfig({
     mongodbDb:  process.env.MONGODB_DB  || 'rrhh',
     jwtSecret:  process.env.NUXT_JWT_SECRET || 'dev-secret',
     public: {
-      appVersion: '1.1',
+      appVersion:     '1.1',
+      // Google Sign-In: client ID público (sin secret, expuesto al frontend
+      // según el flujo de Google Identity Services).
+      googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     },
   },
 

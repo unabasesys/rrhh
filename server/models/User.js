@@ -5,7 +5,11 @@ const UserSchema = new mongoose.Schema(
     _id:          { type: String },
     nombre:       { type: String, required: true, trim: true },
     email:        { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true },
+    // passwordHash: null cuando el usuario sólo usa Google Sign-In
+    passwordHash: { type: String, default: null },
+    // Google Sign-In
+    googleId:     { type: String, default: null, index: true },
+    avatar:       { type: String, default: null },
     rol:          { type: String, enum: ['admin', 'manager', 'viewer'], default: 'viewer' },
     // orgId: legacy / "org primaria". Se mantiene por compat pero la fuente de
     // verdad para acceso es orgIds. Para admin global, ambos son nulos/vacíos.

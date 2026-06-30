@@ -47,8 +47,11 @@
         <h2 class="title">Iniciar Sesión</h2>
         <span class="subtitle">Introduce tu correo y contraseña para ingresar</span>
 
-        <!-- Google (inactivo por ahora) -->
-        <button type="button" class="google-btn" disabled>
+        <!-- Google Sign-In: botón oficial montado por Google Identity Services -->
+        <div v-if="googleClientId" class="google-wrap">
+          <div id="g_id_signin"></div>
+        </div>
+        <button v-else type="button" class="google-btn" disabled title="Configura GOOGLE_CLIENT_ID en .env">
           <img src="/img/googlelogo.png" alt="Google" class="google-icon" />
           Continuar con Google
         </button>
@@ -129,6 +132,59 @@ definePageMeta({ layout: false, middleware: 'no-auth' })
 
 const router = useRouter()
 const route  = useRoute()
+const config = useRuntimeConfig()
+const googleClientId = config.public.googleClientId
+
+// ── Google Sign-In (carga GIS y monta el botón oficial) ────────────────────
+async function initGoogleSignIn() {
+  if (!googleClientId) return
+  // Cargar script de Google Identity Services una sola vez
+  if (!document.getElementById('g-identity-script')) {
+    await new Promise((resolve) => {
+      const s = document.createElement('script')
+      s.id = 'g-identity-script'
+      s.src = 'https://accounts.google.com/gsi/client'
+      s.async = true
+      s.defer = true
+      s.onload = resolve
+      document.head.appendChild(s)
+    })
+  }
+  if (!window.google?.accounts?.id) return
+  window.google.accounts.id.initialize({
+    client_id: googleClientId,
+    callback:  onGoogleCredential,
+  })
+  // Renderiza el botón oficial dentro del contenedor
+  const target = document.getElementById('g_id_signin')
+  if (target) {
+    window.google.accounts.id.renderButton(target, {
+      theme: 'outline', size: 'large', text: 'continue_with',
+      shape: 'rectangular', width: 320,
+    })
+  }
+}
+
+async function onGoogleCredential(response) {
+  errors.global = ''
+  loading.value = true
+  try {
+    const data = await $fetch('/api/auth/google', {
+      method: 'POST',
+      body: { credential: response.credential },
+    })
+    localStorage.setItem('rrhh_session', JSON.stringify({
+      token:        data.token,
+      expires:      data.expires,
+      currentOrgId: data.currentOrgId || null,
+    }))
+    router.replace(route.query.redirect || '/rrhh/home')
+  } catch (e) {
+    errors.global = e?.data?.message || 'No se pudo iniciar sesión con Google'
+  } finally {
+    loading.value = false
+  }
+}
 
 // ── Carrusel ────────────────────────────────────────────────────────────────
 const slides = [
@@ -164,7 +220,10 @@ onMounted(async () => {
   await authStore.init()
   if (authStore.isAuthenticated) {
     router.replace(route.query.redirect || '/rrhh/home')
+    return
   }
+  // Google Sign-In se inicializa sólo si está configurado
+  initGoogleSignIn()
 })
 
 onUnmounted(() => clearInterval(slideTimer))
@@ -428,6 +487,15 @@ form {
 
 .input-wrap { position: relative; }
 .input-wrap input { padding-right: 72px; }
+
+/* Contenedor del botón oficial de Google Sign-In (lo renderiza GIS) */
+.google-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+#g_id_signin { color-scheme: light; }
+
 /* Botón Google */
 .google-btn {
   display: flex;
