@@ -353,9 +353,12 @@ const preview = computed(() => filasIncluidas.value.map(f => {
     }
   }
 
-  let calc = {}
+  // calcularLiquidacion devuelve keys en camelCase (totalHaberes, etc.) —
+  // las normalizamos a snake_case para que el resto del componente y el
+  // POST a /api/rrhh/liquidaciones consuman la misma forma.
+  let raw = {}
   try {
-    calc = calcularLiquidacion({
+    raw = calcularLiquidacion({
       sueldo_base:     f.contrato?.sueldo_base || 0,
       afp:             f.contrato?.afp,
       sistema_salud:   f.contrato?.sistema_salud,
@@ -365,13 +368,26 @@ const preview = computed(() => filasIncluidas.value.map(f => {
       horas_extra:     f.horas_extra,
       bonos,
       descuentos,
-    })
+    }) || {}
   } catch (e) {
-    console.error('Error calculando liquidacion', e)
-    calc = { total_haberes: 0, total_descuentos: 0, liquido_a_pagar: 0, costo_empresa: 0 }
+    console.error('Error calculando liquidacion para', f.nombre, e)
+    raw = {}
+  }
+  const calc = {
+    total_haberes:        raw.totalHaberes        ?? 0,
+    total_descuentos:     raw.totalDescuentos     ?? 0,
+    liquido_a_pagar:      raw.liquidoAPagar       ?? 0,
+    costo_empresa:        raw.costoEmpresa        ?? 0,
+    afp_descuento:        raw.afp_descuento       ?? 0,
+    salud_descuento:      raw.salud_descuento     ?? 0,
+    cesantia_trabajador:  raw.cesantia_trabajador ?? 0,
+    cesantia_empleador:   raw.cesantia_empleador  ?? 0,
+    impuesto:             raw.impuesto            ?? 0,
+    renta_imponible:      raw.rentaImponible      ?? 0,
+    renta_tributable:     raw.rentaTributable     ?? 0,
   }
   const anticipos = anticiposPorTrabajador.value[f.trabajador_id] || 0
-  const liquidoFinal = Math.max(0, (calc.liquido_a_pagar || 0) - anticipos)
+  const liquidoFinal = Math.max(0, calc.liquido_a_pagar - anticipos)
   return {
     trabajador_id: f.trabajador_id,
     nombre:        f.nombre,
