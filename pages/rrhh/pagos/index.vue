@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <!-- ── 3 botones de acción ─────────────────────────────────────────── -->
+    <!-- ── Botones de acción ─────────────────────────────────────────── -->
     <div class="pagos-actions">
       <button class="pagos-btn pagos-btn--primary" :disabled="mesCerrado" @click="showMasivasModal = true">
         <i class="u u-cobros-y-pagos"></i>
@@ -31,14 +31,7 @@
           <small>Genera liquidaciones para todo tu equipo</small>
         </span>
       </button>
-      <button class="pagos-btn" :disabled="mesCerrado" @click="abrirAnticipo">
-        <i class="u u-agregar"></i>
-        <span>
-          <strong>Crear anticipo</strong>
-          <small>Adelanto único a un trabajador</small>
-        </span>
-      </button>
-      <button class="pagos-btn pagos-btn--ghost" @click="toggleCierre">
+      <button class="pagos-btn pagos-btn--primary" @click="toggleCierre">
         <i :class="mesCerrado ? 'u u-show' : 'u u-locked'"></i>
         <span>
           <strong>{{ mesCerrado ? 'Abrir mes' : 'Cerrar mes' }}</strong>
@@ -406,7 +399,7 @@ function onAnticipoCreado() {
 /* ── Botones de acción ──────────────────────────────────────────────── */
 .pagos-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   margin-bottom: 28px;
 }
@@ -422,19 +415,29 @@ function onAnticipoCreado() {
   color: var(--neutral-text-body, #d1d5db);
 }
 .pagos-btn:hover:not(:disabled) {
-  border-color: rgba(13,207,168,0.4);
   transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(13,207,168,0.25);
 }
 .pagos-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pagos-btn i {
   font-size: 22px;
   color: var(--neutral-text-muted, #9ca3af);
 }
+/* Botón primary: verde sólido tipo CTA — destaca contra fondo claro y oscuro */
 .pagos-btn--primary {
-  background: rgba(13,207,168,0.08);
-  border-color: rgba(13,207,168,0.3);
+  background: #0DCFA8;
+  border-color: #0DCFA8;
+  color: #062D3A;
 }
-.pagos-btn--primary i { color: #0DCFA8; }
+.pagos-btn--primary:hover:not(:disabled) {
+  background: #0AB89A;
+  border-color: #0AB89A;
+}
+.pagos-btn--primary i      { color: #062D3A; }
+.pagos-btn--primary strong { color: #062D3A; }
+.pagos-btn--primary small  { color: rgba(6, 45, 58, 0.72); }
+.pagos-btn--primary:disabled { background: #0DCFA8; border-color: #0DCFA8; color: #062D3A; }
+
 .pagos-btn--ghost { background: rgba(255,255,255,0.02); }
 .pagos-btn span {
   display: flex; flex-direction: column; gap: 2px;
