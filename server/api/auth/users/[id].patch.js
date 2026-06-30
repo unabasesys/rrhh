@@ -61,6 +61,14 @@ export default defineEventHandler(async (event) => {
     return { ok: true, activo: user.activo }
   }
 
+  if (action === 'wizard') {
+    // Toggle del estado wizardCompleted — útil para resetear el tour de un
+    // usuario (que vuelva a verlo) o marcarlo como hecho sin que entre.
+    user.wizardCompleted = !user.wizardCompleted
+    await user.save()
+    return { ok: true, wizardCompleted: user.wizardCompleted }
+  }
+
   if (action === 'password') {
     if (!body.password || body.password.length < 6) {
       throw createError({ statusCode: 400, message: 'La contraseña debe tener al menos 6 caracteres' })

@@ -65,6 +65,7 @@
               <th>Rol</th>
               <th>Organización</th>
               <th>Estado</th>
+              <th>Tour</th>
               <th>Creado</th>
               <th></th>
             </tr>
@@ -95,6 +96,12 @@
                   {{ user.activo ? 'Activo' : 'Inactivo' }}
                 </span>
               </td>
+              <td>
+                <span class="wizard-badge" :class="user.wizardCompleted ? 'wizard-badge--done' : 'wizard-badge--pending'"
+                      :title="user.wizardCompleted ? 'Ya vio el tour de bienvenida' : 'Verá el tour la próxima vez que entre'">
+                  {{ user.wizardCompleted ? 'Visto' : 'Pendiente' }}
+                </span>
+              </td>
               <td class="date-cell">{{ formatDate(user.createdAt) }}</td>
               <td>
                 <div class="actions">
@@ -103,6 +110,14 @@
                   </button>
                   <button class="action-btn" title="Cambiar contraseña" @click="openPassword(user)">
                     <i class="u u-locked"></i>
+                  </button>
+                  <button
+                    class="action-btn"
+                    :title="user.wizardCompleted ? 'Resetear tour (volverá a verlo)' : 'Marcar tour como visto'"
+                    @click="handleToggleWizard(user)"
+                    :disabled="actionLoading === user._id"
+                  >
+                    <i :class="user.wizardCompleted ? 'u u-rotate' : 'u u-check'"></i>
                   </button>
                   <button
                     class="action-btn"
@@ -508,6 +523,25 @@ async function handleToggle(user) {
   actionLoading.value = null
 }
 
+/* Toggle wizard (resetear o marcar como visto el tour) */
+async function handleToggleWizard(user) {
+  actionLoading.value = user._id
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    const token = raw ? (JSON.parse(raw).token || null) : null
+    await $fetch(`/api/auth/users/${user._id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body:    { action: 'wizard' },
+    })
+    await loadUsers()
+  } catch (e) {
+    console.error('Error toggleando wizard:', e)
+  } finally {
+    actionLoading.value = null
+  }
+}
+
 /* Modal Eliminar */
 const deleteModal = reactive({ open: false, user: null, saving: false, error: '' })
 
@@ -597,6 +631,18 @@ async function handleDelete() {
 }
 .status-badge--active  { background: rgba(6,204,180,0.12); color: #06CCB4; }
 .status-badge--inactive{ background: rgba(239,68,68,0.12);  color: #f87171; }
+
+/* Badge de wizard / tour */
+.wizard-badge {
+  display: inline-block;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+  cursor: help;
+}
+.wizard-badge--done    { background: rgba(13,207,168,0.10); color: #0DCFA8; border: 1px solid rgba(13,207,168,0.3); }
+.wizard-badge--pending { background: rgba(245,200,66,0.10); color: #F5C842; border: 1px solid rgba(245,200,66,0.3); }
 .org-label  { font-size: 12px; color: #9ca3af; }
 .date-cell  { font-size: 12px; color: #6b7280; white-space: nowrap; }
 
