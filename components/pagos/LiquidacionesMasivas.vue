@@ -152,6 +152,28 @@
               <td>
                 <div class="lm-trab-nombre">{{ p.nombre }}</div>
                 <div class="lm-trab-cargo">{{ p.contrato?.cargo }}</div>
+                <!-- Chips de bonos y descuentos aplicados (solo si tiene) -->
+                <div v-if="p.bonos.length || p.descuentos.length" class="lm-prev-chips">
+                  <span
+                    v-for="(b, k) in p.bonos"
+                    :key="'b' + k"
+                    class="lm-prev-chip"
+                    :class="b.imponible ? 'lm-prev-chip--imp' : 'lm-prev-chip--no-imp'"
+                    :title="(b.imponible ? 'Imponible' : 'No imponible') + ' — ' + formatCLP(b.monto)"
+                  >
+                    <span class="lm-prev-chip__name">{{ b.nombre }}</span>
+                    <span class="lm-prev-chip__amt">+{{ formatCLP(b.monto) }}</span>
+                  </span>
+                  <span
+                    v-for="(d, k) in p.descuentos"
+                    :key="'d' + k"
+                    class="lm-prev-chip lm-prev-chip--desc"
+                    :title="'Descuento — ' + formatCLP(d.monto)"
+                  >
+                    <span class="lm-prev-chip__name">{{ d.nombre }}</span>
+                    <span class="lm-prev-chip__amt">−{{ formatCLP(d.monto) }}</span>
+                  </span>
+                </div>
               </td>
               <td>{{ formatCLP(p.calc.total_haberes) }}</td>
               <td class="neg">−{{ formatCLP(p.calc.total_descuentos) }}</td>
@@ -756,6 +778,56 @@ function formatCLP(n) {
 }
 .lm-preview-table .neg { color: #f87171; }
 .lm-preview-table .liquido { color: #0DCFA8; font-weight: 700; }
+
+/* Chips de bonos/descuentos en el preview, debajo del nombre del trabajador */
+.lm-prev-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: 6px;
+}
+.lm-prev-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  border: 1px solid;
+  line-height: 1.6;
+}
+.lm-prev-chip__name { font-weight: 600; }
+.lm-prev-chip__amt  { font-weight: 700; opacity: 0.85; }
+
+/* Bono imponible (azul) y no imponible (amarillo) */
+.lm-prev-chip--imp {
+  background: rgba(74,163,255,0.10);
+  color: #4AA3FF;
+  border-color: rgba(74,163,255,0.3);
+}
+.lm-prev-chip--no-imp {
+  background: rgba(245,200,66,0.10);
+  color: #F5C842;
+  border-color: rgba(245,200,66,0.3);
+}
+/* Descuento (rojo) */
+.lm-prev-chip--desc {
+  background: rgba(239,68,68,0.10);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.3);
+}
+:root.light-theme .lm-prev-chip--imp {
+  background: rgba(74,163,255,0.08);
+  color: #2563eb;
+  border-color: rgba(74,163,255,0.4);
+}
+:root.light-theme .lm-prev-chip--no-imp {
+  background: rgba(245,158,11,0.10);
+  color: #b45309;
+  border-color: rgba(245,158,11,0.35);
+}
+:root.light-theme .lm-prev-chip--desc {
+  background: rgba(239,68,68,0.08);
+  color: #dc2626;
+  border-color: rgba(239,68,68,0.35);
+}
 
 /* Footer */
 .lm-footer {
