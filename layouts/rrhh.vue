@@ -40,6 +40,37 @@ let authStore = null
 let orgStore  = null
 const currentUser    = ref(null)
 const showUserMenu   = ref(false)
+const showNewOrgModal = ref(false)
+const newOrgSaving    = ref(false)
+const newOrgError     = ref('')
+const newOrg = ref({ nombre: '', rut: '', direccion: '', comuna: '', ciudad: 'Santiago' })
+
+async function crearNuevaEmpresa() {
+  newOrgError.value = ''
+  if (!newOrg.value.nombre?.trim()) {
+    newOrgError.value = 'El nombre es obligatorio'
+    return
+  }
+  newOrgSaving.value = true
+  try {
+    const ses = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+    const created = await $fetch('/api/orgs', {
+      method: 'POST',
+      headers: ses.token ? { Authorization: `Bearer ${ses.token}` } : {},
+      body: { ...newOrg.value, nombre: newOrg.value.nombre.trim() },
+    })
+    // Cambiar a la nueva org y refrescar la app
+    ses.currentOrgId = created._id
+    localStorage.setItem('rrhh_session', JSON.stringify(ses))
+    showNewOrgModal.value = false
+    newOrg.value = { nombre: '', rut: '', direccion: '', comuna: '', ciudad: 'Santiago' }
+    window.location.href = '/rrhh/home'
+  } catch (e) {
+    newOrgError.value = e?.data?.message || e?.message || 'No se pudo crear la empresa'
+  } finally {
+    newOrgSaving.value = false
+  }
+}
 const currentOrg     = ref(null)
 const showOrgMenu    = ref(false)
 const allOrgs        = ref([])
@@ -574,6 +605,9 @@ onUnmounted(() => {
                 <span class="user-dropdown__pill">Pronto</span>
               </button>
               <div class="user-dropdown__divider"></div>
+              <button v-if="currentUser?.rol !== 'viewer'" class="user-dropdown__item" @click="showNewOrgModal = true; showUserMenu = false">
+                <i class="u u-agregar"></i> Crear nueva empresa
+              </button>
               <button v-if="authStore?.canManageOrgs" class="user-dropdown__item" @click="router.push('/rrhh/admin/organizaciones'); showUserMenu = false">
                 <i class="u u-building"></i> Organizaciones
               </button>
@@ -666,6 +700,50 @@ onUnmounted(() => {
 
     <!-- Onboarding wizard: se autodetecta si el usuario ya lo completó -->
     <OnboardingWizard />
+
+    <!-- Modal: Crear nueva empresa ─────────────────────────────────── -->
+    <div v-if="showNewOrgModal" class="modal-overlay" @click.self="showNewOrgModal = false">
+      <div class="modal-box new-org-box">
+        <div class="modal-header">
+          <h2>Crear nueva empresa</h2>
+          <button class="modal-close" @click="showNewOrgModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="new-org-lede">
+            La empresa quedará asignada a tu cuenta y podrás cambiar entre ella y otras desde el selector del header.
+          </p>
+          <div class="field">
+            <label>Nombre legal *</label>
+            <input v-model="newOrg.nombre" placeholder="Ej: Mi Productora SPA" class="form-input" />
+          </div>
+          <div class="field">
+            <label>RUT</label>
+            <input v-model="newOrg.rut" placeholder="76.123.456-7" class="form-input" />
+          </div>
+          <div class="field">
+            <label>Dirección</label>
+            <input v-model="newOrg.direccion" placeholder="Av. Apoquindo 4500" class="form-input" />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Comuna</label>
+              <input v-model="newOrg.comuna" placeholder="Las Condes" class="form-input" />
+            </div>
+            <div class="field">
+              <label>Ciudad</label>
+              <input v-model="newOrg.ciudad" placeholder="Santiago" class="form-input" />
+            </div>
+          </div>
+          <div v-if="newOrgError" class="new-org-error">{{ newOrgError }}</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showNewOrgModal = false">Cancelar</button>
+          <button class="btn btn-primary" :disabled="newOrgSaving" @click="crearNuevaEmpresa">
+            <i class="u u-check"></i> {{ newOrgSaving ? 'Creando...' : 'Crear empresa' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1158,6 +1236,121 @@ onUnmounted(() => {
 .org-item-rut  { font-size: 11px; color: #9ca3af; }
 
 .org-dropdown__divider { height: 1px; background: rgba(0,0,0,0.07); margin: 4px 0; }
+
+/* ── Modal genérico (overlay + caja) ──────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 17, 26, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+.modal-box {
+  background: var(--neutral-background-default, #111d2e);
+  border: 1px solid var(--neutral-border-light, rgba(255,255,255,0.08));
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 540px;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--neutral-border-light, rgba(255,255,255,0.06));
+}
+.modal-header h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--neutral-text-title, #f3f4f6);
+}
+.modal-close {
+  background: none; border: none;
+  font-size: 24px; line-height: 1;
+  color: var(--neutral-text-muted, #9ca3af);
+  cursor: pointer; padding: 0 6px;
+}
+.modal-body { padding: 18px 22px; }
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--neutral-border-light, rgba(255,255,255,0.06));
+}
+.modal-box .form-input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--neutral-text-title, #f3f4f6);
+  font-size: 14px;
+  outline: none;
+}
+.modal-box .form-input:focus {
+  border-color: rgba(13, 207, 168, 0.4);
+  background: rgba(13, 207, 168, 0.04);
+}
+
+:root.light-theme .modal-box { background: #ffffff; border-color: #e5e7eb; }
+:root.light-theme .modal-header { border-color: #e5e7eb; }
+:root.light-theme .modal-footer { border-color: #e5e7eb; }
+:root.light-theme .modal-header h2 { color: #0f172a; }
+:root.light-theme .modal-box .form-input {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #0f172a;
+}
+
+/* Modal "Crear nueva empresa" */
+.new-org-box {
+  max-width: 520px;
+  width: 100%;
+}
+.new-org-lede {
+  font-size: 13px;
+  color: var(--neutral-text-muted, #9ca3af);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+.new-org-box .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.new-org-box .field label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--neutral-text-muted, #9ca3af);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.new-org-box .field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.new-org-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 6px;
+}
 
 /* Items extra del dropdown del usuario (Contratos, Proyectos, Turnos, Dashboard) */
 .user-dropdown__item--disabled {
