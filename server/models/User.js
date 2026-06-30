@@ -25,6 +25,9 @@ const UserSchema = new mongoose.Schema(
     // Se conserva por compat con sesiones/usuarios antiguos.
     esSuperAdmin: { type: Boolean, default: false },
     activo:       { type: Boolean, default: true },
+    // Onboarding wizard: true cuando el usuario cerró el tour (saltar o
+    // completar). Fuente de verdad de cross-device, no localStorage.
+    wizardCompleted: { type: Boolean, default: false },
     // Sesión activa
     token:        { type: String, default: null },
     tokenExpires: { type: Date,   default: null },

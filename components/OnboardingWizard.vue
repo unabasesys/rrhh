@@ -173,11 +173,30 @@ let resizeHandler = null
 
 function cerrar() {
   document.querySelectorAll('.ow-target').forEach(n => n.classList.remove('ow-target'))
+  // Persistir en server (cross-device). Fallback localStorage por si la
+  // request falla — no bloqueamos la UX.
+  marcarCompletadoEnServer()
   try { localStorage.setItem(props.storageKey, '1') } catch {}
   step.value = -2  // sale del DOM
 }
 function finalizar() {
   cerrar()
+}
+
+async function marcarCompletadoEnServer() {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const raw = localStorage.getItem('rrhh_session')
+    if (!raw) return
+    const sess = JSON.parse(raw)
+    if (!sess?.token) return
+    await fetch('/api/auth/wizard-complete', {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${sess.token}` },
+    })
+  } catch (e) {
+    // best-effort, fallback a localStorage
+  }
 }
 
 // Recalcular posición cuando cambia el step
@@ -189,10 +208,42 @@ watch(step, async (v) => {
   }
 })
 
-onMounted(() => {
-  let yaHecho = false
-  try { yaHecho = localStorage.getItem(props.storageKey) === '1' } catch {}
-  if (yaHecho) { step.value = -2; return }
+onMounted(async () => {
+  // 1) Fast path: si localStorage marca completado, ocultar al toque
+  //    (la siguiente llamada al server lo confirmará — si está mal, no hay
+  //    daño porque solo "saltea" mostrar el wizard).
+  let yaHechoLocal = false
+  try { yaHechoLocal = localStorage.getItem(props.storageKey) === '1' } catch {}
+  if (yaHechoLocal) { step.value = -2; return }
+
+  // 2) Source of truth: el server. Esto evita el bug de race condition con
+  //    storage-key reactivo y soluciona cross-device.
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('rrhh_session')
+      if (raw) {
+        const sess = JSON.parse(raw)
+        if (sess?.token) {
+          const res = await fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${sess.token}` },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.user?.wizardCompleted) {
+              // Sincronizar localStorage con la verdad del server
+              try { localStorage.setItem(props.storageKey, '1') } catch {}
+              step.value = -2
+              return
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Si falla el fetch, asumimos que NO está completado y mostramos el
+    // wizard. Mejor mostrar de más que esconder algo importante.
+  }
+
   step.value = 0
   scrollHandler = () => updateTooltipPos()
   resizeHandler = () => updateTooltipPos()
