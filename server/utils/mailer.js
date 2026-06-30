@@ -70,7 +70,11 @@ export async function enviarEmail({ to, subject, html, from }) {
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
       console.error('[mailer] Brevo respondió', res.status, errText)
-      return { ok: false, mode: 'failed', error: `HTTP ${res.status}` }
+      // Brevo devuelve JSON con { code, message } cuando hay un error
+      let parsed = null
+      try { parsed = JSON.parse(errText) } catch {}
+      const detail = parsed?.message || errText.slice(0, 200) || `HTTP ${res.status}`
+      return { ok: false, mode: 'failed', error: `[${res.status}] ${detail}` }
     }
     return { ok: true, mode: 'sent' }
   } catch (e) {

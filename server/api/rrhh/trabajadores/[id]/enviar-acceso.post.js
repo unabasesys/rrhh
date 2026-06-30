@@ -113,6 +113,7 @@ export default defineEventHandler(async (event) => {
   return {
     ok:    result.ok,
     mode:  result.mode,   // 'sent' | 'logged' | 'failed'
+    error: result.error || null,
     email: trab.email,
   }
 })

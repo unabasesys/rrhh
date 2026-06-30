@@ -2669,19 +2669,25 @@ async function enviarAccesoEmail() {
       headers: _vacAuth(),
       body: {},
     })
-    accesoMsgOk.value = true
-    accesoMsg.value = res.mode === 'sent'
-      ? `Email enviado a ${res.email}`
-      : res.mode === 'logged'
-        ? `Email simulado (sin RESEND_API_KEY) — destino: ${res.email}`
+    if (res.mode === 'sent') {
+      accesoMsgOk.value = true
+      accesoMsg.value = `Email enviado a ${res.email}`
+    } else if (res.mode === 'logged') {
+      accesoMsgOk.value = true
+      accesoMsg.value = `Email simulado (sin BREVO_API_KEY) — destino: ${res.email}`
+    } else {
+      accesoMsgOk.value = false
+      accesoMsg.value = res.error
+        ? `No se pudo enviar el email: ${res.error}`
         : 'No se pudo enviar el email'
+    }
   } catch (e) {
     accesoMsgOk.value = false
     accesoMsg.value = e?.data?.message || 'Error al enviar el acceso'
   } finally {
     enviandoAcceso.value = false
-    // Auto-clear después de 5s
-    setTimeout(() => { accesoMsg.value = '' }, 5000)
+    // Auto-clear éxito después de 5s; los errores se quedan para poder leerlos
+    if (accesoMsgOk.value) setTimeout(() => { accesoMsg.value = '' }, 5000)
   }
 }
 
