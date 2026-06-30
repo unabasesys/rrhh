@@ -44,11 +44,12 @@
               </tr>
             </thead>
             <tbody>
-              <template v-for="fila in filas" :key="fila.trabajador_id">
+              <template v-for="(fila, i) in filas" :key="fila.trabajador_id">
                 <tr
                   v-for="(linea, j) in fila.lineas"
                   :key="j"
                   :class="[
+                    `lm-row--zebra-${i % 2}`,
                     { 'lm-row--excluida': fila.excluida },
                     { 'lm-row--sub': j > 0 },
                     j === fila.lineas.length - 1 ? 'lm-row--last' : null,
@@ -659,6 +660,14 @@ function formatCLP(n) {
 .lm-row--last td { border-bottom: 1px solid rgba(255,255,255,0.08); }
 :root.light-theme .lm-row--sub td  { border-bottom-color: #f8fafc; }
 :root.light-theme .lm-row--last td { border-bottom-color: #e5e7eb; }
+
+/* Zebra striping por bloque de trabajador (no por fila) — la clase la
+   aplica el v-for usando el índice de la fila padre, así todas las
+   líneas de un mismo trabajador comparten el mismo tono. */
+.lm-row--zebra-0 td { background: transparent; }
+.lm-row--zebra-1 td { background: rgba(255,255,255,0.02); }
+:root.light-theme .lm-row--zebra-0 td { background: #ffffff; }
+:root.light-theme .lm-row--zebra-1 td { background: #f8fafc; }
 
 /* Botones + / − en la última columna */
 .col-acciones { width: 70px; white-space: nowrap; text-align: right; padding-right: 12px; }
