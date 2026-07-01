@@ -1,5 +1,5 @@
 <template>
-  <div class="ant-overlay" @click.self="$emit('close')">
+  <div class="ant-overlay">
     <div class="ant-modal">
       <div class="ant-header">
         <h2>Crear anticipo</h2>

@@ -167,7 +167,7 @@
     />
 
     <!-- ── Modal: Enviar liquidación por email ───────────────────────────── -->
-    <div v-if="showEmailModal" class="ant-overlay" @click.self="showEmailModal = false">
+    <div v-if="showEmailModal" class="ant-overlay">
       <div class="ant-modal">
         <div class="ant-header">
           <h2>Enviar liquidación por email</h2>

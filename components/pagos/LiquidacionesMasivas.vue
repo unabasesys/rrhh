@@ -1,5 +1,5 @@
 <template>
-  <div class="lm-overlay" @click.self="$emit('close')">
+  <div class="lm-overlay">
     <div class="lm-modal">
 
       <!-- Header con pasos -->
@@ -228,7 +228,7 @@
       </div>
 
       <!-- ── Modal "Aplicar a todos" ────────────────────────────────────── -->
-      <div v-if="showMasivoForm" class="lm-mini-overlay" @click.self="showMasivoForm = false">
+      <div v-if="showMasivoForm" class="lm-mini-overlay">
         <div class="lm-mini">
           <h3>Aplicar a todos los seleccionados</h3>
           <p class="muted">Sobrescribe el bono y/o descuento de cada fila. Deja en blanco lo que no quieras cambiar.</p>
