@@ -14,6 +14,12 @@ const LiquidacionSchema = new mongoose.Schema({
   dias_trabajados:      { type: Number, default: 30 },
   horas_extra:          { type: Number, default: 0 },
   sueldo_base:          { type: Number, default: 0 },
+  sueldo_proporcional:  { type: Number, default: 0 },   // sueldo_base × dias / 30
+  gratificacion:        { type: Number, default: 0 },   // 25% con tope 4.75 SMM / 12
+  monto_horas_extra:    { type: Number, default: 0 },   // (valor hora × 1.5) × cantidad
+  bonos_imponibles:     { type: Number, default: 0 },   // suma de bonos con imponible=true
+  bonos_no_imponibles:  { type: Number, default: 0 },   // suma de bonos con imponible=false
+  anticipo_descontado:  { type: Number, default: 0 },   // anticipos del mes descontados
   total_haberes:        { type: Number, default: 0 },
   total_descuentos:     { type: Number, default: 0 },
   liquido_a_pagar:      { type: Number, default: 0 },

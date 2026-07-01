@@ -378,16 +378,22 @@ const preview = computed(() => filasIncluidas.value.map(f => {
   // calcularLiquidacion devuelve keys en camelCase (totalHaberes, etc.) —
   // las normalizamos a snake_case para que el resto del componente y el
   // POST a /api/rrhh/liquidaciones consuman la misma forma.
+  //
+  // IMPORTANTE: el AFP y sistema_salud viven en el modelo TRABAJADOR, no
+  // en el contrato. El contrato solo tiene datos previsionales cuando se
+  // pactan condiciones especiales. Sin este fallback, getAfpComision
+  // recibe undefined y cae al default 0.0144 en vez de la comisión real.
   let raw = {}
   try {
     raw = calcularLiquidacion({
       sueldo_base:     f.contrato?.sueldo_base || 0,
-      afp:             f.contrato?.afp,
-      sistema_salud:   f.contrato?.sistema_salud,
+      afp:             f.contrato?.afp           || f.afp,
+      sistema_salud:   f.contrato?.sistema_salud || f.sistema_salud,
       tipo_contrato:   f.contrato?.tipo_contrato || 'indefinido',
       gratificacion:   f.contrato?.gratificacion || 'mensual',
       dias_trabajados: f.dias_trabajados,
       horas_extra:     f.horas_extra,
+      trabajador:      f,   // para isapre_adicional (UF excedente)
       bonos,
       descuentos,
     }) || {}
@@ -407,6 +413,12 @@ const preview = computed(() => filasIncluidas.value.map(f => {
     impuesto:             raw.impuesto            ?? 0,
     renta_imponible:      raw.rentaImponible      ?? 0,
     renta_tributable:     raw.rentaTributable     ?? 0,
+    // Campos extra que el PDF necesita mostrar en el desglose de haberes
+    gratificacion:        raw.gratificacion       ?? 0,
+    monto_horas_extra:    raw.montoHorasExtra     ?? 0,
+    sueldo_proporcional:  raw.sueldoProporcional  ?? 0,
+    bonos_imponibles:     raw.bonosImponibles     ?? 0,
+    bonos_no_imponibles:  raw.bonosNoImponibles   ?? 0,
   }
   const anticipos = anticiposPorTrabajador.value[f.trabajador_id] || 0
   const liquidoFinal = Math.max(0, calc.liquido_a_pagar - anticipos)
@@ -493,6 +505,13 @@ async function confirmar() {
           impuesto:             p.calc.impuesto,
           renta_imponible:      p.calc.renta_imponible,
           renta_tributable:     p.calc.renta_tributable,
+          // Persistir campos que el PDF necesita para desglosar haberes:
+          // Sueldo Base (30/30), Gratificación Legal, Horas Extra
+          gratificacion:        p.calc.gratificacion,
+          monto_horas_extra:    p.calc.monto_horas_extra,
+          sueldo_proporcional:  p.calc.sueldo_proporcional,
+          bonos_imponibles:     p.calc.bonos_imponibles,
+          bonos_no_imponibles:  p.calc.bonos_no_imponibles,
           anticipo_descontado:  p.anticipos,
           estado:               'pendiente',
           orgId:                p.contrato?.orgId,

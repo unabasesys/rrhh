@@ -29,8 +29,29 @@ export async function buildLiquidacionPdfBody(liquidacionId) {
 
   // ── Haberes ─────────────────────────────────────────────────────────────
   const haberes = []
-  if (liq.sueldo_base)      haberes.push({ nombre: 'Sueldo Base',     monto: fmtClp(liq.sueldo_base) })
-  if (liq.gratificacion)    haberes.push({ nombre: 'Gratificación',   monto: fmtClp(liq.gratificacion) })
+  const dias = liq.dias_trabajados || 30
+  const sueldoBase = Number(liq.sueldo_base || 0)
+  const sueldoMostrar = liq.sueldo_proporcional || Math.round((sueldoBase / 30) * dias)
+
+  if (sueldoMostrar) {
+    haberes.push({
+      nombre: dias === 30 ? 'Sueldo Base' : `Sueldo Base (${dias}/30 días)`,
+      monto:  fmtClp(sueldoMostrar),
+    })
+  }
+
+  // Gratificación: si no vino guardada pero podemos inferirla desde
+  // renta_imponible - sueldo - bonosImp, la mostramos. Esto rescata PDFs
+  // de liquidaciones antiguas (antes de guardar gratificacion en DB).
+  let gratif = Number(liq.gratificacion || 0)
+  if (!gratif && liq.renta_imponible && sueldoMostrar) {
+    const bonosImp = (liq.bonos || []).filter(b => b.imponible).reduce((s, b) => s + (Number(b.monto) || 0), 0)
+    const horasExtra = Number(liq.monto_horas_extra || liq.horas_extra_monto || 0)
+    const inferido = liq.renta_imponible - sueldoMostrar - bonosImp - horasExtra
+    if (inferido > 0 && inferido < sueldoMostrar) gratif = inferido
+  }
+  if (gratif > 0) haberes.push({ nombre: 'Gratificación Legal', monto: fmtClp(gratif) })
+
   if (liq.monto_horas_extra || liq.horas_extra_monto) {
     haberes.push({ nombre: 'Horas Extra', monto: fmtClp(liq.monto_horas_extra || liq.horas_extra_monto) })
   }
