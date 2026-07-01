@@ -333,7 +333,13 @@ onMounted(async () => {
   // Build filas — cada trabajador tiene un arreglo de "lineas" donde cada
   // línea es un par bono+descuento. Por default arranca con 1 línea vacía;
   // el usuario agrega/quita con los botones + / − en cada fila.
+  //
+  // Extiende el objeto trabajador (con spread) para preservar afp,
+  // sistema_salud, isapre_tipo, isapre_monto, etc. — datos previsionales
+  // que viven en el modelo Trabajador (no en Contrato) y que
+  // calcularLiquidacion necesita para obtener la comisión AFP correcta.
   filas.value = props.trabajadores.map(t => ({
+    ...t,
     trabajador_id:    t._id,
     nombre:           [t.nombre, t.apellido, t.apellido_paterno, t.apellido_materno].filter(Boolean).join(' '),
     contrato:         t.contrato,
