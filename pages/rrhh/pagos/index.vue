@@ -68,10 +68,34 @@
     <section class="pagos-section">
       <div class="pagos-section__head">
         <h2>Liquidaciones generadas — {{ nombreMesAnio }}</h2>
-        <div v-if="seleccionadas.length" class="selection-actions">
-          <span>{{ seleccionadas.length }} seleccionada(s)</span>
-          <button class="btn-link" @click="eliminarSeleccionadas">Eliminar</button>
-          <button class="btn-link" @click="seleccionadas = []">Cancelar</button>
+        <div class="pagos-section__actions">
+          <!-- Buscador -->
+          <div class="liq-search">
+            <i class="u u-search"></i>
+            <input
+              type="text"
+              v-model="filtroNombre"
+              placeholder="Buscar por nombre…"
+            />
+            <button v-if="filtroNombre" class="liq-search__clear" @click="filtroNombre = ''" title="Limpiar">×</button>
+          </div>
+
+          <!-- Seleccionar todos (solo si hay resultados visibles) -->
+          <label v-if="liquidacionesFiltradas.length" class="liq-select-all">
+            <input
+              type="checkbox"
+              :checked="todasSeleccionadas"
+              :indeterminate.prop="algunasSeleccionadas && !todasSeleccionadas"
+              @change="toggleSeleccionarTodas"
+            />
+            <span>Seleccionar todos ({{ liquidacionesFiltradas.length }})</span>
+          </label>
+
+          <div v-if="seleccionadas.length" class="selection-actions">
+            <span>{{ seleccionadas.length }} seleccionada(s)</span>
+            <button class="btn-link" @click="eliminarSeleccionadas">Eliminar</button>
+            <button class="btn-link" @click="seleccionadas = []">Cancelar</button>
+          </div>
         </div>
       </div>
 
@@ -82,9 +106,13 @@
           Generar liquidaciones masivas →
         </button>
       </div>
+      <div v-else-if="!liquidacionesFiltradas.length" class="pagos-empty">
+        <p>Ningún resultado para "<strong>{{ filtroNombre }}</strong>".</p>
+        <button class="btn-link" @click="filtroNombre = ''">Limpiar búsqueda</button>
+      </div>
       <div v-else class="liq-grid">
         <div
-          v-for="liq in liquidacionesMes"
+          v-for="liq in liquidacionesFiltradas"
           :key="liq._id"
           class="liq-card"
           :class="{ 'liq-card--selected': seleccionadas.includes(liq._id) }"
@@ -243,6 +271,7 @@ const liquidacionesMes = ref([])
 const anticiposMes     = ref([])
 const cierres          = ref([])
 const seleccionadas    = ref([])
+const filtroNombre     = ref('')
 const showMasivasModal = ref(false)
 const showAnticipoModal = ref(false)
 
@@ -315,6 +344,37 @@ const trabajadoresParaLiquidar = computed(() => {
 })
 
 const mesCerrado = computed(() => false)  // TODO: implementar Cierre model
+
+// Búsqueda por nombre (case-insensitive, sin acentos)
+function normalizarTexto(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+const liquidacionesFiltradas = computed(() => {
+  const q = normalizarTexto(filtroNombre.value.trim())
+  if (!q) return liquidacionesMes.value
+  return liquidacionesMes.value.filter(l => normalizarTexto(l.trabajador_nombre).includes(q))
+})
+
+// "Seleccionar todos" opera sobre la lista visible (respeta el filtro)
+const todasSeleccionadas = computed(() =>
+  liquidacionesFiltradas.value.length > 0 &&
+  liquidacionesFiltradas.value.every(l => seleccionadas.value.includes(l._id))
+)
+const algunasSeleccionadas = computed(() =>
+  liquidacionesFiltradas.value.some(l => seleccionadas.value.includes(l._id))
+)
+function toggleSeleccionarTodas() {
+  if (todasSeleccionadas.value) {
+    // Deselecciona solo las visibles (mantiene las de otros filtros)
+    const visibles = new Set(liquidacionesFiltradas.value.map(l => l._id))
+    seleccionadas.value = seleccionadas.value.filter(id => !visibles.has(id))
+  } else {
+    // Agrega las visibles al set (union)
+    const set = new Set(seleccionadas.value)
+    for (const l of liquidacionesFiltradas.value) set.add(l._id)
+    seleccionadas.value = [...set]
+  }
+}
 const totalLiquido = computed(() => liquidacionesMes.value.reduce((s, l) => s + (l.liquido_a_pagar || 0), 0))
 const totalCostoEmpresa = computed(() => liquidacionesMes.value.reduce((s, l) => s + (l.costo_empresa || 0), 0))
 const totalAnticipos = computed(() => anticiposMes.value.reduce((s, a) => s + (a.monto || 0), 0))
@@ -602,10 +662,70 @@ function onAnticipoCreado() {
   color: var(--neutral-text-title, #f3f4f6);
   margin: 0;
 }
+.pagos-section__actions {
+  display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
+}
 .selection-actions {
   display: flex; gap: 10px; align-items: center;
   font-size: 12px; color: var(--neutral-text-muted, #9ca3af);
 }
+
+/* Buscador de la lista de liquidaciones */
+.liq-search {
+  position: relative;
+  display: flex; align-items: center;
+}
+.liq-search i {
+  position: absolute; left: 10px;
+  color: var(--neutral-text-muted, #9ca3af);
+  font-size: 13px;
+  pointer-events: none;
+}
+.liq-search input {
+  background: var(--neutral-background-subtle, #0f1a26);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 8px 30px 8px 30px;
+  color: var(--neutral-text-body, #d1d5db);
+  font-family: inherit;
+  font-size: 13px;
+  width: 220px;
+}
+.liq-search input:focus {
+  outline: none;
+  border-color: #0DCFA8;
+  background: rgba(13,207,168,0.04);
+}
+.liq-search__clear {
+  position: absolute; right: 6px;
+  background: none; border: none;
+  color: var(--neutral-text-muted, #9ca3af);
+  font-size: 16px;
+  cursor: pointer;
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.liq-search__clear:hover { background: rgba(255,255,255,0.06); color: #f3f4f6; }
+
+/* "Seleccionar todos" */
+.liq-select-all {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px;
+  color: var(--neutral-text-muted, #9ca3af);
+  cursor: pointer;
+  user-select: none;
+}
+.liq-select-all input { cursor: pointer; }
+.liq-select-all:hover { color: var(--neutral-text-body, #d1d5db); }
+
+:root.light-theme .liq-search input {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #0f172a;
+}
+:root.light-theme .liq-search__clear:hover { background: #e2e8f0; color: #0f172a; }
 .btn-link {
   background: none; border: none; cursor: pointer;
   color: #0DCFA8;
