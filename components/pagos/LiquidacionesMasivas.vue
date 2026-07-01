@@ -152,8 +152,26 @@
               <td>
                 <div class="lm-trab-nombre">{{ p.nombre }}</div>
                 <div class="lm-trab-cargo">{{ p.contrato?.cargo }}</div>
-                <!-- Chips de bonos y descuentos aplicados (solo si tiene) -->
-                <div v-if="p.bonos.length || p.descuentos.length" class="lm-prev-chips">
+                <!-- Chips del desglose de haberes: automáticos (verde) + bonos elegidos + descuentos -->
+                <div class="lm-prev-chips">
+                  <!-- Sueldo base (siempre) -->
+                  <span class="lm-prev-chip lm-prev-chip--base" title="Sueldo base pactado">
+                    <span class="lm-prev-chip__name">Sueldo Base</span>
+                    <span class="lm-prev-chip__amt">+{{ formatCLP(p.calc.sueldo_proporcional || p.contrato?.sueldo_base) }}</span>
+                  </span>
+                  <!-- Gratificación legal (calculada automáticamente) -->
+                  <span v-if="p.calc.gratificacion > 0" class="lm-prev-chip lm-prev-chip--base"
+                        title="25% del sueldo con tope 4.75 SMM / 12">
+                    <span class="lm-prev-chip__name">Gratificación Legal</span>
+                    <span class="lm-prev-chip__amt">+{{ formatCLP(p.calc.gratificacion) }}</span>
+                  </span>
+                  <!-- Horas extra (si aplica) -->
+                  <span v-if="p.calc.monto_horas_extra > 0" class="lm-prev-chip lm-prev-chip--imp"
+                        :title="p.fila.horas_extra + ' hrs × 1.5'">
+                    <span class="lm-prev-chip__name">Horas Extra</span>
+                    <span class="lm-prev-chip__amt">+{{ formatCLP(p.calc.monto_horas_extra) }}</span>
+                  </span>
+                  <!-- Bonos manuales que el user agregó -->
                   <span
                     v-for="(b, k) in p.bonos"
                     :key="'b' + k"
@@ -164,6 +182,7 @@
                     <span class="lm-prev-chip__name">{{ b.nombre }}</span>
                     <span class="lm-prev-chip__amt">+{{ formatCLP(b.monto) }}</span>
                   </span>
+                  <!-- Descuentos manuales -->
                   <span
                     v-for="(d, k) in p.descuentos"
                     :key="'d' + k"
@@ -815,6 +834,12 @@ function formatCLP(n) {
 .lm-prev-chip__name { font-weight: 600; }
 .lm-prev-chip__amt  { font-weight: 700; opacity: 0.85; }
 
+/* Haberes automáticos (verde teal): sueldo base, gratificación */
+.lm-prev-chip--base {
+  background: rgba(13,207,168,0.10);
+  color: #0DCFA8;
+  border-color: rgba(13,207,168,0.3);
+}
 /* Bono imponible (azul) y no imponible (amarillo) */
 .lm-prev-chip--imp {
   background: rgba(74,163,255,0.10);
@@ -831,6 +856,11 @@ function formatCLP(n) {
   background: rgba(239,68,68,0.10);
   color: #f87171;
   border-color: rgba(239,68,68,0.3);
+}
+:root.light-theme .lm-prev-chip--base {
+  background: rgba(13,207,168,0.08);
+  color: #0aa688;
+  border-color: rgba(13,207,168,0.4);
 }
 :root.light-theme .lm-prev-chip--imp {
   background: rgba(74,163,255,0.08);
