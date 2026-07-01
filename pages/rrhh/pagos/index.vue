@@ -514,8 +514,12 @@ function onAnticipoCreado() {
 <style scoped>
 .pagos-page {
   padding: 24px 32px 60px;
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 640px) {
+  .pagos-page { padding: 16px 14px 40px; }
 }
 
 .pagos-header {
@@ -654,6 +658,8 @@ function onAnticipoCreado() {
 .pagos-section { margin-bottom: 32px; }
 .pagos-section__head {
   display: flex; justify-content: space-between; align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
   margin-bottom: 12px;
 }
 .pagos-section__head h2 {
@@ -881,8 +887,15 @@ function onAnticipoCreado() {
 :root.light-theme .pagos-btn strong,
 :root.light-theme .anticipo-nombre { color: #0f172a; }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
+  .pagos-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
   .pagos-actions, .pagos-kpis { grid-template-columns: 1fr; }
+  .pagos-title { font-size: 22px; }
+  .liq-search input { width: 100%; }
+  .liq-search { flex: 1; min-width: 180px; }
+  .month-picker { padding: 4px 6px; }
 }
 
 /* ── Modal "Enviar por email" (reusa estilos del modal Crear anticipo) ─── */
