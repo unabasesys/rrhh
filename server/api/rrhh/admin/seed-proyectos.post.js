@@ -1,9 +1,11 @@
 import Proyecto from '../../../models/Proyecto.js'
 import Linea from '../../../models/Linea.js'
 import { requireDb, newId } from '../../../utils/db.js'
+import { requireAuth } from '../../../utils/requireAuth.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
+  await requireAuth(event, 'admin')
   const body  = await readBody(event)
   const orgId = body?.orgId || null
 

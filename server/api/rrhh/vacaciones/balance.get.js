@@ -2,7 +2,7 @@ import Vacacion from '../../../models/Vacacion.js'
 import Trabajador from '../../../models/Trabajador.js'
 import Contrato from '../../../models/Contrato.js'
 import { requireDb } from '../../../utils/db.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../../utils/requireAuth.js'
 import { getPolicy, calcularBalance } from '../../../utils/vacacionesPolicy.js'
 
 /**
@@ -11,12 +11,13 @@ import { getPolicy, calcularBalance } from '../../../utils/vacacionesPolicy.js'
  */
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  await requireAuth(event)
+  const user = await requireAuth(event)
   const { trabajador_id } = getQuery(event)
   if (!trabajador_id) throw createError({ statusCode: 400, message: 'trabajador_id requerido' })
 
   const trabajador = await Trabajador.findById(trabajador_id).lean()
   if (!trabajador) throw createError({ statusCode: 404, message: 'Trabajador no encontrado' })
+  requireOrgAccess(user, trabajador.orgId)
 
   // Fecha de ingreso: la del contrato más antiguo activo, o el fecha_ingreso
   // del trabajador, o un fallback razonable.

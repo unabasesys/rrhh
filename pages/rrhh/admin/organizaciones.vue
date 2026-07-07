@@ -252,7 +252,12 @@ const workerCounts = ref({})
 
 async function fetchWorkerCounts() {
   try {
-    const counts = await $fetch('/api/rrhh/trabajadores/counts')
+    let headers = {}
+    try {
+      const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+      if (s?.token) headers = { Authorization: `Bearer ${s.token}` }
+    } catch {}
+    const counts = await $fetch('/api/rrhh/trabajadores/counts', { headers })
     workerCounts.value = counts
   } catch {
     // si falla, simplemente no mostramos conteos

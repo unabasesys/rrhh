@@ -2767,7 +2767,7 @@ async function seleccionarNegocio(neg) {
   showCrearProyecto.value   = false
   // Cargar líneas de este proyecto
   try {
-    const lineas = await $fetch(`/api/rrhh/lineas?proyectoId=${neg._id}`)
+    const lineas = await $fetch(`/api/rrhh/lineas?proyectoId=${neg._id}`, { headers: _vacAuth() })
     lineasNegocioActual.value = lineas
   } catch { lineasNegocioActual.value = [] }
 }
@@ -2807,6 +2807,7 @@ async function confirmarCrearProyecto() {
   try {
     const nuevo = await $fetch('/api/rrhh/proyectos', {
       method: 'POST',
+      headers: _vacAuth(),
       body: { nombre, codigo, tipo: crearProyectoForm.value.tipo || 'venta', orgId, _local: true },
     })
     proyectosLocales.value = [...proyectosLocales.value, nuevo]
@@ -2842,6 +2843,7 @@ async function confirmarCrearLinea() {
   try {
     const nueva = await $fetch('/api/rrhh/lineas', {
       method: 'POST',
+      headers: _vacAuth(),
       body: {
         nombre,
         codigo,
@@ -4029,7 +4031,7 @@ async function _descargarLiqDesdeCalc() {
     },
   }
 
-  const res = await $fetch('/api/rrhh/liquidacion-pdf', { method: 'POST', body: payload, responseType: 'blob' })
+  const res = await $fetch('/api/rrhh/liquidacion-pdf', { method: 'POST', headers: _vacAuth(), body: payload, responseType: 'blob' })
   const url = URL.createObjectURL(new Blob([res], { type: 'application/pdf' }))
   const a   = document.createElement('a')
   a.href    = url
@@ -4216,6 +4218,7 @@ async function descargarLiqPDF(liq) {
 
     const res = await $fetch('/api/rrhh/liquidacion-pdf', {
       method: 'POST',
+      headers: _vacAuth(),
       body: payload,
       responseType: 'blob',
     })
@@ -4334,7 +4337,7 @@ async function abrirContratoExistente(c) {
 
   if (c.negocio_id) {
     try {
-      lineasNegocioActual.value = await $fetch(`/api/rrhh/lineas?proyectoId=${c.negocio_id}`)
+      lineasNegocioActual.value = await $fetch(`/api/rrhh/lineas?proyectoId=${c.negocio_id}`, { headers: _vacAuth() })
       // Si el proyecto no estaba en la lista local, crear objeto mínimo para habilitarlo
       if (!negocioSeleccionado.value) {
         negocioSeleccionado.value = { _id: c.negocio_id, nombre: c.negocio_nombre || '' }
@@ -4652,6 +4655,7 @@ async function generarContratoPDF() {
 
     const res = await $fetch('/api/rrhh/contrato-pdf', {
       method: 'POST',
+      headers: _vacAuth(),
       body: payload,
       responseType: 'blob',
     })
@@ -4772,6 +4776,7 @@ async function generarFiniquitoPDF() {
 
     const res = await $fetch('/api/rrhh/finiquito-pdf', {
       method: 'POST',
+      headers: _vacAuth(),
       body: payload,
       responseType: 'blob',
     })
@@ -4884,7 +4889,7 @@ async function descargarFiniquitoPDF(fin) {
       },
       descuentos_finiquito: [],
     }
-    const res = await $fetch('/api/rrhh/finiquito-pdf', { method: 'POST', body: payload, responseType: 'blob' })
+    const res = await $fetch('/api/rrhh/finiquito-pdf', { method: 'POST', headers: _vacAuth(), body: payload, responseType: 'blob' })
     const url = URL.createObjectURL(new Blob([res], { type: 'application/pdf' }))
     const a = document.createElement('a')
     a.href = url

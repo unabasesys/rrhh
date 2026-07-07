@@ -195,19 +195,28 @@ function showFeedback(msg, type = 'success') {
   setTimeout(() => { feedback.value = null }, 4000)
 }
 
+// Bearer token de la sesión — requerido ahora que la API exige auth.
+function authHeaders() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {}
+  } catch { return {} }
+}
+
 async function cargarProyectos() {
   loading.value = true
   try {
     const orgId = _authStore?.currentOrgId || null
     const url   = orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos'
-    proyectos.value = await $fetch(url)
+    proyectos.value = await $fetch(url, { headers: authHeaders() })
   } catch { proyectos.value = [] }
   finally { loading.value = false }
 }
 
 async function cargarLineas(proyId) {
   try {
-    lineasPorProyecto[proyId] = await $fetch(`/api/rrhh/lineas?proyectoId=${proyId}`)
+    lineasPorProyecto[proyId] = await $fetch(`/api/rrhh/lineas?proyectoId=${proyId}`, { headers: authHeaders() })
   } catch { lineasPorProyecto[proyId] = [] }
 }
 
@@ -249,6 +258,7 @@ async function guardarProyecto() {
     if (modalMode.value === 'create') {
       const nuevo = await $fetch('/api/rrhh/proyectos', {
         method: 'POST',
+        headers: authHeaders(),
         body: { ...proyForm.value, orgId },
       })
       proyectos.value = [...proyectos.value, nuevo]
@@ -256,6 +266,7 @@ async function guardarProyecto() {
     } else {
       const updated = await $fetch(`/api/rrhh/proyectos/${editingId.value}`, {
         method: 'PUT',
+        headers: authHeaders(),
         body: proyForm.value,
       })
       proyectos.value = proyectos.value.map(p => p._id === editingId.value ? updated : p)
@@ -272,7 +283,7 @@ async function guardarProyecto() {
 async function eliminarProyecto(proy) {
   if (!confirm(`¿Eliminar el proyecto "${proy.nombre}" y todas sus líneas?`)) return
   try {
-    await $fetch(`/api/rrhh/proyectos/${proy._id}`, { method: 'DELETE' })
+    await $fetch(`/api/rrhh/proyectos/${proy._id}`, { method: 'DELETE', headers: authHeaders() })
     proyectos.value = proyectos.value.filter(p => p._id !== proy._id)
     delete lineasPorProyecto[proy._id]
     if (expandedId.value === proy._id) expandedId.value = null
@@ -297,6 +308,7 @@ async function guardarLinea(proyId) {
     const orgId = _authStore?.currentOrgId || null
     const linea = await $fetch('/api/rrhh/lineas', {
       method: 'POST',
+      headers: authHeaders(),
       body: { ...lineaForm.value, proyectoId: proyId, orgId },
     })
     if (!lineasPorProyecto[proyId]) lineasPorProyecto[proyId] = []
@@ -311,7 +323,7 @@ async function guardarLinea(proyId) {
 async function eliminarLinea(linea, proyId) {
   if (!confirm(`¿Eliminar la línea "${linea.nombre}"?`)) return
   try {
-    await $fetch(`/api/rrhh/lineas/${linea._id}`, { method: 'DELETE' })
+    await $fetch(`/api/rrhh/lineas/${linea._id}`, { method: 'DELETE', headers: authHeaders() })
     lineasPorProyecto[proyId] = lineasPorProyecto[proyId].filter(l => l._id !== linea._id)
     showFeedback('Línea eliminada.')
   } catch (e) {
@@ -325,6 +337,7 @@ async function cargarEjemplos() {
     const orgId = _authStore?.currentOrgId || null
     const res = await $fetch('/api/rrhh/admin/seed-proyectos', {
       method: 'POST',
+      headers: authHeaders(),
       body: { orgId },
     })
     if (res.creados > 0) {

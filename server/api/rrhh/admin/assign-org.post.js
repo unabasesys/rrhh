@@ -6,9 +6,11 @@
 import Organization from '@/server/models/Organization'
 import Trabajador    from '@/server/models/Trabajador'
 import { requireDb } from '@/server/utils/db'
+import { requireAuth } from '@/server/utils/requireAuth'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
+  await requireAuth(event, 'admin')
   const { orgId } = await readBody(event)
 
   if (!orgId) throw createError({ statusCode: 400, message: 'orgId requerido' })

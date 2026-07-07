@@ -1,6 +1,6 @@
 import Vacacion from '../../../models/Vacacion.js'
 import { requireDb } from '../../../utils/db.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../../utils/requireAuth.js'
 
 /**
  * DELETE /api/rrhh/vacaciones/:id
@@ -9,9 +9,13 @@ import { requireAuth } from '../../../utils/requireAuth.js'
  */
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  await requireAuth(event, 'manager')
+  const user = await requireAuth(event, 'manager')
   const id = event.context.params.id
-  const res = await Vacacion.deleteOne({ _id: id })
-  if (!res.deletedCount) throw createError({ statusCode: 404, message: 'No encontrada' })
+
+  const vac = await Vacacion.findById(id).lean()
+  if (!vac) throw createError({ statusCode: 404, message: 'No encontrada' })
+  requireOrgAccess(user, vac.orgId)
+
+  await Vacacion.deleteOne({ _id: id })
   return { ok: true }
 })

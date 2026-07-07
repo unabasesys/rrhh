@@ -23,6 +23,7 @@ import { PassThrough } from 'stream'
 import { drawPeopleByFooter } from '../../utils/pdfFooter.js'
 import { buildLiquidacionPdfBody } from '../../utils/buildLiquidacionPdfBody.js'
 import { requireDb } from '../../utils/db.js'
+import { requireAuth, requireOrgAccess } from '../../utils/requireAuth.js'
 
 // ── Paleta Unabase ──────────────────────────────────────────────────────────
 const C = {
@@ -134,6 +135,7 @@ function measureTextHeight(doc, text, opts = {}) {
 
 // ── Handler ─────────────────────────────────────────────────────────────────
 export default defineEventHandler(async (event) => {
+  const user = await requireAuth(event)
   let body = await readBody(event)
 
   // Shortcut: si viene solo { liquidacion_id }, armar el body desde la DB.
@@ -147,6 +149,8 @@ export default defineEventHandler(async (event) => {
     } catch (e) {
       throw createError({ statusCode: 404, message: e.message || 'Liquidación no encontrada' })
     }
+    // Validar acceso a la org de la liquidación cargada desde la DB
+    requireOrgAccess(user, body._liquidacionDoc?.orgId)
   }
 
   const org  = body.organizacion || {}

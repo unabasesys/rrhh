@@ -412,7 +412,9 @@ async function fetchBilling() {
 
 async function fetchGatewayStatus() {
   try {
-    gatewayStatus.value = await $fetch('/api/rrhh/billing/gateway-status')
+    gatewayStatus.value = await $fetch('/api/rrhh/billing/gateway-status', {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+    })
   } catch {
     // silencioso
   }

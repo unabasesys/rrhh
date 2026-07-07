@@ -1,7 +1,7 @@
 import Anticipo  from '../../../models/Anticipo.js'
 import Trabajador from '../../../models/Trabajador.js'
 import { requireDb, newId } from '../../../utils/db.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../../utils/requireAuth.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
 
   const trab = await Trabajador.findById(body.trabajador_id).lean()
   if (!trab) throw createError({ statusCode: 404, message: 'Trabajador no encontrado' })
+  requireOrgAccess(user, trab.orgId)
 
   const nombre = [trab.nombre, trab.apellido, trab.apellido_paterno, trab.apellido_materno]
     .filter(Boolean).join(' ') || 'Trabajador'

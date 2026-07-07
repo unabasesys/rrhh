@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { drawPeopleByFooter } from "../../utils/pdfFooter.js";
+import { requireAuth } from "../../utils/requireAuth.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ES = [
@@ -198,6 +199,7 @@ function drawSignatureTable(doc, left, right) {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default defineEventHandler(async (event) => {
+  await requireAuth(event, 'manager');
   const body = await readBody(event);
 
   const org        = body.organizacion     || {};

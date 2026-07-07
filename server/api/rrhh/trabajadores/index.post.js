@@ -1,8 +1,10 @@
 import Trabajador from '../../../models/Trabajador.js'
 import { requireDb } from '../../../utils/db.js'
+import { requireAuth, requireOrgAccess } from '../../../utils/requireAuth.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
+  const user = await requireAuth(event, 'manager')
   const body = await readBody(event)
 
   if (!body.nombre?.trim() || !body.apellido?.trim()) {
@@ -16,6 +18,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Se requiere una organización activa para crear un trabajador',
     })
   }
+
+  // Validar que el usuario tenga acceso a la org destino
+  requireOrgAccess(user, body.orgId)
 
   // Generar _id único si no viene en el body
   const _id = body._id || `w_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`

@@ -2,7 +2,7 @@ import Vacacion from '../../../models/Vacacion.js'
 import Trabajador from '../../../models/Trabajador.js'
 import User from '../../../models/User.js'
 import { requireDb, newId } from '../../../utils/db.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../../utils/requireAuth.js'
 import { getPolicy } from '../../../utils/vacacionesPolicy.js'
 import { enviarEmail } from '../../../utils/mailer.js'
 
@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
 
   const trabajador = await Trabajador.findById(body.trabajador_id).lean()
   if (!trabajador) throw createError({ statusCode: 404, message: 'Trabajador no encontrado' })
+  requireOrgAccess(user, trabajador.orgId)
 
   // Días hábiles según policy (por ahora Chile)
   const policy = getPolicy('CL')

@@ -13,7 +13,7 @@ import Trabajador     from '../../models/Trabajador.js'
 import Contrato       from '../../models/Contrato.js'
 import Organization   from '../../models/Organization.js'
 import { requireDb }  from '../../utils/db.js'
-import { requireAuth } from '../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../utils/requireAuth.js'
 import { getPolicy, calcularBalance } from '../../utils/vacacionesPolicy.js'
 
 const C = {
@@ -50,12 +50,13 @@ function sumaDiaUtil(isoFin) {
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  await requireAuth(event)
+  const user = await requireAuth(event)
   const body = await readBody(event)
   if (!body?.vacacion_id) throw createError({ statusCode: 400, message: 'vacacion_id requerido' })
 
   const vac = await Vacacion.findById(body.vacacion_id).lean()
   if (!vac) throw createError({ statusCode: 404, message: 'Solicitud no encontrada' })
+  requireOrgAccess(user, vac.orgId)
 
   const trab = await Trabajador.findById(vac.trabajador_id).lean()
   if (!trab) throw createError({ statusCode: 404, message: 'Trabajador no encontrado' })

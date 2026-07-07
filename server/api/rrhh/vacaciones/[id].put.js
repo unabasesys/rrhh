@@ -1,6 +1,6 @@
 import Vacacion from '../../../models/Vacacion.js'
 import { requireDb } from '../../../utils/db.js'
-import { requireAuth } from '../../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../../utils/requireAuth.js'
 import { enviarEmail } from '../../../utils/mailer.js'
 import User from '../../../models/User.js'
 
@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
 
   const vac = await Vacacion.findById(id)
   if (!vac) throw createError({ statusCode: 404, message: 'Solicitud no encontrada' })
+  requireOrgAccess(user, vac.orgId)
 
   if (body.estado) vac.estado = body.estado
   if (typeof body.notas_aprobacion === 'string') vac.notas_aprobacion = body.notas_aprobacion

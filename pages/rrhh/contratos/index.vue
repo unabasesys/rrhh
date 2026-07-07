@@ -721,8 +721,14 @@ async function descargarContratoPDF(c) {
       logo_base64: logoB64,
     }
 
+    let _pdfHeaders = {}
+    try {
+      const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+      if (s?.token) _pdfHeaders = { Authorization: `Bearer ${s.token}` }
+    } catch {}
     const res = await $fetch('/api/rrhh/contrato-pdf', {
       method: 'POST',
+      headers: _pdfHeaders,
       body: payload,
       responseType: 'blob',
     })

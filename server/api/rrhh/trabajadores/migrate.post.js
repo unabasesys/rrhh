@@ -5,9 +5,11 @@
  */
 import Trabajador from '../../../models/Trabajador.js'
 import { requireDb } from '../../../utils/db.js'
+import { requireAuth } from '../../../utils/requireAuth.js'
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
+  await requireAuth(event, 'admin')
   const { toOrgId } = await readBody(event)
 
   if (!toOrgId) {

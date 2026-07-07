@@ -6,7 +6,7 @@
  * Body: { liquidacion_id, email, mensaje?, nombreDestinatario? }
  */
 import { requireDb }   from '../../utils/db.js'
-import { requireAuth } from '../../utils/requireAuth.js'
+import { requireAuth, requireOrgAccess } from '../../utils/requireAuth.js'
 import { enviarEmail } from '../../utils/mailer.js'
 import { buildLiquidacionPdfBody } from '../../utils/buildLiquidacionPdfBody.js'
 
@@ -20,7 +20,7 @@ function escapeHtml(s) {
 
 export default defineEventHandler(async (event) => {
   requireDb(event)
-  await requireAuth(event, 'manager')
+  const user = await requireAuth(event, 'manager')
 
   const body = await readBody(event)
   if (!body?.liquidacion_id) throw createError({ statusCode: 400, message: 'liquidacion_id requerido' })
@@ -35,6 +35,8 @@ export default defineEventHandler(async (event) => {
   } catch (e) {
     throw createError({ statusCode: 404, message: e.message || 'Liquidación no encontrada' })
   }
+  // Validar acceso a la org de la liquidación
+  requireOrgAccess(user, pdfBody._liquidacionDoc?.orgId)
 
   // Pedir el PDF a nuestro propio endpoint vía $fetch (Nitro lo enrouta en
   // memoria sin salir a la red).

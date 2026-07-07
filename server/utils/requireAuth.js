@@ -16,24 +16,43 @@ import User from '../models/User.js'
  * - Si es 'manager', acepta admin o manager (admin >= manager).
  * - Si es array, acepta cualquier rol incluido.
  */
-export async function requireAuth(event, requiredRole = null) {
+/**
+ * Resuelve el usuario a partir del Bearer token. Devuelve el user (lean, sin
+ * passwordHash) o null si el token falta/expiró/usuario desactivado.
+ * Extraído para que el middleware global y requireAuth compartan la lógica.
+ */
+export async function resolveUserFromToken(event) {
   const authHeader = getHeader(event, 'authorization') || ''
   const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-
-  if (!token) {
-    throw createError({ statusCode: 401, message: 'No autenticado' })
-  }
-
+  if (!token) return null
   const user = await User.findOne(
     { token, tokenExpires: { $gt: new Date() } },
     { passwordHash: 0 }
   ).lean()
+  if (!user || !user.activo) return null
+  return user
+}
+
+export async function requireAuth(event, requiredRole = null) {
+  // Reusar el usuario ya validado por el middleware global (evita doble query).
+  let user = event.context?.authUser || null
 
   if (!user) {
-    throw createError({ statusCode: 401, message: 'Sesión inválida o expirada' })
-  }
-  if (!user.activo) {
-    throw createError({ statusCode: 403, message: 'Usuario desactivado' })
+    const authHeader = getHeader(event, 'authorization') || ''
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+    if (!token) {
+      throw createError({ statusCode: 401, message: 'No autenticado' })
+    }
+    user = await User.findOne(
+      { token, tokenExpires: { $gt: new Date() } },
+      { passwordHash: 0 }
+    ).lean()
+    if (!user) {
+      throw createError({ statusCode: 401, message: 'Sesión inválida o expirada' })
+    }
+    if (!user.activo) {
+      throw createError({ statusCode: 403, message: 'Usuario desactivado' })
+    }
   }
 
   if (requiredRole) {

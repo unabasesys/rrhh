@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
 import { drawPeopleByFooter } from "../../utils/pdfFooter.js";
+import { requireAuth } from "../../utils/requireAuth.js";
 
 // ── Colores ───────────────────────────────────────────────────────────────────
 const TEAL       = "#2a9d8f";
@@ -843,6 +844,7 @@ async function generatePDF(data) {
 
 // ── Nuxt 3 / Nitro event handler ──────────────────────────────────────────────
 export default defineEventHandler(async (event) => {
+  await requireAuth(event, 'manager');
   const body = await readBody(event);
 
   try {

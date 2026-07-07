@@ -781,6 +781,7 @@ const useRrhhStore = defineStore("rrhh", {
       try {
         const res = await $fetch('/api/rrhh/trabajadores/migrate', {
           method: 'POST',
+          headers: this._authHeaders(),
           body: { toOrgId },
         })
         if (res?.ok) await this.getTrabajadores()

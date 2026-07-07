@@ -4,6 +4,15 @@ import useRrhhStore from "@/stores/rrhh";
 
 const rrhhStore   = useRrhhStore();
 
+// Bearer token de la sesión — requerido ahora que la API exige auth.
+function authHeaders() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {}
+  } catch { return {} }
+}
+
 definePageMeta({
   name: "rrhh-trabajadores",
   layout: 'rrhh',
@@ -373,6 +382,7 @@ function onFotoProyectoChange(e) {
       try {
         await $fetch(`/api/rrhh/proyectos/${proyectoIdTarget.value}`, {
           method: 'PUT',
+          headers: authHeaders(),
           body: { foto: base64 },
         });
         // Actualizar proyectosDB en memoria para que recarga no pierda la foto
@@ -403,6 +413,7 @@ async function quitarFotoProyecto(key, negocioId = null) {
     try {
       await $fetch(`/api/rrhh/proyectos/${negocioId}`, {
         method: 'PUT',
+        headers: authHeaders(),
         body: { foto: null },
       });
       const idx = proyectosDB.value.findIndex(p => p._id === negocioId);
@@ -853,7 +864,7 @@ onMounted(async () => {
   // Cargar proyectos para tipos de treemap y fotos
   try {
     const orgId = authStore?.currentOrgId || null
-    proyectosDB.value = await $fetch(orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos')
+    proyectosDB.value = await $fetch(orgId ? `/api/rrhh/proyectos?orgId=${orgId}` : '/api/rrhh/proyectos', { headers: authHeaders() })
     // Cargar fotos desde MongoDB (sobreescribe localStorage si hay foto en DB)
     const fotosDB = {}
     proyectosDB.value.forEach(p => { if (p.foto) fotosDB[p.nombre] = p.foto })

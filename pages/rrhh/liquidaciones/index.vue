@@ -870,8 +870,14 @@ async function descargarPDF(liq) {
       },
     }
 
+    let _pdfHeaders = {}
+    try {
+      const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+      if (s?.token) _pdfHeaders = { Authorization: `Bearer ${s.token}` }
+    } catch {}
     const response = await $fetch('/api/rrhh/liquidacion-pdf', {
       method: 'POST',
+      headers: _pdfHeaders,
       body: payload,
       responseType: 'blob',
     })
