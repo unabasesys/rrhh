@@ -23,6 +23,7 @@
     "vue-router": "^4.2.5"
   },
   "dependencies": {
+    "@intercom/messenger-js-sdk": "^0.0.20",
     "@pinia/nuxt": "^0.5.1",
     "dayjs": "^1.11.13",
     "exceljs": "^4.4.0",
