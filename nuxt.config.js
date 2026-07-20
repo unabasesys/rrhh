@@ -12,6 +12,9 @@ export default defineNuxtConfig({
       // Google Sign-In: client ID público (sin secret, expuesto al frontend
       // según el flujo de Google Identity Services).
       googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+      // Intercom: el app_id es público (viaja al cliente). Configurable por
+      // env para no hardcodearlo; con fallback al workspace actual.
+      intercomAppId:  process.env.INTERCOM_APP_ID || 'a1lqqu05',
     },
   },
 
