@@ -6,29 +6,29 @@
  */
 import { defineStore } from 'pinia'
 
-// ── Indicadores por defecto: Remuneraciones Junio 2026 ────────────────────────
+// ── Indicadores por defecto: Remuneraciones Julio 2026 ────────────────────────
 // Fuente: https://www.previred.com/indicadores-previsionales/
-// Vigencia: cotizaciones a pagar en Julio 2026
-// Verificado el 2026-06-26 con el PDF oficial de Previred Junio 2026.
+// Vigencia: cotizaciones a pagar en Agosto 2026
+// Verificado el 2026-07-25 con Previred Julio 2026.
 const DEFAULTS = {
-  periodo:        'Junio 2026',
-  pago:           'Julio 2026',
+  periodo:        'Julio 2026',
+  pago:           'Agosto 2026',
   fuente:         'https://www.previred.com/indicadores-previsionales/',
-  actualizado:    '2026-06-26',
+  actualizado:    '2026-07-25',
 
   // ── Unidades de valor ──────────────────────────────────────────────────────
-  uf_actual:      40820.31,    // UF al 30 de Junio 2026
-  uf_fecha:       '30 de Junio 2026',
-  uf_anterior:    40610.69,    // UF al 31 de Mayo 2026
-  uf_fecha_ant:   '31 de Mayo 2026',
-  utm:            71506,       // UTM Junio 2026
-  uta:            858072,      // UTA Junio 2026
+  uf_actual:      40844.79,    // UF al 31 de Julio 2026
+  uf_fecha:       '31 de Julio 2026',
+  uf_anterior:    40820.31,    // UF al 30 de Junio 2026
+  uf_fecha_ant:   '30 de Junio 2026',
+  utm:            71649,       // UTM Julio 2026
+  uta:            859788,      // UTA Julio 2026
   smm:            553553,      // Sueldo Mínimo Mensual (renta mínima imponible)
 
   // ── Rentas topes imponibles ────────────────────────────────────────────────
-  tope_afp:       3673828,     // 90 UF
-  tope_ips:       2436641,     // 60 UF (ex INP)
-  tope_cesantia:  5518906,     // 135,2 UF
+  tope_afp:       3676031,     // 90 UF
+  tope_ips:       2449219,     // 60 UF (ex INP)
+  tope_cesantia:  5522216,     // 135,2 UF
 
   // ── Rentas mínimas imponibles ──────────────────────────────────────────────
   renta_min_dependiente: 553553,
@@ -81,9 +81,9 @@ const DEFAULTS = {
   },
 
   // ── APV ───────────────────────────────────────────────────────────────────
-  apv_tope_mensual:      2041016,  // 50 UF
-  apv_tope_anual:       24492186,  // 600 UF
-  deposito_convenido:   36738279,  // 900 UF
+  apv_tope_mensual:      2042240,  // 50 UF
+  apv_tope_anual:       24506874,  // 600 UF
+  deposito_convenido:   36760311,  // 900 UF
 
   // ── Asignación familiar ────────────────────────────────────────────────────
   asignacion_familiar: [
