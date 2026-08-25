@@ -26,8 +26,11 @@ const LiquidacionSchema = new mongoose.Schema({
   costo_empresa:        { type: Number, default: 0 },
   // Descuentos detallados
   afp_descuento:        { type: Number, default: 0 },
-  salud_descuento:      { type: Number, default: 0 },
-  isapre_adicional:     { type: Number, default: 0 },   // UF excedente sobre el 7%
+  salud_descuento:      { type: Number, default: 0 },   // total salud (7% + adicional)
+  salud_7:              { type: Number, default: 0 },   // 7% obligatorio sobre base topada
+  salud_adicional:      { type: Number, default: 0 },   // adicional plan Isapre (UF − 7%)
+  isapre_adicional:     { type: Number, default: 0 },   // UF excedente sobre el 7% (alias)
+  isapre_uf:            { type: Number, default: 0 },    // plan Isapre pactado en UF
   // Cargos patronales que el socio asume en Sueldo Empresarial
   sis_descuento:        { type: Number, default: 0 },   // 1.62%
   expectativa_vida_desc:{ type: Number, default: 0 },   // 0.9%

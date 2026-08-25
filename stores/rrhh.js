@@ -391,6 +391,13 @@ export const calcularLiquidacion = (datos) => {
   }
 
   const SMM = INDICADORES_PREVISIONALES.smm;
+  const ind = _getIndicadores();
+  const UF  = ind.uf_actual || 40844.79;
+
+  // Topes imponibles PREVIRED (en pesos). AFP y salud comparten tope (90 UF);
+  // el seguro de cesantía tiene un tope mayor (135,2 UF).
+  const topeAfpSalud = ind.tope_afp      || Math.round(90 * UF);
+  const topeCesantia = ind.tope_cesantia || Math.round(135.2 * UF);
 
   // Proporcional si no trabajó mes completo
   const sueldoProporcional = Math.round((sueldo_base / 30) * dias_trabajados);
@@ -399,31 +406,57 @@ export const calcularLiquidacion = (datos) => {
   const valorHoraExtra = Math.round(sueldo_base / 30 / 8 * 1.5);
   const montoHorasExtra = valorHoraExtra * horas_extra;
 
-  // Gratificación legal mensual: 25% sueldo, tope 4.75 SMM / 12 ≈ $197.917
-  const topeGratificacion = Math.round((SMM * 4.75) / 12);
-  const gratificacion = tipoGratificacion === "mensual"
-    ? Math.min(Math.round(sueldoProporcional * 0.25), topeGratificacion)
-    : 0;
-
   // Separar bonos imponibles y no imponibles
   const bonosImponibles    = bonos.filter(b => b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
   const bonosNoImponibles  = bonos.filter(b => !b.imponible).reduce((s, b) => s + (b.monto || 0), 0);
 
-  // Renta imponible = base de cálculo AFP/Salud/Cesantía
+  // ── Gratificación legal mensual (Art. 50 Cód. del Trabajo) ─────────────────
+  // 25% de TODO lo imponible del mes (sueldo + horas extra + comisiones,
+  // semana corrida, bonos imponibles), con tope mensual de 4,75 IMM / 12.
+  // La base NO se incluye a sí misma. Cualquier base > ~$876.458 topa.
+  const topeGratificacion = Math.round((SMM * 4.75) / 12);
+  const baseGratificacion = sueldoProporcional + montoHorasExtra + bonosImponibles;
+  const gratificacion = tipoGratificacion === "mensual"
+    ? Math.min(Math.round(baseGratificacion * 0.25), topeGratificacion)
+    : 0;
+
+  // Renta imponible = base de cálculo AFP/Salud/Cesantía (incluye gratificación)
   const rentaImponible = sueldoProporcional + montoHorasExtra + gratificacion + bonosImponibles;
 
   // Total haberes = todo lo que recibe
   const totalHaberes = rentaImponible + bonosNoImponibles;
 
-  // Descuentos legales
-  const afpComision = getAfpComision(afp);
-  const saludPct    = 0.07; // mínimo legal (FONASA o Isapre)
-  const afpDesc     = calcularAFP(rentaImponible, afpComision);
-  const saludDesc   = calcularSalud(rentaImponible, saludPct);
-  const ces         = calcularCesantia(rentaImponible, tipo);
+  // Bases topadas para el cálculo de cotizaciones
+  const baseAfpSalud = Math.min(rentaImponible, topeAfpSalud);
+  const baseCesantia = Math.min(rentaImponible, topeCesantia);
 
-  // Renta tributable = base para impuesto segunda categoría
-  const rentaTributable = Math.max(0, rentaImponible - afpDesc - saludDesc - ces.trabajador);
+  // ── AFP (sobre base topada 90 UF) ──────────────────────────────────────────
+  const afpComision = getAfpComision(afp);
+  const afpDesc     = calcularAFP(baseAfpSalud, afpComision);
+
+  // ── Salud: 7% obligatorio + adicional del plan pactado en UF ───────────────
+  // El 7% se calcula sobre la base topada. Si el plan Isapre está pactado en
+  // UF y supera ese 7%, la diferencia es la "cotización adicional".
+  const salud7 = Math.round(baseAfpSalud * 0.07);
+  const isapreTipo    = datos.trabajador?.isapre_tipo   ?? datos.isapre_tipo;
+  const isapreMontoUF = Number(datos.trabajador?.isapre_monto ?? datos.trabajador?.isapre_uf ?? datos.isapre_monto ?? 0);
+  let saludAdicional = 0;
+  if (isapreTipo === 'UF' && isapreMontoUF > 0) {
+    const planCLP = Math.round(isapreMontoUF * UF);
+    saludAdicional = Math.max(0, planCLP - salud7);
+  }
+  // Lo que efectivamente se descuenta al trabajador por salud (plan completo)
+  const saludDesc = salud7 + saludAdicional;
+
+  // ── Seguro de cesantía (sobre base topada 135,2 UF) ────────────────────────
+  const ces = calcularCesantia(baseCesantia, tipo);
+
+  // ── Renta tributable (base Impuesto Único 2ª Cat.) ─────────────────────────
+  // Se rebaja AFP + salud + cesantía. La cotización adicional de salud solo
+  // rebaja impuesto cuando la renta NO alcanzó el tope imponible; al topar,
+  // solo el 7% del tope es deducible.
+  const saludDeducible  = (rentaImponible <= topeAfpSalud) ? saludDesc : salud7;
+  const rentaTributable = Math.max(0, rentaImponible - afpDesc - saludDeducible - ces.trabajador);
   const impuesto        = calcularImpuesto(rentaTributable);
 
   // Otros descuentos (anticipo, créditos, etc.)
@@ -432,9 +465,9 @@ export const calcularLiquidacion = (datos) => {
   const totalDescuentos = afpDesc + saludDesc + ces.trabajador + impuesto + totalOtrosDesc;
   const liquidoAPagar   = Math.max(0, totalHaberes - totalDescuentos);
 
-  // ── Aportes patronales (cargo empresa, no se descuentan del trabajador) ────
-  const sis              = Math.round(rentaImponible * 0.015);  // SIS AFP
-  const mutual           = Math.round(rentaImponible * 0.0093); // Mutual de Seguridad ~0.93%
+  // ── Aportes patronales (cargo empresa, sobre bases topadas) ────────────────
+  const sis              = Math.round(baseAfpSalud * (ind.sis_tasa || 0.0162));
+  const mutual           = Math.round(baseAfpSalud * (ind.mutual_base || 0.0093));
   const aportesEmpleador = ces.empleador + sis + mutual;
   const costoEmpresa     = totalHaberes + aportesEmpleador;
   // PREVIRED total = descuentos trabajador + aportes empleador
@@ -445,14 +478,23 @@ export const calcularLiquidacion = (datos) => {
     montoHorasExtra,
     valorHoraExtra,
     gratificacion,
+    baseGratificacion,
+    topeGratificacion,
     rentaImponible,
     bonosImponibles,
     bonosNoImponibles,
     totalHaberes,
     afp_descuento:        afpDesc,
-    salud_descuento:      saludDesc,
+    salud_descuento:      saludDesc,   // total (7% + adicional)
+    salud_7:              salud7,
+    salud_adicional:      saludAdicional,
+    isapre_uf:            (isapreTipo === 'UF' ? isapreMontoUF : 0),
     cesantia_trabajador:  ces.trabajador,
     cesantia_empleador:   ces.empleador,
+    baseAfpSalud,
+    baseCesantia,
+    topeAfpSalud,
+    topeCesantia,
     rentaTributable,
     impuesto,
     totalOtrosDesc,
@@ -858,9 +900,24 @@ const useRrhhStore = defineStore("rrhh", {
     async createLiquidacion(datos) {
       this.loading = true;
       const calculos = calcularLiquidacion(datos);
+      // Normalizar claves camelCase del motor a las snake_case del modelo,
+      // para que el desglose completo persista también en creación individual.
+      const norm = {
+        renta_imponible:     calculos.rentaImponible,
+        renta_tributable:    calculos.rentaTributable,
+        sueldo_proporcional: calculos.sueldoProporcional,
+        monto_horas_extra:   calculos.montoHorasExtra,
+        bonos_imponibles:    calculos.bonosImponibles,
+        bonos_no_imponibles: calculos.bonosNoImponibles,
+        total_haberes:       calculos.totalHaberes,
+        total_descuentos:    calculos.totalDescuentos,
+        liquido_a_pagar:     calculos.liquidoAPagar,
+        costo_empresa:       calculos.costoEmpresa,
+      };
       const nueva = {
         ...datos,
         ...calculos,
+        ...norm,
         _id:   datos._id || this._lsId("liq"),
         orgId: datos.orgId || this.currentOrgId || null,
         estado: datos.estado || "pendiente",

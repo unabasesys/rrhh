@@ -61,8 +61,19 @@ export async function buildLiquidacionPdfBody(liquidacionId) {
 
   // ── Descuentos legales ──────────────────────────────────────────────────
   const descLegales = []
-  if (liq.afp_descuento)        descLegales.push({ nombre: 'AFP',                monto: fmtClp(liq.afp_descuento) })
-  if (liq.salud_descuento)      descLegales.push({ nombre: 'Salud',              monto: fmtClp(liq.salud_descuento) })
+  if (liq.afp_descuento) descLegales.push({ nombre: 'AFP', monto: fmtClp(liq.afp_descuento) })
+  // Salud: mostrar 7% obligatorio y adicional (plan Isapre en UF) por separado.
+  const salud7   = Number(liq.salud_7 || 0)
+  const saludAdi = Number(liq.salud_adicional ?? liq.isapre_adicional ?? 0)
+  if (salud7 > 0 || saludAdi > 0) {
+    descLegales.push({ nombre: 'Salud 7%', monto: fmtClp(salud7 || (Number(liq.salud_descuento || 0) - saludAdi)) })
+    if (saludAdi > 0) {
+      const ufTxt = liq.isapre_uf ? ` (${Number(liq.isapre_uf).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} UF)` : ''
+      descLegales.push({ nombre: `Salud Adicional${ufTxt}`, monto: fmtClp(saludAdi) })
+    }
+  } else if (liq.salud_descuento) {
+    descLegales.push({ nombre: 'Salud', monto: fmtClp(liq.salud_descuento) })
+  }
   if (liq.cesantia_trabajador)  descLegales.push({ nombre: 'Seguro Cesantía',    monto: fmtClp(liq.cesantia_trabajador) })
   if (liq.impuesto)             descLegales.push({ nombre: 'Imp. Único 2ª Cat.', monto: fmtClp(liq.impuesto) })
 
