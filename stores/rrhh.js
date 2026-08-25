@@ -222,36 +222,43 @@ export const calcularLiquidacion = (datos) => {
     // Cotizaciones — por defecto la empresa descuenta AFP/salud por planilla.
     // Si el socio marca que las cotiza voluntariamente en Previred con su RUT
     // personal (flags activos), entonces la empresa NO descuenta esos montos.
+    const ind  = _getIndicadores();
+    const UF   = ind.uf_actual || 40844.79;
     const afpComision  = getAfpComision(afp);
     const rentaImpon   = sueldoMes + bonosImpor;
 
-    const afpDesc      = datos.cotiza_afp_voluntaria
-      ? 0 : calcularAFP(rentaImpon, afpComision);
-    const saludDesc    = datos.cotiza_salud_voluntaria
-      ? 0 : calcularSalud(rentaImpon, 0.07);
+    // Tope imponible AFP/salud (90 UF): las cotizaciones del socio también
+    // están afectas al tope previsional.
+    const topeAS       = ind.tope_afp || Math.round(90 * UF);
+    const baseAS       = Math.min(rentaImpon, topeAS);
 
-    // ── Isapre sobre 7% (UF excedente) ──────────────────────────────────────
-    // Si el plan pactado en UF supera el 7% del imponible, el cotizante paga
-    // la diferencia. Fórmula: max(0, UF_plan × UF_actual − 7% × imponible)
-    const ind  = _getIndicadores();
+    const afpDesc      = datos.cotiza_afp_voluntaria
+      ? 0 : calcularAFP(baseAS, afpComision);
+    // Salud 7% obligatorio sobre base topada
+    const salud7       = datos.cotiza_salud_voluntaria
+      ? 0 : Math.round(baseAS * 0.07);
+
+    // ── Salud adicional (plan Isapre pactado en UF, sobre el 7%) ────────────
     const trabIsapreTipo  = datos.trabajador?.isapre_tipo || datos.isapre_tipo;
     const trabIsapreMonto = Number(datos.trabajador?.isapre_monto ?? datos.trabajador?.isapre_uf ?? datos.isapre_monto ?? 0);
     let isapreAdicional = 0;
-    if (!datos.cotiza_salud_voluntaria && trabIsapreTipo === 'UF' && trabIsapreMonto > 0 && ind.uf_actual) {
-      const planCLP = trabIsapreMonto * ind.uf_actual;
-      isapreAdicional = Math.max(0, Math.round(planCLP - saludDesc));
+    if (!datos.cotiza_salud_voluntaria && trabIsapreTipo === 'UF' && trabIsapreMonto > 0) {
+      const planCLP = Math.round(trabIsapreMonto * UF);
+      isapreAdicional = Math.max(0, planCLP - salud7);
     }
+    // Total salud efectivamente descontado (plan completo)
+    const saludDesc = salud7 + isapreAdicional;
 
     // ── Cargos patronales que el socio asume en Sueldo Empresarial ──────────
     // En este régimen el socio paga los cargos del empleador (SIS, Seguro
     // Social/Expectativa de Vida, Capitalización Individual Patronal) por
     // su cuenta. Aparecen en la liquidación como descuentos del bruto.
     const sisDesc             = datos.cotiza_afp_voluntaria
-      ? 0 : Math.round(rentaImpon * (ind.sis_tasa || 0.0162));
+      ? 0 : Math.round(baseAS * (ind.sis_tasa || 0.0162));
     const expectativaVidaDesc = datos.cotiza_afp_voluntaria
-      ? 0 : Math.round(rentaImpon * (ind.expectativa_vida_tasa || 0.009));
+      ? 0 : Math.round(baseAS * (ind.expectativa_vida_tasa || 0.009));
     const capPatronalDesc     = datos.cotiza_afp_voluntaria
-      ? 0 : Math.round(rentaImpon * (ind.cap_individual_patronal || 0.001));
+      ? 0 : Math.round(baseAS * (ind.cap_individual_patronal || 0.001));
 
     // ── Renta tributable y IUSC ─────────────────────────────────────────────
     // Solo los descuentos legales del trabajador reducen renta tributable:
@@ -260,7 +267,8 @@ export const calcularLiquidacion = (datos) => {
     // patronales que el socio asume — NO reducen renta tributable.
     // (En sueldo empresarial cesantía_trabajador = 0 por no haber relación
     // laboral subordinada.)
-    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDesc - isapreAdicional);
+    const saludDeducible = (rentaImpon <= topeAS) ? saludDesc : salud7;
+    const rentaTrib    = Math.max(0, rentaImpon - afpDesc - saludDeducible);
     const impuesto     = calcularImpuesto(rentaTrib);   // IUSC mensual → F29
 
     const totalHaberes    = sueldoMes + bonosImpor + bonosNoImp;
@@ -284,7 +292,10 @@ export const calcularLiquidacion = (datos) => {
       totalHaberes,
       afp_descuento:      afpDesc,
       salud_descuento:    saludDesc,
+      salud_7:            salud7,
+      salud_adicional:    isapreAdicional,
       isapre_adicional:   isapreAdicional,
+      isapre_uf:          (trabIsapreTipo === 'UF' ? trabIsapreMonto : 0),
       sis_descuento:           sisDesc,
       expectativa_vida_desc:   expectativaVidaDesc,
       cap_patronal_desc:       capPatronalDesc,
