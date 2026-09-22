@@ -16,6 +16,14 @@ const DEFAULTS = {
   fuente:         'https://www.previred.com/indicadores-previsionales/',
   actualizado:    '2026-07-25',
 
+  // ── Metadatos de la sincronización automática (los llena el servidor) ──────
+  // Deben existir aquí aunque vengan vacíos: Pinia solo expone en el store las
+  // claves declaradas en el state inicial, y sin ellas la página no vería la
+  // fecha del último sync.
+  sync_fecha:     null,        // ISO del último sync server-side
+  sync_fuente:    null,        // 'mindicador.cl'
+  utm_fecha:      '',          // fecha legible de la UTM vigente
+
   // ── Unidades de valor ──────────────────────────────────────────────────────
   uf_actual:      40844.79,    // UF al 31 de Julio 2026
   uf_fecha:       '31 de Julio 2026',
@@ -26,8 +34,12 @@ const DEFAULTS = {
   smm:            553553,      // Sueldo Mínimo Mensual (renta mínima imponible)
 
   // ── Rentas topes imponibles ────────────────────────────────────────────────
-  tope_afp:       3676031,     // 90 UF
-  tope_ips:       2449219,     // 60 UF (ex INP)
+  // Los valores en pesos se derivan de la base en UF × UF vigente (auto-sync).
+  tope_afp_uf:      90,        // tope AFP/salud en UF
+  tope_ips_uf:      60,        // tope IPS (ex INP) en UF
+  tope_cesantia_uf: 135.2,     // tope seguro de cesantía en UF
+  tope_afp:       3676031,     // 90 UF (recalculado con la UF vigente)
+  tope_ips:       2449219,     // 60 UF
   tope_cesantia:  5522216,     // 135,2 UF
 
   // ── Rentas mínimas imponibles ──────────────────────────────────────────────
@@ -195,6 +207,44 @@ export const useIndicadoresStore = defineStore('indicadores', {
           this._persist()
         }
       } catch (_) {}
+      // Refrescar desde el servidor (UF/UTM/topes auto-sincronizados)
+      this.syncFromServer()
+    },
+
+    // Trae los indicadores vigentes del servidor (fuente de verdad, con UF/UTM
+    // auto-actualizadas). Cae en silencio a los valores locales si falla.
+    async syncFromServer() {
+      if (!import.meta.client) return
+      try {
+        let headers = {}
+        try {
+          const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+          if (s?.token) headers = { Authorization: `Bearer ${s.token}` }
+        } catch (_) {}
+        const data = await $fetch('/api/rrhh/indicadores', { headers })
+        if (data && data.uf_actual) {
+          Object.assign(this.$state, data)
+          this._persist()
+        }
+      } catch (_) { /* offline / sin sesión: seguimos con lo local */ }
+    },
+
+    // Fuerza la sincronización en el servidor (UF/UTM desde mindicador.cl y
+    // topes imponibles recalculados sobre su base en UF) y deja el resultado
+    // en el store. Requiere rol manager/admin: si falla, propaga el error para
+    // que la página pueda mostrarlo.
+    async actualizarDesdePrevired() {
+      let headers = {}
+      try {
+        const s = JSON.parse(localStorage.getItem('rrhh_session') || '{}')
+        if (s?.token) headers = { Authorization: `Bearer ${s.token}` }
+      } catch (_) {}
+      const r = await $fetch('/api/rrhh/indicadores/sync', { method: 'POST', headers })
+      if (r?.indicadores) {
+        Object.assign(this.$state, r.indicadores)
+        this._persist()
+      }
+      return r
     },
   },
 })

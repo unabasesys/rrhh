@@ -18,6 +18,14 @@
           </a>
           <span class="ind-fuente-fecha">Actualizado {{ fechaActualizacion }}</span>
         </div>
+        <div v-if="puedeSincronizar" class="ind-sync">
+          <button class="ind-sync-btn" :disabled="sincronizando" @click="sincronizarPrevired">
+            <i class="u u-rotate" :class="{ 'is-spinning': sincronizando }" style="font-size:11px"></i>
+            {{ sincronizando ? 'Actualizando…' : 'Actualizar indicadores previsionales' }}
+          </button>
+          <span v-if="syncMsg" class="ind-sync-msg" :class="syncOk ? 'ok' : 'err'">{{ syncMsg }}</span>
+          <span v-else-if="ultimaSync" class="ind-sync-last">Sincronizado {{ ultimaSync }}</span>
+        </div>
         <div v-if="alertaSIS" class="ind-alerta-sis">
           <i class="u u-info-circle"></i>
           {{ alertaSIS }}
@@ -258,13 +266,54 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { useIndicadoresStore } from '@/stores/indicadores'
 
 definePageMeta({ name: 'rrhh-indicadores', layout: 'rrhh', middleware: ['auth'] })
 
 const ind = useIndicadoresStore()
-onMounted(() => ind.initIfEmpty())
+const rolSesion = ref('')
+onMounted(() => {
+  ind.initIfEmpty()
+  try { rolSesion.value = JSON.parse(localStorage.getItem('rrhh_session') || '{}').rol || '' } catch (_) {}
+})
+
+// ── Sincronización manual desde el header ──────────────────────────────────
+// El servidor refresca solo cada 12 h; este botón fuerza la actualización
+// cuando Previred publica los indicadores del mes y no se quiere esperar.
+// El endpoint exige rol manager/admin, así que el viewer no ve el botón. El
+// login con Google no cachea el rol en la sesión: si viene vacío se muestra
+// igual (a /rrhh/* no entran viewers) y el servidor sigue siendo el guardia.
+const puedeSincronizar = computed(() => rolSesion.value !== 'viewer')
+const sincronizando = ref(false)
+const syncMsg = ref('')
+const syncOk  = ref(true)
+
+const ultimaSync = computed(() => {
+  if (!ind.sync_fecha) return ''
+  const d = new Date(ind.sync_fecha)
+  if (isNaN(d)) return ''
+  return d.toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+})
+
+async function sincronizarPrevired() {
+  if (sincronizando.value) return
+  sincronizando.value = true
+  syncMsg.value = ''
+  try {
+    const r = await ind.actualizarDesdePrevired()
+    syncOk.value = true
+    syncMsg.value = r?.changed
+      ? `Actualizado · UF ${formatCLP(r.uf)} · UTM ${formatCLP(r.utm)}`
+      : 'Ya estaba al día'
+  } catch (e) {
+    syncOk.value = false
+    syncMsg.value = e?.data?.message || e?.message || 'No se pudo sincronizar'
+  } finally {
+    sincronizando.value = false
+    setTimeout(() => { syncMsg.value = '' }, 8000)
+  }
+}
 
 // ── Período ────────────────────────────────────────────────────────────────
 const periodoLabel       = computed(() => ind.periodo)
@@ -419,6 +468,38 @@ function pctRI(v) { return v != null ? (v * 100).toFixed(1).replace('.', ',') + 
 .ind-fuente-link  { color: #0ea5e9; text-decoration: none; font-weight: 600; }
 .ind-fuente-link:hover { text-decoration: underline; }
 .ind-fuente-fecha { color: #4b5563; }
+.ind-sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ind-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0ea5e9;
+  background: rgba(14,165,233,0.08);
+  border: 1px solid rgba(14,165,233,0.25);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ind-sync-btn:hover:not(:disabled) {
+  background: rgba(14,165,233,0.16);
+  border-color: rgba(14,165,233,0.45);
+}
+.ind-sync-btn:disabled { opacity: 0.6; cursor: default; }
+.ind-sync-btn .is-spinning { animation: ind-spin 0.9s linear infinite; }
+@keyframes ind-spin { to { transform: rotate(360deg); } }
+.ind-sync-msg { font-size: 11px; }
+.ind-sync-msg.ok  { color: #22c55e; }
+.ind-sync-msg.err { color: #ef4444; }
+.ind-sync-last { font-size: 11px; color: #4b5563; }
 .ind-alerta-sis {
   display: flex;
   align-items: center;
