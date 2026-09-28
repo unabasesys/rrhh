@@ -186,8 +186,9 @@ async function onGoogleCredential(response) {
       token:        data.token,
       expires:      data.expires,
       currentOrgId: data.currentOrgId || null,
+      rol:          data.user?.rol || null,
     }))
-    router.replace(route.query.redirect || '/rrhh/home')
+    entrar(data.user?.rol)
   } catch (e) {
     errors.global = e?.data?.message || 'No se pudo iniciar sesión con Google'
   } finally {
@@ -237,6 +238,22 @@ onMounted(async () => {
 
 onUnmounted(() => clearInterval(slideTimer))
 
+/**
+ * Entrar con una carga COMPLETA de la página, no con el router: los stores
+ * de Pinia sobreviven a la navegación interna, y el de organizaciones queda
+ * `initialized` con la lista de la cuenta anterior. Así una cuenta nueva
+ * (que solo tiene la Empresa DEMO) aparecía parada en "unabase Spa".
+ * El redirect solo se acepta como ruta interna, para no abrir un salto a
+ * otro sitio.
+ */
+function entrar(rol) {
+  // El trabajador (viewer) va a su portal; el módulo de RRHH no es para él.
+  if (rol === 'viewer') return window.location.assign('/portal/mi-perfil')
+  const r = String(route.query.redirect || '')
+  const destino = r.startsWith('/') && !r.startsWith('//') ? r : '/rrhh/home'
+  window.location.assign(destino)
+}
+
 async function handleLogin() {
   errors.email = ''; errors.password = ''; errors.global = ''
   if (!form.email.trim())    { errors.email    = 'Ingresa tu correo';     return }
@@ -244,7 +261,7 @@ async function handleLogin() {
   loading.value = true
   try {
     const result = await authStore.login(form.email.trim().toLowerCase(), form.password, form.remember)
-    if (result.ok) router.replace(route.query.redirect || '/rrhh/home')
+    if (result.ok) entrar(authStore.user?.rol)
     else errors.global = result.message || 'Credenciales incorrectas'
   } catch {
     errors.global = 'Error inesperado. Intenta de nuevo.'

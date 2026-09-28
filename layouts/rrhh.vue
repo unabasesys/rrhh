@@ -711,7 +711,10 @@ onUnmounted(() => {
 
     <!-- Onboarding wizard: storage scopado por usuario para que cada cuenta
          nueva vea el tour la primera vez -->
-    <OnboardingWizard :storage-key="`rrhh_wizard_done_${currentUser?._id || 'anon'}`" />
+    <!-- Se monta recién cuando se sabe quién entró: montado antes, leía la
+         marca "rrhh_wizard_done_anon", que la primera persona que cerraba el
+         tour dejaba puesta para TODAS las cuentas de ese navegador. -->
+    <OnboardingWizard v-if="currentUser?._id" :key="currentUser._id" :storage-key="`rrhh_wizard_done_${currentUser._id}`" />
 
     <!-- Modal: Crear nueva empresa ─────────────────────────────────── -->
     <div v-if="showNewOrgModal" class="modal-overlay" @click.self="showNewOrgModal = false">

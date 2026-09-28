@@ -105,9 +105,11 @@ async function handleRegister() {
       token:        data.token,
       expires:      data.expires,
       currentOrgId: data.currentOrgId || null,
+      rol:          data.user?.rol || null,
     }))
-    // Llevar al home
-    router.replace('/rrhh/home')
+    // Llevar al home con carga completa: los stores en memoria podrían
+    // traer las organizaciones de una cuenta anterior del mismo navegador.
+    window.location.assign('/rrhh/home')
   } catch (e) {
     error.value = e?.data?.message || e?.message || 'No se pudo crear la cuenta'
   } finally {

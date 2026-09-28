@@ -12,6 +12,7 @@
 import { requireDb, newId } from '../../utils/db.js'
 import User from '../../models/User.js'
 import Organization from '../../models/Organization.js'
+import { exigirQueNoSeaTrabajador } from '../../utils/reglasAcceso.js'
 
 async function hashPassword(password) {
   const msgBuffer = new TextEncoder().encode(password)
@@ -51,6 +52,9 @@ export default defineEventHandler(async (event) => {
   if (existing) {
     throw createError({ statusCode: 409, message: 'Ya existe una cuenta con este email' })
   }
+
+  // Un trabajador de una empresa real sin acceso no se auto-registra
+  await exigirQueNoSeaTrabajador(email)
 
   // Org demo para que el usuario entre con datos pre-cargados
   const demoOrg = await Organization.findOne({ nombre: /^Empresa DEMO SPA$/i }).lean()

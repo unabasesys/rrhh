@@ -91,13 +91,23 @@ export const useAuthStore = defineStore('auth', {
     async init() {
       if (!import.meta.client) return
 
-      // Si ya hay sesión en memoria, no hacer nada
+      const raw = localStorage.getItem(LS_SESSION)
+
+      // Si ya hay sesión en memoria y es la MISMA que la guardada, no hacer
+      // nada. Si la guardada cambió (otra cuenta entró) o ya no está, la de
+      // memoria es de otra persona y se descarta.
       if (this.user && this.token) {
-        this.initialized = true
-        return
+        let guardado = null
+        try { guardado = raw ? JSON.parse(raw).token : null } catch {}
+        if (guardado === this.token) {
+          this.initialized = true
+          return
+        }
+        this.user = null
+        this.token = null
+        this.currentOrgId = null
       }
 
-      const raw = localStorage.getItem(LS_SESSION)
       if (!raw) {
         this.initialized = true
         return
@@ -198,6 +208,12 @@ export const useAuthStore = defineStore('auth', {
       this.user         = null
       this.token        = null
       this.currentOrgId = null
+      // Carga completa, no navigateTo: así se vacían TODOS los stores (orgs,
+      // trabajadores, contratos) y la próxima cuenta no hereda la org de esta.
+      if (typeof window !== 'undefined') {
+        window.location.assign('/login')
+        return
+      }
       return navigateTo('/login')
     },
 

@@ -4,6 +4,7 @@
  */
 import { requireDb } from '../../utils/db.js'
 import User from '../../models/User.js'
+import { exigirAccesoViewer } from '../../utils/reglasAcceso.js'
 
 async function hashPassword(password) {
   const msgBuffer = new TextEncoder().encode(password)
@@ -41,6 +42,7 @@ export default defineEventHandler(async (event) => {
   if (hash !== user.passwordHash) {
     throw createError({ statusCode: 401, message: 'Contraseña incorrecta' })
   }
+  exigirAccesoViewer(user)
 
   // Generar token y guardarlo en el usuario
   const token        = generateToken()

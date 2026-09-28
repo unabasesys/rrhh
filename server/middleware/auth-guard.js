@@ -27,6 +27,11 @@ const PROTECTED = [
   '/api/auth/wizard-complete',
 ]
 
+// Lo único de /api/rrhh/* que un viewer (trabajador) puede consultar
+const VIEWER_OK = [
+  '/api/rrhh/billing/status',
+]
+
 // Excepciones públicas (evaluadas dentro del set protegido)
 const PUBLIC = [
   '/api/rrhh/billing/webhook/',
@@ -48,4 +53,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'No autenticado' })
   }
   event.context.authUser = user
+
+  // El trabajador (viewer) usa solo su portal (/api/portal/*): el módulo de
+  // RRHH trae sueldos, contratos y liquidaciones de TODA la empresa. Único
+  // endpoint que el portal consulta acá: el aviso de pago pendiente.
+  if (user.rol === 'viewer' && path.startsWith('/api/rrhh/') && !VIEWER_OK.some(p => path.startsWith(p))) {
+    throw createError({ statusCode: 403, message: 'Sin acceso al módulo de RRHH' })
+  }
 })

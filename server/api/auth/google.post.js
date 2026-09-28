@@ -21,6 +21,7 @@
 import { requireDb, newId } from '../../utils/db.js'
 import User from '../../models/User.js'
 import Organization from '../../models/Organization.js'
+import { exigirQueNoSeaTrabajador, exigirAccesoViewer } from '../../utils/reglasAcceso.js'
 import { OAuth2Client } from 'google-auth-library'
 
 function generateToken() {
@@ -67,6 +68,8 @@ export default defineEventHandler(async (event) => {
   let user = await User.findOne({ email })
   let creado = false
   if (!user) {
+    // Un trabajador de una empresa real sin acceso no se auto-registra
+    await exigirQueNoSeaTrabajador(email)
     creado = true
     const demoOrg = await Organization.findOne({ nombre: /^Empresa DEMO SPA$/i }).lean()
     user = new User({
@@ -90,6 +93,7 @@ export default defineEventHandler(async (event) => {
     if (!user.activo) {
       throw createError({ statusCode: 403, message: 'Usuario desactivado' })
     }
+    exigirAccesoViewer(user)
   }
 
   // Generar token y persistir
