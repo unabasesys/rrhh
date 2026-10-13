@@ -6,15 +6,15 @@
  */
 import { defineStore } from 'pinia'
 
-// ── Indicadores por defecto: Remuneraciones Julio 2026 ────────────────────────
+// ── Indicadores por defecto: Remuneraciones Septiembre 2026 ───────────────────
 // Fuente: https://www.previred.com/indicadores-previsionales/
-// Vigencia: cotizaciones a pagar en Agosto 2026
-// Verificado el 2026-07-25 con Previred Julio 2026.
+// Vigencia: cotizaciones a pagar en Octubre 2026
+// Verificado el 2026-10-12 con Previred Septiembre 2026.
 const DEFAULTS = {
-  periodo:        'Julio 2026',
-  pago:           'Agosto 2026',
+  periodo:        'Septiembre 2026',
+  pago:           'Octubre 2026',
   fuente:         'https://www.previred.com/indicadores-previsionales/',
-  actualizado:    '2026-07-25',
+  actualizado:    '2026-10-12',
 
   // ── Metadatos de la sincronización automática (los llena el servidor) ──────
   // Deben existir aquí aunque vengan vacíos: Pinia solo expone en el store las
@@ -25,12 +25,12 @@ const DEFAULTS = {
   utm_fecha:      '',          // fecha legible de la UTM vigente
 
   // ── Unidades de valor ──────────────────────────────────────────────────────
-  uf_actual:      40844.79,    // UF al 31 de Julio 2026
-  uf_fecha:       '31 de Julio 2026',
-  uf_anterior:    40820.31,    // UF al 30 de Junio 2026
-  uf_fecha_ant:   '30 de Junio 2026',
-  utm:            71649,       // UTM Julio 2026
-  uta:            859788,      // UTA Julio 2026
+  uf_actual:      41057.20,    // UF al 30 de Septiembre 2026
+  uf_fecha:       '30 de Septiembre 2026',
+  uf_anterior:    40873.77,    // UF al 31 de Agosto 2026
+  uf_fecha_ant:   '31 de Agosto 2026',
+  utm:            71721,       // UTM Septiembre 2026
+  uta:            860652,      // UTA Septiembre 2026
   smm:            553553,      // Sueldo Mínimo Mensual (renta mínima imponible)
 
   // ── Rentas topes imponibles ────────────────────────────────────────────────
@@ -38,9 +38,9 @@ const DEFAULTS = {
   tope_afp_uf:      90,        // tope AFP/salud en UF
   tope_ips_uf:      60,        // tope IPS (ex INP) en UF
   tope_cesantia_uf: 135.2,     // tope seguro de cesantía en UF
-  tope_afp:       3676031,     // 90 UF (recalculado con la UF vigente)
-  tope_ips:       2449219,     // 60 UF
-  tope_cesantia:  5522216,     // 135,2 UF
+  tope_afp:       3695148,     // 90 UF (recalculado con la UF vigente)
+  tope_ips:       2452426,     // 60 UF
+  tope_cesantia:  5550933,     // 135,2 UF
 
   // ── Rentas mínimas imponibles ──────────────────────────────────────────────
   renta_min_dependiente: 553553,
@@ -49,14 +49,14 @@ const DEFAULTS = {
   renta_min_no_remun:    356815,
 
   // ── SIS (Seguro de Invalidez y Sobrevivencia) ──────────────────────────────
-  // Oficio Ordinario N° 7429, publicado 14-04-2026
-  sis_tasa:       0.0162,      // 1,62% cargo empleador (Superintendencia de Pensiones)
+  // Tasa vigente según Previred Septiembre 2026
+  sis_tasa:       0.0178,      // 1,78% cargo empleador (Superintendencia de Pensiones)
 
   // ── Otros cargos patronales (cuenta del empleador) ─────────────────────────
   // Aplican normalmente como costo del empleador. En el régimen Sueldo
   // Empresarial los paga el propio socio (asume rol patronal).
   // Fuentes: Previred / IPS / ChileAtiende
-  expectativa_vida_tasa:   0.009,   // 0,9% — Seguro Social / Expectativa de Vida
+  expectativa_vida_tasa:   0.0162,  // 1,62% — Seguro Social total (0,90% Rentabilidad Protegida + 0,72% Expectativa de Vida)
   cap_individual_patronal: 0.001,   // 0,1% — Capitalización Individual Patronal
 
   // ── Salud ──────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ const DEFAULTS = {
 
   // ── AFP: tasas de comisión ─────────────────────────────────────────────────
   // Tasa total dependiente = 10% (jubilación) + comisión AFP
-  // SIS (1,62%) es cargo del empleador, NO va en el descuento al trabajador
+  // SIS (1,78%) es cargo del empleador, NO va en el descuento al trabajador
   afp: [
     { nombre: 'AFP Capital',    key: 'capital',   comision: 0.0144, trabajador_total: 0.1144, empleador_sis: 0.001 },
     { nombre: 'AFP Cuprum',     key: 'cuprum',    comision: 0.0144, trabajador_total: 0.1144, empleador_sis: 0.001 },
@@ -93,9 +93,9 @@ const DEFAULTS = {
   },
 
   // ── APV ───────────────────────────────────────────────────────────────────
-  apv_tope_mensual:      2042240,  // 50 UF
-  apv_tope_anual:       24506874,  // 600 UF
-  deposito_convenido:   36760311,  // 900 UF
+  apv_tope_mensual:      2052860,  // 50 UF
+  apv_tope_anual:       24634320,  // 600 UF
+  deposito_convenido:   36951480,  // 900 UF
 
   // ── Asignación familiar ────────────────────────────────────────────────────
   asignacion_familiar: [
