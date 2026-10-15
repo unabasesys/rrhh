@@ -24,11 +24,12 @@ export default defineNuxtConfig({
       // env para no hardcodearlo; con fallback al workspace actual.
       intercomAppId:  process.env.INTERCOM_APP_ID || 'a1lqqu05',
       // Candado de emergencia: bloquea TODA la app (incluso con sesión activa) y
-      // muestra /mantenimiento (middleware/maintenance.global.js). ENCENDIDO por
-      // defecto mientras se migra la base de datos a producción (mismo patrón
-      // que Calendar y Relations) — se apaga seteando MAINTENANCE_MODE=false
-      // cuando la migración termine.
-      maintenanceMode: process.env.MAINTENANCE_MODE !== 'false',
+      // muestra /mantenimiento (middleware/maintenance.global.js). Estuvo
+      // ENCENDIDO por defecto mientras se migraba la base de datos a
+      // producción (completado); ahora default APAGADO — se prende seteando
+      // MAINTENANCE_MODE=true en el hosting si hace falta otra ventana de
+      // mantenimiento más adelante. Mismo mecanismo que Calendar y Relations.
+      maintenanceMode: process.env.MAINTENANCE_MODE === 'true',
     },
   },
 
