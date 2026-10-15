@@ -2,6 +2,14 @@
 export default defineNuxtConfig({
   devtools: { enabled: false },
 
+  // Client-only a propósito: la sesión vive en localStorage (middleware/auth.js
+  // solo corre en el cliente), así que con SSR el servidor renderizaba la
+  // pantalla protegida completa y recién en la hidratación el middleware
+  // redirigía a /login — un flash del contenido interno antes del login,
+  // más visible en mobile por la hidratación más lenta. Mismo motivo que
+  // Calendar y Relations, que ya corren client-only.
+  ssr: false,
+
   runtimeConfig: {
     // Variables privadas (solo servidor)
     mongodbUri: process.env.MONGODB_URI || '',
@@ -15,6 +23,12 @@ export default defineNuxtConfig({
       // Intercom: el app_id es público (viaja al cliente). Configurable por
       // env para no hardcodearlo; con fallback al workspace actual.
       intercomAppId:  process.env.INTERCOM_APP_ID || 'a1lqqu05',
+      // Candado de emergencia: bloquea TODA la app (incluso con sesión activa) y
+      // muestra /mantenimiento (middleware/maintenance.global.js). ENCENDIDO por
+      // defecto mientras se migra la base de datos a producción (mismo patrón
+      // que Calendar y Relations) — se apaga seteando MAINTENANCE_MODE=false
+      // cuando la migración termine.
+      maintenanceMode: process.env.MAINTENANCE_MODE !== 'false',
     },
   },
 
@@ -42,7 +56,6 @@ export default defineNuxtConfig({
   ],
 
   devServer: {
-    host: '0.0.0.0',
     port: Number(process.env.PORT) || 3005,
   },
 
