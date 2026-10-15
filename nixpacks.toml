@@ -1,5 +1,8 @@
 [phases.install]
-cmds = ["npm install -g pnpm@12.5.1 --no-audit --no-fund", "pnpm install --frozen-lockfile"]
+# --prod=false es obligatorio: `nuxt` vive en devDependencies y pnpm respeta
+# NODE_ENV=production (seteado en railway.toml) saltándolas, lo que rompe el
+# build con "nuxt: not found" (confirmado en Tasks, mismo setup).
+cmds = ["npm install -g pnpm@12.5.1 --no-audit --no-fund", "pnpm install --frozen-lockfile --prod=false"]
 
 [phases.build]
 cmds = ["pnpm run build"]
